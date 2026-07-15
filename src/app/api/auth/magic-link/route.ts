@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createMagicLink } from '@/lib/auth'
-import { sendMagicLinkEmail } from '@/lib/email'
+import { sendMagicLinkEmail, isEmailConfigured } from '@/lib/email'
 import { MagicLinkSchema } from '@/types'
 import { rateLimit, getClientIP } from '@/lib/rate-limit'
 import { buildVerifyUrl } from '@/lib/utils'
@@ -50,8 +50,8 @@ export async function POST(request: NextRequest) {
 
     const token = await createMagicLink(email)
 
-    // If Resend is configured, send the email normally
-    if (process.env.RESEND_API_KEY) {
+    // If an email provider (Postmark) is configured, send the email normally
+    if (isEmailConfigured()) {
       const emailResult = await sendMagicLinkEmail(email, token, redirect)
 
       if (!emailResult.success) {
@@ -77,7 +77,7 @@ export async function POST(request: NextRequest) {
 
     if (!directModeAllowed) {
       console.error(
-        'Magic link requested but RESEND_API_KEY is not configured in production. Refusing to return the link directly.'
+        'Magic link requested but POSTMARK_SERVER_TOKEN is not configured in production. Refusing to return the link directly.'
       )
       return NextResponse.json(
         {
