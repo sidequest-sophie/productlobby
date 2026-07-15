@@ -273,7 +273,7 @@ export const PowerUpsComponent: React.FC<PowerUpsComponentProps> = ({
                     disabled={
                       !canAfford || isActive || usingPowerUp === powerUp.id || loading
                     }
-                    variant={isActive ? 'outline' : canAfford ? 'default' : 'ghost'}
+                    variant={isActive ? 'outline' : canAfford ? 'primary' : 'ghost'}
                     className={cn(
                       isActive && 'text-blue-600 border-blue-300 cursor-default'
                     )}

@@ -31,14 +31,6 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    // In a real implementation, you would:
-    // 1. Look up the code from a temporary storage (Redis, short-lived DB record)
-    // 2. Verify it matches and hasn't expired
-    // 3. Mark as verified
-
-    // For MVP, we'll accept any code and mark as verified
-    // In production, implement proper code storage and validation
-
     // Find the verification record
     const verification = await prisma.brandVerification.findFirst({
       where: {
@@ -54,9 +46,16 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    // In production: validate code from temporary storage
-    // For MVP: mark as verified when code is provided
-    if (!code || code.length < 4) {
+    if (verification.status === 'VERIFIED') {
+      return NextResponse.json(
+        { success: false, error: 'This verification has already been completed' },
+        { status: 400 }
+      )
+    }
+
+    // Compare the submitted code against the code that was actually generated
+    // and stored when the claim was initiated (src/app/api/brand/claim/route.ts).
+    if (!verification.code || code !== verification.code) {
       return NextResponse.json(
         { success: false, error: 'Invalid verification code' },
         { status: 400 }

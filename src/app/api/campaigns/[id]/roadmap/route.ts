@@ -7,6 +7,7 @@
  */
 
 import { NextRequest, NextResponse } from 'next/server'
+import { Prisma } from '@prisma/client'
 import { prisma } from '@/lib/db'
 import { getCurrentUser } from '@/lib/auth'
 
@@ -39,7 +40,7 @@ export async function GET(request: NextRequest, { params }: MilestoneParams) {
       where: isUuid ? { id } : { slug: id },
       select: {
         id: true,
-        creatorId: true,
+        creatorUserId: true,
       },
     })
 
@@ -73,7 +74,7 @@ export async function GET(request: NextRequest, { params }: MilestoneParams) {
 
     // Format milestones
     const formattedMilestones = milestoneEvents.map((event) => {
-      const metadata = event.metadata as RoadmapMilestoneMetadata
+      const metadata = event.metadata as unknown as RoadmapMilestoneMetadata
 
       return {
         id: event.id,
@@ -125,7 +126,7 @@ export async function POST(request: NextRequest, { params }: MilestoneParams) {
       where: isUuid ? { id } : { slug: id },
       select: {
         id: true,
-        creatorId: true,
+        creatorUserId: true,
       },
     })
 
@@ -137,7 +138,7 @@ export async function POST(request: NextRequest, { params }: MilestoneParams) {
     }
 
     // Only campaign creator can add milestones
-    if (campaign.creatorId !== user.id) {
+    if (campaign.creatorUserId !== user.id) {
       return NextResponse.json(
         { success: false, error: 'Only campaign creator can add milestones' },
         { status: 403 }
@@ -193,7 +194,7 @@ export async function POST(request: NextRequest, { params }: MilestoneParams) {
         campaignId: campaign.id,
         eventType: 'SOCIAL_SHARE',
         points: 0,
-        metadata,
+        metadata: metadata as unknown as Prisma.InputJsonValue,
       },
       include: {
         user: {

@@ -238,7 +238,7 @@ export default function ShortlistPage() {
                       </p>
 
                       <div className="flex gap-2 flex-wrap">
-                        <Badge variant="secondary" className="text-xs">
+                        <Badge variant="default" className="text-xs">
                           {campaign.category}
                         </Badge>
                         {campaign.targetedBrand && (

@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/db'
 import { validateApiKey, checkRateLimit, logApiKeyUsage } from '@/lib/api-keys'
+import { calculateMarketSize } from '@/lib/brand-analytics'
 
 interface SignalBreakdown {
   socialMedia: number
@@ -77,9 +78,8 @@ export async function GET(
         description: true,
         category: true,
         signalScore: true,
-        targetBrand: true,
-        estimatedMarketSize: true,
-        pledges: {
+        targetedBrand: true,
+        lobbies: {
           select: {
             intensity: true,
           },
@@ -97,20 +97,24 @@ export async function GET(
     }
 
     const demandMetrics: DemandMetrics = {
-      total: campaign.pledges.length,
+      total: campaign.lobbies.length,
       byIntensity: {
-        high: campaign.pledges.filter((p) => p.intensity === 'HIGH').length,
-        medium: campaign.pledges.filter((p) => p.intensity === 'MEDIUM').length,
-        low: campaign.pledges.filter((p) => p.intensity === 'LOW').length,
+        high: campaign.lobbies.filter((l) => l.intensity === 'TAKE_MY_MONEY').length,
+        medium: campaign.lobbies.filter((l) => l.intensity === 'PROBABLY_BUY').length,
+        low: campaign.lobbies.filter((l) => l.intensity === 'NEAT_IDEA').length,
       },
     }
 
+    const signalScore = campaign.signalScore ?? 0
+
     const signalBreakdown: SignalBreakdown = {
-      socialMedia: Math.round(campaign.signalScore * 0.4),
-      reviews: Math.round(campaign.signalScore * 0.25),
-      news: Math.round(campaign.signalScore * 0.2),
-      forums: Math.round(campaign.signalScore * 0.15),
+      socialMedia: Math.round(signalScore * 0.4),
+      reviews: Math.round(signalScore * 0.25),
+      news: Math.round(signalScore * 0.2),
+      forums: Math.round(signalScore * 0.15),
     }
+
+    const estimatedMarketSize = await calculateMarketSize(campaign.id)
 
     const response: { data: CampaignDetail; meta: any } = {
       data: {
@@ -118,11 +122,11 @@ export async function GET(
         title: campaign.title,
         description: campaign.description,
         category: campaign.category,
-        signalScore: campaign.signalScore,
+        signalScore,
         signalBreakdown,
         demandMetrics,
-        targetedBrandName: campaign.targetBrand,
-        estimatedMarketSize: campaign.estimatedMarketSize || 0,
+        targetedBrandName: campaign.targetedBrand?.name ?? null,
+        estimatedMarketSize,
         createdAt: campaign.createdAt.toISOString(),
         updatedAt: campaign.updatedAt.toISOString(),
       },

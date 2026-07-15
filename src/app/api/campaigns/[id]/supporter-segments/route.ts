@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/db'
 import { getCurrentUser } from '@/lib/auth'
+import { isFeatureEnabled } from '@/lib/feature-flags'
 
 export const dynamic = 'force-dynamic'
 
@@ -32,6 +33,9 @@ interface SegmentData {
 // ============================================================================
 
 export async function GET(request: NextRequest, { params }: RouteParams) {
+  if (!isFeatureEnabled('supporter-segments')) {
+    return NextResponse.json({ error: 'This feature is not yet available' }, { status: 404 })
+  }
   try {
     const { id: campaignId } = params
     const user = await getCurrentUser()

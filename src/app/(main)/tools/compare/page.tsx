@@ -181,7 +181,7 @@ export default function ComparePage() {
                     {campaigns.map((campaign) => (
                       <td key={`${campaign.id}-status`} className="p-4">
                         <Badge
-                          variant={campaign.status === 'LIVE' ? 'default' : 'secondary'}
+                          variant={campaign.status === 'LIVE' ? 'success' : 'default'}
                         >
                           {campaign.status}
                         </Badge>
@@ -276,10 +276,10 @@ export default function ComparePage() {
                         <Badge
                           variant={
                             campaign.sentiment === 'positive'
-                              ? 'default'
+                              ? 'success'
                               : campaign.sentiment === 'negative'
-                                ? 'destructive'
-                                : 'secondary'
+                                ? 'error'
+                                : 'default'
                           }
                         >
                           {campaign.sentiment || 'neutral'}

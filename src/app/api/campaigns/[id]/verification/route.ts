@@ -60,8 +60,9 @@ export async function GET(
     // Determine verification conditions
     const hasEnoughLobbies = campaign._count.lobbies >= 50
     const creatorHasVerifiedEmail = creator?.emailVerified || false
-    const hasGoodDescription =
+    const hasGoodDescription = Boolean(
       campaign.description && campaign.description.length > 100
+    )
     const hasTargetedBrand = campaign.targetedBrandId !== null
 
     // Calculate score (out of 4 conditions)

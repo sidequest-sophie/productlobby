@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { Prisma } from '@prisma/client'
 import { prisma } from '@/lib/db'
 import { getCurrentUser } from '@/lib/auth'
 
@@ -94,7 +95,7 @@ export async function GET(
         winner: (metadata.winner as 'A' | 'B') || undefined,
         confidence: (metadata.confidence as number) || 0,
         createdAt: event.createdAt.toISOString(),
-        updatedAt: event.updatedAt.toISOString(),
+        updatedAt: event.createdAt.toISOString(),
       }
     })
 
@@ -176,13 +177,14 @@ export async function POST(
         campaignId: campaign.id,
         userId: user.id,
         eventType: 'SOCIAL_SHARE',
+        points: 1,
         metadata: {
           action: 'ab_test',
           testName: body.testName,
           variantA: body.variantA,
           variantB: body.variantB,
           status: 'draft',
-        },
+        } as Prisma.InputJsonValue,
       },
     })
 
@@ -205,7 +207,7 @@ export async function POST(
       status: 'draft',
       confidence: 0,
       createdAt: event.createdAt.toISOString(),
-      updatedAt: event.updatedAt.toISOString(),
+      updatedAt: event.createdAt.toISOString(),
     }
 
     return NextResponse.json(test, { status: 201 })

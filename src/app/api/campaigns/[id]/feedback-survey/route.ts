@@ -118,10 +118,12 @@ export async function POST(
     // Record the survey responses as a ContributionEvent
     await prisma.contributionEvent.create({
       data: {
-        action: 'survey_response',
         campaignId: params.id,
         userId: user.id,
+        eventType: 'SOCIAL_SHARE',
+        points: 10,
         metadata: {
+          action: 'survey_response',
           responses,
           timestamp: new Date().toISOString(),
         },

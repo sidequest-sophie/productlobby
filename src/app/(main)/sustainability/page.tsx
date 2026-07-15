@@ -9,7 +9,7 @@ import {
 } from 'lucide-react';
 
 export const metadata: Metadata = {
-  title: 'Sustainability | ProductLobby',
+  title: 'Sustainability',
   description:
     'Learn about our environmental commitments and sustainability initiatives to build a greener future.',
 };

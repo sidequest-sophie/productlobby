@@ -51,6 +51,7 @@ export default function SmartNotifications({ campaignId }: SmartNotificationsPro
   const [notifications, setNotifications] = useState<Notification[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
+  const [notAvailable, setNotAvailable] = useState(false)
   const [preferences, setPreferences] = useState<NotificationPreferences>({
     milestones: true,
     mentions: true,
@@ -71,6 +72,10 @@ export default function SmartNotifications({ campaignId }: SmartNotificationsPro
         const response = await fetch(
           `/api/campaigns/${campaignId}/smart-notifications`
         )
+        if (response.status === 404) {
+          setNotAvailable(true)
+          return
+        }
         if (!response.ok) {
           throw new Error('Failed to fetch notifications')
         }
@@ -131,7 +136,7 @@ export default function SmartNotifications({ campaignId }: SmartNotificationsPro
   })
 
   const unreadCount = notifications.filter((n) => !n.read).length
-  const highPriorityCount = notifications.filter((n) => n.priority === 'high').count
+  const highPriorityCount = notifications.filter((n) => n.priority === 'high').length
 
   // Get icon for notification type
   const getTypeIcon = (type: Notification['type']) => {
@@ -173,6 +178,10 @@ export default function SmartNotifications({ campaignId }: SmartNotificationsPro
       default:
         return 'bg-gray-100 text-gray-800'
     }
+  }
+
+  if (notAvailable) {
+    return null
   }
 
   return (

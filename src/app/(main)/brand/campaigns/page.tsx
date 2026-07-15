@@ -136,8 +136,8 @@ const CampaignsList: React.FC = () => {
 
   const getStatusBadge = (status: Campaign['status']) => {
     const statusConfig = {
-      awaiting: { text: 'Awaiting Response', variant: 'yellow' as const },
-      'path-a': { text: 'Path A: In Development', variant: 'green' as const },
+      awaiting: { text: 'Awaiting Response', variant: 'warning' as const },
+      'path-a': { text: 'Path A: In Development', variant: 'success' as const },
       'path-b': { text: 'Path B: Pre-orders Open', variant: 'default' as const },
     }
     return statusConfig[status]
@@ -191,13 +191,13 @@ const CampaignsList: React.FC = () => {
           const highPercentage = (campaign.intensity.high / totalLobby) * 100
 
           return (
-            <Card key={campaign.id} hover>
+            <Card key={campaign.id} variant="interactive">
               <CardContent className="pt-6">
                 <div className="flex items-start justify-between gap-4 mb-4">
                   <div className="flex-1">
                     {/* Title and Description */}
                     <div className="flex items-start gap-3 mb-3">
-                      <Avatar size="md" initials={campaign.creator.avatar} />
+                      <Avatar size="default" initials={campaign.creator.avatar} />
                       <div className="flex-1">
                         <h3 className="font-display font-semibold text-lg text-foreground mb-1">
                           {campaign.title}
@@ -209,7 +209,7 @@ const CampaignsList: React.FC = () => {
                   </div>
 
                   {/* Status Badge */}
-                  <Badge variant={statusConfig.variant} size="md">
+                  <Badge variant={statusConfig.variant} size="default">
                     {statusConfig.text}
                   </Badge>
                 </div>

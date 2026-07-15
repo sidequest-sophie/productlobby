@@ -32,9 +32,9 @@ const intensityConfig = {
   'TAKE_MY_MONEY': { label: 'Take my money', color: 'text-violet-600', bg: 'bg-violet-50' },
 }
 
-const campaignStatusConfig: Record<string, { label: string; color: 'lime' | 'green' | 'default' }> = {
-  'LIVE': { label: 'Live', color: 'lime' },
-  'SHIPPED': { label: 'Shipped! ✓', color: 'green' },
+const campaignStatusConfig: Record<string, { label: string; color: 'success' | 'default' }> = {
+  'LIVE': { label: 'Live', color: 'success' },
+  'SHIPPED': { label: 'Shipped! ✓', color: 'success' },
   'BRAND_REVIEWING': { label: 'Brand reviewing', color: 'default' },
   'DRAFT': { label: 'Draft', color: 'default' },
   'CLOSED': { label: 'Closed', color: 'default' },
@@ -64,7 +64,7 @@ function LobbyListItem({ lobby }: { lobby: Lobby }) {
           <div className="flex-1">
             <div className="flex items-center gap-3 mb-2">
               <h3 className="font-semibold text-foreground">{lobby.campaign.title}</h3>
-              <Badge variant="gray" size="sm">
+              <Badge variant="outline" size="sm">
                 {brandName}
               </Badge>
             </div>

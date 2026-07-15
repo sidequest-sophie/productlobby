@@ -32,10 +32,10 @@ export function StakeholderMap({ campaignId }: StakeholderMapProps) {
     name: '',
     role: '',
     organization: '',
-    category: 'internal' as const,
+    category: 'internal' as Stakeholder['category'],
     influence: 3,
     interest: 3,
-    engagement: 'unknown' as const,
+    engagement: 'unknown' as Stakeholder['engagement'],
     notes: '',
   });
 
@@ -318,7 +318,7 @@ export function StakeholderMap({ campaignId }: StakeholderMapProps) {
       {/* Filters */}
       <div className="flex gap-3 flex-wrap">
         <Button
-          variant={filterCategory === null ? 'default' : 'outline'}
+          variant={filterCategory === null ? 'primary' : 'outline'}
           onClick={() => setFilterCategory(null)}
           className={filterCategory === null ? 'bg-violet-600 hover:bg-violet-700 text-white' : ''}
         >
@@ -328,7 +328,7 @@ export function StakeholderMap({ campaignId }: StakeholderMapProps) {
         {['internal', 'external', 'partner', 'investor', 'regulator', 'community'].map((cat) => (
           <Button
             key={cat}
-            variant={filterCategory === cat ? 'default' : 'outline'}
+            variant={filterCategory === cat ? 'primary' : 'outline'}
             onClick={() => setFilterCategory(filterCategory === cat ? null : cat)}
             className={filterCategory === cat ? 'bg-violet-600 hover:bg-violet-700 text-white' : ''}
           >

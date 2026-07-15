@@ -110,7 +110,7 @@ export async function POST(
               })),
             }
           : undefined,
-        wishlist: wishlist
+        wishlists: wishlist
           ? {
               create: {
                 text: wishlist,
@@ -128,7 +128,7 @@ export async function POST(
         },
         preferences: {
           include: {
-            field: {
+            preferenceField: {
               select: {
                 id: true,
                 fieldName: true,
@@ -136,7 +136,7 @@ export async function POST(
             },
           },
         },
-        wishlist: true,
+        wishlists: true,
       },
     })
 

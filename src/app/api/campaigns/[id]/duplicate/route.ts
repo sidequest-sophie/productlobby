@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { Prisma } from '@prisma/client'
 import { prisma } from '@/lib/db'
 import { getCurrentUser } from '@/lib/auth'
 import { slugify } from '@/lib/utils'
@@ -74,12 +75,16 @@ export async function POST(
         priceRangeMin: originalCampaign.priceRangeMin,
         priceRangeMax: originalCampaign.priceRangeMax,
         pricingModel: originalCampaign.pricingModel,
-        milestones: originalCampaign.milestones,
+        milestones:
+          originalCampaign.milestones === null
+            ? Prisma.JsonNull
+            : (originalCampaign.milestones as Prisma.InputJsonValue),
         // Preference fields will be copied below
         media: {
-          create: originalCampaign.media.map((m: any) => ({
+          create: originalCampaign.media.map((m) => ({
+            kind: m.kind,
             url: m.url,
-            caption: m.caption,
+            altText: m.altText,
             order: m.order,
           })),
         },

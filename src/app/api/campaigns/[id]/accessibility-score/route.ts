@@ -119,7 +119,7 @@ function analyzeReadability(description: string | null): {
   }
 }
 
-function countImagesWithoutAlt(media: Array<{ metadata: Record<string, any> | null }>): {
+function countImagesWithoutAlt(media: Array<{ altText: string | null }>): {
   withAlt: number
   total: number
 } {
@@ -127,7 +127,7 @@ function countImagesWithoutAlt(media: Array<{ metadata: Record<string, any> | nu
   let total = 0
 
   media.forEach((m) => {
-    if (m.metadata && m.metadata.alt) {
+    if (m.altText) {
       withAlt++
     }
     total++
@@ -151,7 +151,8 @@ export async function GET(
         description: true,
         media: {
           select: {
-            metadata: true,
+            kind: true,
+            altText: true,
           },
         },
       },
@@ -211,23 +212,25 @@ export async function GET(
     })
 
     // Check 4: Video Captions
-    const hasCaptionInfo = campaign.media.some(
-      (m) => m.metadata && m.metadata.hasCaptions
-    )
+    // CampaignMedia has no captions metadata field yet, so we can only flag
+    // that videos exist and captions info should be provided elsewhere.
+    const hasVideos = campaign.media.some((m) => m.kind === 'VIDEO')
     checks.push({
       name: 'Video Captions Info',
-      passed: hasCaptionInfo || campaign.media.length === 0,
-      score: hasCaptionInfo || campaign.media.length === 0 ? 100 : 50,
+      passed: !hasVideos,
+      score: !hasVideos ? 100 : 50,
       maxScore: 100,
-      recommendation: hasCaptionInfo || campaign.media.length === 0
+      recommendation: !hasVideos
         ? undefined
         : 'Indicate if videos have captions',
     })
 
     // Check 5: Mobile-Friendly (simple check based on description)
-    const mobileCheck =
-      campaign.description && campaign.description.length > 0 &&
+    const mobileCheck = Boolean(
+      campaign.description &&
+      campaign.description.length > 0 &&
       !campaign.title.includes('\n')
+    )
     checks.push({
       name: 'Mobile-Friendly Format',
       passed: mobileCheck,

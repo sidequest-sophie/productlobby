@@ -6,9 +6,9 @@ import {
   PlayCircle,
   FileText,
   HelpCircle,
-  Tool,
+  Wrench,
   Bookmark,
-  BookmarkOff,
+  BookmarkX,
   Search,
   Plus,
   X,
@@ -52,7 +52,7 @@ const resourceTypeIcons: Record<ResourceType, React.ReactNode> = {
   FAQ: <HelpCircle className="w-4 h-4" />,
   Video: <PlayCircle className="w-4 h-4" />,
   Document: <FileText className="w-4 h-4" />,
-  Tool: <Tool className="w-4 h-4" />,
+  Tool: <Wrench className="w-4 h-4" />,
 }
 
 const resourceTypeBadgeColor: Record<ResourceType, string> = {
@@ -484,7 +484,7 @@ export function ResourceHub({ campaignId, isCreator = false }: ResourceHubProps)
                   {resource.isBookmarked ? (
                     <Bookmark className="w-5 h-5 fill-yellow-500 text-yellow-500" />
                   ) : (
-                    <BookmarkOff className="w-5 h-5" />
+                    <BookmarkX className="w-5 h-5" />
                   )}
                 </button>
               </div>

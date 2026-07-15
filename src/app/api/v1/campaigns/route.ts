@@ -118,7 +118,7 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
         title: campaign.title,
         description: campaign.description,
         category: campaign.category,
-        signalScore: campaign.signalScore,
+        signalScore: campaign.signalScore ?? 0,
         lobbyCount: campaign._count.pledges,
         createdAt: campaign.createdAt.toISOString(),
         updatedAt: campaign.updatedAt.toISOString(),

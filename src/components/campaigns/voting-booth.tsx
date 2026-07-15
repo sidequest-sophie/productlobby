@@ -224,26 +224,18 @@ function NewSuggestionForm({
   const [title, setTitle] = useState('')
   const [description, setDescription] = useState('')
   const [category, setCategory] = useState('Features')
-  const { toast } = useToast()
+  const { addToast } = useToast()
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
 
     if (!title.trim()) {
-      toast({
-        title: 'Error',
-        description: 'Please enter a feature title',
-        variant: 'destructive',
-      })
+      addToast('Please enter a feature title', 'error')
       return
     }
 
     if (!description.trim()) {
-      toast({
-        title: 'Error',
-        description: 'Please enter a feature description',
-        variant: 'destructive',
-      })
+      addToast('Please enter a feature description', 'error')
       return
     }
 
@@ -253,17 +245,12 @@ function NewSuggestionForm({
       setDescription('')
       setCategory('Features')
       setIsOpen(false)
-      toast({
-        title: 'Success',
-        description: 'Feature suggestion submitted!',
-      })
+      addToast('Feature suggestion submitted!', 'success')
     } catch (error) {
-      toast({
-        title: 'Error',
-        description:
-          error instanceof Error ? error.message : 'Failed to submit suggestion',
-        variant: 'destructive',
-      })
+      addToast(
+        error instanceof Error ? error.message : 'Failed to submit suggestion',
+        'error'
+      )
     }
   }
 
@@ -371,7 +358,7 @@ export function VotingBooth({
   const [loading, setLoading] = useState(false)
   const [votesRemaining, setVotesRemaining] = useState(10)
   const [refreshing, setRefreshing] = useState(false)
-  const { toast } = useToast()
+  const { addToast } = useToast()
 
   // Load features
   const loadFeatures = useCallback(async () => {
@@ -386,16 +373,14 @@ export function VotingBooth({
       setFeatures(data.features || [])
       setVotesRemaining(data.votesRemaining || 10)
     } catch (error) {
-      toast({
-        title: 'Error',
-        description:
-          error instanceof Error ? error.message : 'Failed to load features',
-        variant: 'destructive',
-      })
+      addToast(
+        error instanceof Error ? error.message : 'Failed to load features',
+        'error'
+      )
     } finally {
       setLoading(false)
     }
-  }, [campaignId, sortBy, toast])
+  }, [campaignId, sortBy, addToast])
 
   useEffect(() => {
     loadFeatures()
@@ -404,20 +389,12 @@ export function VotingBooth({
   // Handle vote
   const handleVote = async (featureId: string) => {
     if (!isAuthenticated) {
-      toast({
-        title: 'Authentication required',
-        description: 'Please sign in to vote',
-        variant: 'destructive',
-      })
+      addToast('Please sign in to vote', 'error')
       return
     }
 
     if (votesRemaining <= 0) {
-      toast({
-        title: 'Vote limit reached',
-        description: 'You have used all 10 votes',
-        variant: 'destructive',
-      })
+      addToast('You have used all 10 votes', 'error')
       return
     }
 
@@ -453,17 +430,12 @@ export function VotingBooth({
       )
       setVotesRemaining((prev) => prev - 1)
 
-      toast({
-        title: 'Vote recorded!',
-        description: `${votesRemaining - 1} votes remaining`,
-      })
+      addToast(`Vote recorded! ${votesRemaining - 1} votes remaining`, 'success')
     } catch (error) {
-      toast({
-        title: 'Error',
-        description:
-          error instanceof Error ? error.message : 'Failed to record vote',
-        variant: 'destructive',
-      })
+      addToast(
+        error instanceof Error ? error.message : 'Failed to record vote',
+        'error'
+      )
     }
   }
 
@@ -501,19 +473,12 @@ export function VotingBooth({
       )
       setVotesRemaining((prev) => prev + 1)
 
-      toast({
-        title: 'Vote removed',
-        description: `${votesRemaining + 1} votes remaining`,
-      })
+      addToast(`Vote removed. ${votesRemaining + 1} votes remaining`, 'success')
     } catch (error) {
-      toast({
-        title: 'Error',
-        description:
-          error instanceof Error
-            ? error.message
-            : 'Failed to remove vote',
-        variant: 'destructive',
-      })
+      addToast(
+        error instanceof Error ? error.message : 'Failed to remove vote',
+        'error'
+      )
     }
   }
 

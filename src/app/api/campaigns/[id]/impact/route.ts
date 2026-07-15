@@ -3,6 +3,7 @@ export const dynamic = 'force-dynamic'
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/db'
 import { getCurrentUser } from '@/lib/auth'
+import { Prisma } from '@prisma/client'
 
 interface ImpactFactors {
   lobbyFactor: number
@@ -22,6 +23,19 @@ interface ImpactScoreResponse {
   }
 }
 
+interface ImpactMetricMetadata {
+  metricName?: string
+  value?: number
+  previousValue?: number
+  unit?: string
+  category?: ImpactMetric['category']
+  period?: ImpactMetric['period']
+}
+
+function isRecord(v: unknown): v is Record<string, unknown> {
+  return typeof v === 'object' && v !== null && !Array.isArray(v)
+}
+
 interface ImpactMetric {
   id: string
   name: string
@@ -39,7 +53,7 @@ export async function GET(
 ) {
   try {
     const { id: campaignId } = await params
-    const period = request.nextUrl.searchParams.get('period') || '30d'
+    const period = (request.nextUrl.searchParams.get('period') || '30d') as ImpactMetric['period']
 
     // Get campaign data for impact score
     const campaign = await prisma.campaign.findUnique({
@@ -54,7 +68,7 @@ export async function GET(
           select: { id: true },
         },
         follows: {
-          select: { id: true },
+          select: { userId: true },
         },
         bookmarks: {
           select: { id: true },
@@ -106,7 +120,7 @@ export async function GET(
         signalScore: true,
         lobbies: { select: { id: true } },
         comments: { select: { id: true } },
-        follows: { select: { id: true } },
+        follows: { select: { userId: true } },
         bookmarks: { select: { id: true } },
         contributionEvents: {
           where: { eventType: 'SOCIAL_SHARE' },
@@ -168,7 +182,9 @@ export async function GET(
 
     const metrics: ImpactMetric[] = metricsEvents
       .map((event) => {
-        const metadata = event.metadata as any
+        const metadata: ImpactMetricMetadata = isRecord(event.metadata)
+          ? (event.metadata as unknown as ImpactMetricMetadata)
+          : {}
         return {
           id: event.id,
           name: metadata?.metricName || 'Unknown Metric',
@@ -246,9 +262,10 @@ export async function POST(
         campaignId,
         userId: user.id,
         eventType: 'SOCIAL_SHARE',
-        description: `Impact metric added: ${metricName}`,
+        points: 1,
         metadata: {
           action: 'impact_metric',
+          description: `Impact metric added: ${metricName}`,
           metricName,
           value: parseFloat(value),
           previousValue: previousValue ? parseFloat(previousValue) : undefined,
@@ -256,7 +273,7 @@ export async function POST(
           category,
           period,
           timestamp: new Date().toISOString(),
-        },
+        } as Prisma.InputJsonValue,
       },
     })
 

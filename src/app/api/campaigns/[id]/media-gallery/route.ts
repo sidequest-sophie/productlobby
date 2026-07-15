@@ -1,8 +1,25 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { Prisma } from '@prisma/client'
 import { prisma } from '@/lib/db'
 import { getCurrentUser } from '@/lib/auth'
 
 export const dynamic = 'force-dynamic'
+
+interface MediaEventMetadata {
+  action?: string
+  title?: string
+  mediaType?: string
+  url?: string
+  thumbnailUrl?: string
+  description?: string
+  uploadedBy?: string
+  downloads?: number
+  views?: number
+}
+
+function isRecord(v: unknown): v is Record<string, unknown> {
+  return typeof v === 'object' && v !== null && !Array.isArray(v)
+}
 
 export async function GET(
   request: NextRequest,
@@ -37,19 +54,24 @@ export async function GET(
     })
 
     // Transform events to media items
-    const mediaItems = mediaEvents.map((event) => ({
-      id: event.id,
-      campaignId: event.campaignId,
-      title: event.metadata?.title || 'Untitled Media',
-      type: event.metadata?.mediaType || 'image',
-      url: event.metadata?.url || '',
-      thumbnailUrl: event.metadata?.thumbnailUrl,
-      description: event.metadata?.description || '',
-      uploadedBy: event.metadata?.uploadedBy || 'Anonymous',
-      downloads: event.metadata?.downloads || 0,
-      views: event.metadata?.views || 0,
-      createdAt: event.createdAt.toISOString(),
-    }))
+    const mediaItems = mediaEvents.map((event) => {
+      const metadata: MediaEventMetadata = isRecord(event.metadata)
+        ? (event.metadata as MediaEventMetadata)
+        : {}
+      return {
+        id: event.id,
+        campaignId: event.campaignId,
+        title: metadata.title || 'Untitled Media',
+        type: metadata.mediaType || 'image',
+        url: metadata.url || '',
+        thumbnailUrl: metadata.thumbnailUrl,
+        description: metadata.description || '',
+        uploadedBy: metadata.uploadedBy || 'Anonymous',
+        downloads: metadata.downloads || 0,
+        views: metadata.views || 0,
+        createdAt: event.createdAt.toISOString(),
+      }
+    })
 
     // Return simulated gallery items if empty
     if (mediaItems.length === 0) {
@@ -164,6 +186,7 @@ export async function POST(
         campaignId,
         userId: user.id,
         eventType: 'SOCIAL_SHARE',
+        points: 1,
         metadata: {
           action: 'media_upload',
           title: body.title,
@@ -171,10 +194,10 @@ export async function POST(
           url: body.url,
           thumbnailUrl: body.thumbnailUrl,
           description: body.description,
-          uploadedBy: user.name || 'Anonymous',
+          uploadedBy: user.displayName || 'Anonymous',
           views: 0,
           downloads: 0,
-        },
+        } as Prisma.InputJsonValue,
       },
     })
 
@@ -186,7 +209,7 @@ export async function POST(
       url: body.url,
       thumbnailUrl: body.thumbnailUrl,
       description: body.description,
-      uploadedBy: user.name || 'Anonymous',
+      uploadedBy: user.displayName || 'Anonymous',
       downloads: 0,
       views: 0,
       createdAt: event.createdAt.toISOString(),

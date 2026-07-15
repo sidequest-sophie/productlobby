@@ -112,7 +112,7 @@ export const FollowToggle: React.FC<FollowToggleProps> = ({
       <Button
         onClick={handleToggleFollow}
         disabled={isLoading || authLoading}
-        variant={following ? 'default' : 'outline'}
+        variant={following ? 'primary' : 'outline'}
         size="sm"
         className={cn(
           'transition-all duration-200 gap-2',

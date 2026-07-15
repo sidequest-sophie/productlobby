@@ -287,9 +287,9 @@ function QuestionRenderer({ question, value, onChange }: QuestionRendererProps) 
                 <span className="flex-1">{item}</span>
                 <button
                   onClick={() => {
-                    setRanking(ranking.filter((r) => r !== item))
-                    setUnranked([...unranked, item])
-                    onChange(ranking.filter((r) => r !== item))
+                    const newRanking = ranking.filter((r) => r !== item)
+                    setRanking(newRanking)
+                    onChange(newRanking)
                   }}
                   className="text-red-600 hover:text-red-700 text-xs font-medium"
                 >
@@ -325,8 +325,8 @@ function QuestionRenderer({ question, value, onChange }: QuestionRendererProps) 
   }
 
   if (question.questionType === 'MATRIX') {
-    const rows = question.options?.[0] || []
-    const columns = question.options?.[1] || []
+    const rows = (question.options?.[0] as unknown as string[]) || []
+    const columns = (question.options?.[1] as unknown as string[]) || []
 
     return (
       <div className="overflow-x-auto">

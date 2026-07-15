@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/db'
 import { getCurrentUser } from '@/lib/auth'
+import { isFeatureEnabled } from '@/lib/feature-flags'
 
 export const dynamic = 'force-dynamic'
 
@@ -22,6 +23,9 @@ export async function GET(
   request: NextRequest,
   { params }: { params: { id: string } }
 ) {
+  if (!isFeatureEnabled('data-exports')) {
+    return NextResponse.json({ error: 'This feature is not yet available' }, { status: 404 })
+  }
   try {
     const { id } = params
 
@@ -92,6 +96,9 @@ export async function POST(
   request: NextRequest,
   { params }: { params: { id: string } }
 ) {
+  if (!isFeatureEnabled('data-exports')) {
+    return NextResponse.json({ error: 'This feature is not yet available' }, { status: 404 })
+  }
   try {
     const user = await getCurrentUser()
     if (!user) {
@@ -130,9 +137,9 @@ export async function POST(
       data: {
         userId: user.id,
         campaignId: id,
-        eventType: 'DATA_EXPORT',
+        eventType: 'SOCIAL_SHARE',
         points: 15,
-        metadata: { exportType: type, dataSet },
+        metadata: { action: 'data_export', exportType: type, dataSet },
       },
     })
 

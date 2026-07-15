@@ -8,6 +8,7 @@
  */
 
 import { NextRequest, NextResponse } from 'next/server'
+import { Prisma } from '@prisma/client'
 import { prisma } from '@/lib/db'
 import { getCurrentUser } from '@/lib/auth'
 
@@ -143,7 +144,7 @@ export async function POST(
     // Verify campaign exists and user has access
     const campaign = await prisma.campaign.findUnique({
       where: { id: campaignId },
-      select: { id: true, creatorId: true },
+      select: { id: true, creatorUserId: true },
     })
 
     if (!campaign) {
@@ -154,7 +155,7 @@ export async function POST(
     }
 
     // Only campaign creator can add mood board items
-    if (campaign.creatorId !== user.id) {
+    if (campaign.creatorUserId !== user.id) {
       return NextResponse.json(
         {
           success: false,
@@ -189,7 +190,7 @@ export async function POST(
         campaignId,
         eventType: 'SOCIAL_SHARE',
         points: 5, // Minimal points for mood board contribution
-        metadata,
+        metadata: metadata as Prisma.InputJsonValue,
       },
       include: {
         user: {
@@ -261,7 +262,7 @@ export async function DELETE(
     // Verify campaign exists and user is creator
     const campaign = await prisma.campaign.findUnique({
       where: { id: campaignId },
-      select: { id: true, creatorId: true },
+      select: { id: true, creatorUserId: true },
     })
 
     if (!campaign) {
@@ -271,7 +272,7 @@ export async function DELETE(
       )
     }
 
-    if (campaign.creatorId !== user.id) {
+    if (campaign.creatorUserId !== user.id) {
       return NextResponse.json(
         {
           success: false,
@@ -290,7 +291,7 @@ export async function DELETE(
       },
     })
 
-    if (result.deletedCount === 0) {
+    if (result.count === 0) {
       return NextResponse.json(
         { success: false, error: 'Mood board item not found' },
         { status: 404 }

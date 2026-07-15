@@ -15,11 +15,11 @@ import { Button } from '@/components/ui/button'
 import Link from 'next/link'
 
 export const metadata: Metadata = {
-  title: 'Platform Developers | ProductLobby',
+  title: 'Platform Developers',
   description:
     'Build with ProductLobby. Access our REST API, webhooks, and SDKs to integrate demand signals into your applications.',
   openGraph: {
-    title: 'Platform Developers | ProductLobby',
+    title: 'Platform Developers',
     description:
       'Build with ProductLobby. Access our REST API, webhooks, and SDKs to integrate demand signals into your applications.',
     type: 'website',

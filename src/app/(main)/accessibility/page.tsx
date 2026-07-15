@@ -4,7 +4,7 @@ import { Button } from '@/components/ui/button'
 import Link from 'next/link'
 
 export const metadata: Metadata = {
-  title: 'Accessibility | ProductLobby',
+  title: 'Accessibility',
   description:
     'ProductLobby is committed to making our platform accessible to everyone. Learn about our accessibility features and standards.',
 }

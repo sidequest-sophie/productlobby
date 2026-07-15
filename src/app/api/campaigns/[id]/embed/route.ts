@@ -16,7 +16,6 @@ export async function GET(
         title: true,
         description: true,
         slug: true,
-        image: true,
         _count: {
           select: {
             lobbies: true,

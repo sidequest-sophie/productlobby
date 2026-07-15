@@ -4,6 +4,10 @@ import { prisma } from '@/lib/db'
 
 export const dynamic = 'force-dynamic'
 
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null && !Array.isArray(value)
+}
+
 // ============================================================================
 // GET /api/users/saved-searches
 // ============================================================================
@@ -44,13 +48,16 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
       },
     })
 
-    const formatted = searchParams.map((search) => {
-      const metadata = search.metadata as any
+    const formatted = savedSearches.map((search) => {
+      const metadata = isRecord(search.metadata) ? search.metadata : {}
       return {
         id: search.id,
-        query: metadata?.query || '',
-        filters: metadata?.filters || {},
-        label: metadata?.label || metadata?.query || 'Saved Search',
+        query: typeof metadata.query === 'string' ? metadata.query : '',
+        filters: isRecord(metadata.filters) ? metadata.filters : {},
+        label:
+          (typeof metadata.label === 'string' && metadata.label) ||
+          (typeof metadata.query === 'string' && metadata.query) ||
+          'Saved Search',
         createdAt: search.createdAt.toISOString(),
       }
     })

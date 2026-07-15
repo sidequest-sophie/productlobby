@@ -1,7 +1,6 @@
 'use client'
 
 import React, { useState, useEffect } from 'react'
-import Image from 'next/image'
 import {
   Loader2,
   Upload,
@@ -11,6 +10,7 @@ import {
   Eye,
   Grid,
   List as ListIcon,
+  Image as ImageIcon,
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { cn } from '@/lib/utils'
@@ -70,13 +70,13 @@ export function MediaGallery({ campaignId }: MediaGalleryProps) {
   const getMediaIcon = (type: string) => {
     switch (type) {
       case 'image':
-        return <Image className="w-4 h-4" />
+        return <ImageIcon className="w-4 h-4" />
       case 'video':
         return <Film className="w-4 h-4" />
       case 'document':
         return <FileText className="w-4 h-4" />
       case 'infographic':
-        return <Image className="w-4 h-4" />
+        return <ImageIcon className="w-4 h-4" />
       default:
         return null
     }
@@ -105,7 +105,7 @@ export function MediaGallery({ campaignId }: MediaGalleryProps) {
         <h2 className="text-2xl font-bold text-slate-900">Media Gallery</h2>
         <div className="flex items-center gap-2">
           <Button
-            variant={viewMode === 'grid' ? 'default' : 'outline'}
+            variant={viewMode === 'grid' ? 'primary' : 'outline'}
             size="sm"
             onClick={() => setViewMode('grid')}
             className={viewMode === 'grid' ? 'bg-violet-600 hover:bg-violet-700' : ''}
@@ -114,7 +114,7 @@ export function MediaGallery({ campaignId }: MediaGalleryProps) {
             Grid
           </Button>
           <Button
-            variant={viewMode === 'list' ? 'default' : 'outline'}
+            variant={viewMode === 'list' ? 'primary' : 'outline'}
             size="sm"
             onClick={() => setViewMode('list')}
             className={viewMode === 'list' ? 'bg-violet-600 hover:bg-violet-700' : ''}

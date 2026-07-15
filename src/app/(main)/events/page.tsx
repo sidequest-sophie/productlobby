@@ -3,7 +3,7 @@ import { Calendar, Video, Users, MapPin, Clock, ExternalLink } from 'lucide-reac
 import { Button } from '@/components/ui/button';
 
 export const metadata: Metadata = {
-  title: 'Events | ProductLobby',
+  title: 'Events',
   description: 'Join our community events, webinars, and meetups',
 };
 

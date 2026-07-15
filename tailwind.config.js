@@ -80,6 +80,7 @@ module.exports = {
         'pulse-subtle': 'pulse-subtle 2s cubic-bezier(0.4, 0, 0.6, 1) infinite',
         'fade-in': 'fade-in 0.3s ease-out forwards',
         'slide-up': 'slide-up 0.4s ease-out forwards',
+        'slide-up-center': 'slide-up-center 0.4s ease-out forwards',
         'bounce-gentle': 'bounce-gentle 2s ease-in-out infinite',
       },
       keyframes: {
@@ -99,6 +100,18 @@ module.exports = {
           'to': {
             opacity: '1',
             transform: 'translateY(0)',
+          },
+        },
+        // For elements centred with translate(-50%, -50%): preserve the X/Y
+        // centring while animating in, so the keyframe doesn't clobber it.
+        'slide-up-center': {
+          'from': {
+            opacity: '0',
+            transform: 'translate(-50%, calc(-50% + 16px))',
+          },
+          'to': {
+            opacity: '1',
+            transform: 'translate(-50%, -50%)',
           },
         },
         'bounce-gentle': {

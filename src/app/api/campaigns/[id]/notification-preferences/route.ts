@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { Prisma } from '@prisma/client'
 import { prisma } from '@/lib/db'
 import { getCurrentUser } from '@/lib/auth'
 
@@ -217,38 +218,40 @@ export async function POST(
       )
     }
 
-    // Store or update preferences as SOCIAL_SHARE event with metadata
-    const event = await prisma.contributionEvent.upsert({
+    // Store or update preferences as SOCIAL_SHARE event with metadata.
+    // ContributionEvent has no unique constraint on (userId, campaignId,
+    // eventType), so find-then-create/update instead of upsert.
+    const metadata = {
+      action: 'notification_preferences_update',
+      timestamp: new Date().toISOString(),
+      categories: body.categories,
+      quietHours: body.quietHours,
+      allNotificationsEnabled: body.allNotificationsEnabled,
+    } as unknown as Prisma.InputJsonValue
+
+    const existingEvent = await prisma.contributionEvent.findFirst({
       where: {
-        userId_campaignId_eventType_unique: {
-          userId: user.id,
-          campaignId: campaignId,
-          eventType: 'SOCIAL_SHARE',
-        },
-      },
-      create: {
         userId: user.id,
         campaignId: campaignId,
         eventType: 'SOCIAL_SHARE',
-        points: 0, // Notification preferences don't earn points
-        metadata: {
-          action: 'notification_preferences_update',
-          timestamp: new Date().toISOString(),
-          categories: body.categories,
-          quietHours: body.quietHours,
-          allNotificationsEnabled: body.allNotificationsEnabled,
-        },
       },
-      update: {
-        metadata: {
-          action: 'notification_preferences_update',
-          timestamp: new Date().toISOString(),
-          categories: body.categories,
-          quietHours: body.quietHours,
-          allNotificationsEnabled: body.allNotificationsEnabled,
-        },
-      },
+      select: { id: true },
     })
+
+    const event = existingEvent
+      ? await prisma.contributionEvent.update({
+          where: { id: existingEvent.id },
+          data: { metadata },
+        })
+      : await prisma.contributionEvent.create({
+          data: {
+            userId: user.id,
+            campaignId: campaignId,
+            eventType: 'SOCIAL_SHARE',
+            points: 0, // Notification preferences don't earn points
+            metadata,
+          },
+        })
 
     return NextResponse.json({
       success: true,

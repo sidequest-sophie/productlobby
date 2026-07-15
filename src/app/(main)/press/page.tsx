@@ -5,10 +5,10 @@ import { Navbar } from '@/components/shared/navbar';
 import { Footer } from '@/components/shared/footer';
 
 export const metadata: Metadata = {
-  title: 'Press & Media | ProductLobby',
+  title: 'Press & Media',
   description: 'Press kit, media resources, and brand assets for ProductLobby. Download logos, brand guidelines, and product screenshots.',
   openGraph: {
-    title: 'Press & Media | ProductLobby',
+    title: 'Press & Media',
     description: 'Access ProductLobby press kit, media resources, and brand assets.',
     type: 'website',
   },

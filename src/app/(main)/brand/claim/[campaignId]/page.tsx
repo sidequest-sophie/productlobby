@@ -255,7 +255,7 @@ export default function BrandClaimFlow({ params }: { params: { campaignId: strin
   }
 
   return (
-    <DashboardLayout>
+    <DashboardLayout role="brand">
       <div className="min-h-screen bg-gradient-to-b from-violet-50 to-white py-12">
         <div className="max-w-3xl mx-auto px-4">
           {/* Progress Steps */}

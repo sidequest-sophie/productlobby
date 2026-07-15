@@ -48,7 +48,7 @@ const tierConfig = {
 export function SponsorSpotlight({ campaignId, className }: SponsorSpotlightProps) {
   const [sponsors, setSponsors] = useState<SponsorData[]>([])
   const [loading, setLoading] = useState(true)
-  const { toast } = useToast()
+  const { addToast } = useToast()
 
   useEffect(() => {
     const fetchSponsors = async () => {
@@ -61,18 +61,14 @@ export function SponsorSpotlight({ campaignId, className }: SponsorSpotlightProp
         setSponsors(data)
       } catch (error) {
         console.error('Error fetching sponsors:', error)
-        toast({
-          title: 'Error',
-          description: 'Failed to load sponsors',
-          variant: 'destructive',
-        })
+        addToast('Failed to load sponsors', 'error')
       } finally {
         setLoading(false)
       }
     }
 
     fetchSponsors()
-  }, [campaignId, toast])
+  }, [campaignId, addToast])
 
   if (loading) {
     return (
@@ -152,7 +148,7 @@ export function SponsorSpotlight({ campaignId, className }: SponsorSpotlightProp
               </p>
 
               <div className="flex items-center justify-center gap-2">
-                <Badge variant="secondary" className={config.badgeColor}>
+                <Badge variant="default" className={config.badgeColor}>
                   {tierKey}
                 </Badge>
               </div>

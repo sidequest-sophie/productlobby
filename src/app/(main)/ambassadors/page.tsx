@@ -13,7 +13,7 @@ import {
 import { Button } from '@/components/ui/button'
 
 export const metadata: Metadata = {
-  title: 'Platform Ambassadors | ProductLobby',
+  title: 'Platform Ambassadors',
   description: 'Join our ambassador program and become a voice for change',
 }
 

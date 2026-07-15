@@ -15,7 +15,7 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
     }
 
     const brand = await prisma.brand.findFirst({
-      where: { ownerId: user.id },
+      where: { team: { some: { userId: user.id, role: 'OWNER' } } },
       select: { id: true },
     })
 
@@ -59,7 +59,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     }
 
     const brand = await prisma.brand.findFirst({
-      where: { ownerId: user.id },
+      where: { team: { some: { userId: user.id, role: 'OWNER' } } },
       select: { id: true },
     })
 
@@ -112,7 +112,7 @@ export async function DELETE(request: NextRequest): Promise<NextResponse> {
     }
 
     const brand = await prisma.brand.findFirst({
-      where: { ownerId: user.id },
+      where: { team: { some: { userId: user.id, role: 'OWNER' } } },
       select: { id: true },
     })
 
@@ -178,7 +178,7 @@ export async function PUT(request: NextRequest): Promise<NextResponse> {
     }
 
     const brand = await prisma.brand.findFirst({
-      where: { ownerId: user.id },
+      where: { team: { some: { userId: user.id, role: 'OWNER' } } },
       select: { id: true },
     })
 

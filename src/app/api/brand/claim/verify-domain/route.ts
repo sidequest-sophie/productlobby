@@ -13,20 +13,26 @@ import { NextRequest, NextResponse } from 'next/server'
 import { getCurrentUser } from '@/lib/auth'
 import { prisma } from '@/lib/db'
 import { completeBrandVerification } from '@/lib/brand-verification'
+import dns from 'dns/promises'
 
-// In a real implementation, use a DNS library like 'dns' or 'dns-lookup'
+// Query the domain's real DNS TXT records and confirm the expected
+// verification value is present. Mirrors src/app/api/brands/[id]/verify/route.ts.
 async function checkDNSTxtRecord(domain: string, token: string): Promise<boolean> {
   try {
-    // For MVP, we'll simulate DNS verification
-    // In production: use dns.resolveTxt(domain, callback)
-    // This would check for _productlobby.domain TXT record
+    let normalizedDomain = domain.toLowerCase()
+    if (normalizedDomain.startsWith('http://')) {
+      normalizedDomain = normalizedDomain.slice(7)
+    } else if (normalizedDomain.startsWith('https://')) {
+      normalizedDomain = normalizedDomain.slice(8)
+    }
+    normalizedDomain = normalizedDomain.replace(/^www\./, '').split('/')[0]
 
-    // Simulated check - in production, query actual DNS
-    console.log(`Checking DNS TXT record for ${domain} with token ${token.substring(0, 8)}...`)
+    const records = await dns.resolveTxt(normalizedDomain)
+    const expectedValue = `productlobby-verify=${token}`
 
-    // For MVP, return true if token is provided
-    // In production: actual DNS lookup
-    return true
+    return records.some((recordArray) =>
+      recordArray.some((record) => record === expectedValue)
+    )
   } catch (error) {
     console.error('DNS lookup error:', error)
     return false
@@ -47,7 +53,7 @@ async function checkMetaTag(domain: string, token: string): Promise<boolean> {
       headers: {
         'User-Agent': 'ProductLobby-Verifier/1.0',
       },
-      timeout: 10000,
+      signal: AbortSignal.timeout(10000),
     })
 
     if (!response.ok) {

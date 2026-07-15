@@ -160,7 +160,7 @@ export const CampaignMilestones: React.FC<CampaignMilestonesProps> = ({
                     {/* Action Button */}
                     {isCreator && (
                       <Button
-                        variant={milestone.isComplete ? 'outline' : 'default'}
+                        variant={milestone.isComplete ? 'outline' : 'primary'}
                         size="sm"
                         onClick={() =>
                           handleToggleMilestone(milestone.id, milestone.isComplete)

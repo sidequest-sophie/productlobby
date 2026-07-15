@@ -175,7 +175,7 @@ export function CampaignComparisonTool({
     .map((id) => campaignData[id])
     .filter(Boolean)
 
-  const displayCampaigns = [...campaigns]
+  const displayCampaigns: (CampaignComparisonData | null)[] = [...campaigns]
   while (displayCampaigns.length < maxCampaigns) {
     displayCampaigns.push(null)
   }

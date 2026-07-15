@@ -67,7 +67,7 @@ export async function GET(
         signalScore: true,
         createdAt: true,
         updatedAt: true,
-        pledges: {
+        lobbies: {
           select: {
             createdAt: true,
             intensity: true,
@@ -86,22 +86,22 @@ export async function GET(
     const intensityDistribution: IntensityDistribution[] = [
       {
         intensity: 'HIGH',
-        count: campaign.pledges.filter((p) => p.intensity === 'HIGH').length,
+        count: campaign.lobbies.filter((l) => l.intensity === 'TAKE_MY_MONEY').length,
         percentage: 0,
       },
       {
         intensity: 'MEDIUM',
-        count: campaign.pledges.filter((p) => p.intensity === 'MEDIUM').length,
+        count: campaign.lobbies.filter((l) => l.intensity === 'PROBABLY_BUY').length,
         percentage: 0,
       },
       {
         intensity: 'LOW',
-        count: campaign.pledges.filter((p) => p.intensity === 'LOW').length,
+        count: campaign.lobbies.filter((l) => l.intensity === 'NEAT_IDEA').length,
         percentage: 0,
       },
     ]
 
-    const totalPledges = campaign.pledges.length
+    const totalPledges = campaign.lobbies.length
     intensityDistribution.forEach((dist) => {
       dist.percentage = totalPledges > 0 ? Math.round((dist.count / totalPledges) * 100) : 0
     })
@@ -109,8 +109,8 @@ export async function GET(
     const timeSeries: SignalDataPoint[] = []
     const dayMap = new Map<string, number>()
 
-    campaign.pledges.forEach((pledge) => {
-      const dateKey = pledge.createdAt.toISOString().split('T')[0]
+    campaign.lobbies.forEach((lobby) => {
+      const dateKey = lobby.createdAt.toISOString().split('T')[0]
       dayMap.set(dateKey, (dayMap.get(dateKey) || 0) + 1)
     })
 
@@ -134,7 +134,7 @@ export async function GET(
         campaignId: campaign.id,
         timeSeries,
         intensityDistribution,
-        currentScore: campaign.signalScore,
+        currentScore: campaign.signalScore ?? 0,
         trend: timeSeries.length > 1 ? timeSeries[timeSeries.length - 1].trend : 0,
       },
       meta: {

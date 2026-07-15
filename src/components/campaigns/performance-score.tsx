@@ -2,6 +2,7 @@
 
 import React, { useEffect, useState } from 'react'
 import {
+  Activity,
   TrendingUp,
   Users,
   MessageSquare,
@@ -231,6 +232,7 @@ export const PerformanceScore: React.FC<PerformanceScoreProps> = ({
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [expandedTips, setExpandedTips] = useState(false)
+  const [notAvailable, setNotAvailable] = useState(false)
 
   useEffect(() => {
     const fetchPerformanceScore = async () => {
@@ -240,6 +242,11 @@ export const PerformanceScore: React.FC<PerformanceScoreProps> = ({
         const response = await fetch(
           `/api/campaigns/${campaignId}/performance-score`
         )
+
+        if (response.status === 404) {
+          setNotAvailable(true)
+          return
+        }
 
         if (!response.ok) {
           throw new Error('Failed to fetch performance score data')
@@ -260,6 +267,10 @@ export const PerformanceScore: React.FC<PerformanceScoreProps> = ({
 
     fetchPerformanceScore()
   }, [campaignId])
+
+  if (notAvailable) {
+    return null
+  }
 
   if (loading) {
     return (

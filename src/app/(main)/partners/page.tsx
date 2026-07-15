@@ -3,7 +3,7 @@ import { Button } from '@/components/ui/button'
 import { Handshake, Building, Globe, Zap, Star, CheckCircle, ArrowRight, Users } from 'lucide-react'
 
 export const metadata: Metadata = {
-  title: 'Platform Partners | ProductLobby',
+  title: 'Platform Partners',
   description: 'Join ProductLobby partners to expand your reach, enhance your offering, and create mutual value for users and businesses.',
 }
 

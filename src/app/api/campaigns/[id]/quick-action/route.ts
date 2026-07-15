@@ -43,6 +43,7 @@ export async function POST(
             userId: user.id,
             campaignId,
             eventType: 'SOCIAL_SHARE',
+            points: 1,
             metadata: {
               timestamp: new Date().toISOString(),
               action: 'quick_share'
@@ -58,30 +59,30 @@ export async function POST(
       }
 
       case 'VOTE': {
-        // Create or update vote
-        const existingVote = await prisma.vote.findUnique({
+        // There is no dedicated Vote model - quick votes are tracked as
+        // ContributionEvents (SOCIAL_SHARE bucket) with action: 'quick_vote'
+        // in metadata, keyed on userId + campaignId, matching the pattern
+        // used by the priority-vote endpoint.
+        const existingVote = await prisma.contributionEvent.findFirst({
           where: {
-            userId_campaignId: {
-              userId: user.id,
-              campaignId
+            userId: user.id,
+            campaignId,
+            eventType: 'SOCIAL_SHARE',
+            metadata: {
+              path: ['action'],
+              equals: 'quick_vote'
             }
           }
         })
 
         if (!existingVote) {
-          await prisma.vote.create({
-            data: {
-              userId: user.id,
-              campaignId
-            }
-          })
-
           // Log vote event
           await prisma.contributionEvent.create({
             data: {
               userId: user.id,
               campaignId,
-              eventType: 'VOTE',
+              eventType: 'SOCIAL_SHARE',
+              points: 1,
               metadata: {
                 timestamp: new Date().toISOString(),
                 action: 'quick_vote'
@@ -116,7 +117,8 @@ export async function POST(
             data: {
               userId: user.id,
               campaignId,
-              eventType: 'BOOKMARK_REMOVED',
+              eventType: 'SOCIAL_SHARE',
+              points: 1,
               metadata: {
                 timestamp: new Date().toISOString(),
                 action: 'quick_unbookmark'
@@ -149,7 +151,8 @@ export async function POST(
             data: {
               userId: user.id,
               campaignId,
-              eventType: 'BOOKMARK',
+              eventType: 'SOCIAL_SHARE',
+              points: 1,
               metadata: {
                 timestamp: new Date().toISOString(),
                 action: 'quick_bookmark'
@@ -172,11 +175,8 @@ export async function POST(
             targetType: 'CAMPAIGN',
             targetId: campaignId,
             reason: 'USER_REPORTED_VIA_QUICK_ACTION',
-            status: 'PENDING',
-            metadata: {
-              timestamp: new Date().toISOString(),
-              source: 'quick_actions_panel'
-            }
+            status: 'OPEN',
+            details: 'Reported via quick actions panel'
           }
         })
 
@@ -185,7 +185,8 @@ export async function POST(
           data: {
             userId: user.id,
             campaignId,
-            eventType: 'REPORT',
+            eventType: 'SOCIAL_SHARE',
+            points: 1,
             metadata: {
               timestamp: new Date().toISOString(),
               action: 'quick_report',

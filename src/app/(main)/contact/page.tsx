@@ -6,7 +6,7 @@ import { Footer } from '@/components/shared/footer'
 import { ContactForm } from '@/components/contact/contact-form'
 
 export const metadata: Metadata = {
-  title: 'Contact Us | ProductLobby',
+  title: 'Contact Us',
   description:
     'Get in touch with the ProductLobby team. We\'d love to hear from you with questions, feedback, or partnership inquiries.',
 }

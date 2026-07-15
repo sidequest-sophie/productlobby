@@ -52,7 +52,7 @@ export async function GET() {
     const topCategories = await prisma.campaign.groupBy({
       by: ['category'],
       _count: true,
-      orderBy: { _count: { _all: 'desc' } },
+      orderBy: { _count: { category: 'desc' } },
       take: 10,
     })
 

@@ -18,8 +18,13 @@ async function getCampaign(slug: string) {
       title: true,
       description: true,
       slug: true,
-      image: true,
       category: true,
+      media: {
+        where: { kind: 'IMAGE' },
+        orderBy: { order: 'asc' },
+        select: { url: true },
+        take: 1,
+      },
       _count: {
         select: {
           lobbies: true,
@@ -28,7 +33,12 @@ async function getCampaign(slug: string) {
     },
   })
 
-  return campaign
+  if (!campaign) return null
+
+  return {
+    ...campaign,
+    image: campaign.media[0]?.url ?? null,
+  }
 }
 
 export const metadata: Metadata = {

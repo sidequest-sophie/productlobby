@@ -1,5 +1,6 @@
 'use client';
 
+import type { ReactNode } from 'react';
 import { ArrowLeftRight, TrendingUp, TrendingDown, Equal, Users, MessageSquare } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
@@ -57,7 +58,7 @@ export function ComparisonSidebar({
     isNumeric = true,
     isSentiment = false,
   }: {
-    label: string;
+    label: ReactNode;
     value1: string | number;
     value2: string | number;
     isNumeric?: boolean;
@@ -87,7 +88,7 @@ export function ComparisonSidebar({
           >
             {isSentiment
               ? getSentimentLabel(value1 as string)
-              : formatNumber(value1)}
+              : formatNumber(typeof value1 === 'number' ? value1 : Number(value1))}
           </div>
 
           {/* Winner Indicator */}
@@ -116,7 +117,7 @@ export function ComparisonSidebar({
           >
             {isSentiment
               ? getSentimentLabel(value2 as string)
-              : formatNumber(value2)}
+              : formatNumber(typeof value2 === 'number' ? value2 : Number(value2))}
           </div>
         </div>
       </div>

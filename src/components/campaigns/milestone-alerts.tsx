@@ -182,7 +182,7 @@ export const MilestoneAlerts: React.FC<MilestoneAlertsProps> = ({
       )}
 
       {/* Edit Mode */}
-      {editMode && isCreator && (
+      {editMode && isCreator && editConfig && (
         <div className="mb-6 p-6 bg-blue-50 rounded-lg border border-blue-200">
           <h3 className="text-lg font-semibold text-gray-900 mb-6">
             Configure Alert Thresholds

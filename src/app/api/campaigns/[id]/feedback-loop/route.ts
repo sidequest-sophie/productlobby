@@ -17,6 +17,25 @@ interface FeedbackMetadata {
   voteType?: number
 }
 
+interface FeedbackItem {
+  id: string
+  title: string
+  description: string
+  category: FeedbackCategory
+  status: FeedbackStatus
+  createdAt: Date
+  createdBy: {
+    id: string
+    displayName: string
+    avatar: string | null
+  }
+  isCreator: boolean
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null && !Array.isArray(value)
+}
+
 /**
  * GET /api/campaigns/[id]/feedback-loop
  * Fetch all feedback items for a campaign from ContributionEvent with action='feedback_item'
@@ -32,7 +51,7 @@ export async function GET(
     // Verify campaign exists
     const campaign = await prisma.campaign.findUnique({
       where: { id: campaignId },
-      select: { id: true, userId: true },
+      select: { id: true, creatorUserId: true },
     })
 
     if (!campaign) {
@@ -64,13 +83,13 @@ export async function GET(
     })
 
     // Filter and parse feedback items and votes
-    const feedbackMap = new Map<string, any>()
+    const feedbackMap = new Map<string, FeedbackItem>()
     const votesMap = new Map<string, number>()
     const userVotesMap = new Map<string, number>()
 
     for (const event of feedbackEvents) {
-      const metadata = event.metadata as Record<string, any> | null
-      if (!metadata) continue
+      if (!isRecord(event.metadata)) continue
+      const metadata = event.metadata as unknown as FeedbackMetadata
 
       if (metadata.action === 'feedback_item') {
         // This is a feedback item submission
@@ -107,9 +126,9 @@ export async function GET(
         const feedbackId = metadata.feedbackId
         const newStatus = metadata.status
 
-        if (feedbackId && feedbackMap.has(feedbackId)) {
+        if (feedbackId && newStatus && feedbackMap.has(feedbackId)) {
           const item = feedbackMap.get(feedbackId)
-          item.status = newStatus
+          if (item) item.status = newStatus
         }
       }
     }
@@ -153,7 +172,7 @@ export async function POST(
     // Verify campaign exists
     const campaign = await prisma.campaign.findUnique({
       where: { id: campaignId },
-      select: { id: true, userId: true },
+      select: { id: true, creatorUserId: true },
     })
 
     if (!campaign) {
@@ -236,7 +255,7 @@ export async function POST(
       }
 
       // Only campaign creator can update status
-      if (campaign.userId !== user.id) {
+      if (campaign.creatorUserId !== user.id) {
         return NextResponse.json(
           { error: 'Only campaign creator can update feedback status' },
           { status: 403 }

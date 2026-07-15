@@ -99,8 +99,7 @@ export async function GET(
       include: {
         user: {
           select: {
-            location: true,
-            country: true // in case there's a country field
+            location: true
           }
         }
       }

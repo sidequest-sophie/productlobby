@@ -224,7 +224,7 @@ export async function getPersonalisedRecommendations(
     })
 
     if (userActivity.length === 0) {
-      return getTrendingCampaigns(limit)
+      return asRecommendationResults(await getTrendingCampaigns(limit), 'Trending now')
     }
 
     const userCategories = [...new Set(userActivity.map((l) => l.campaign.category))]
@@ -319,8 +319,19 @@ export async function getPersonalisedRecommendations(
     return scores.sort((a, b) => b.score - a.score).slice(0, limit)
   } catch (error) {
     console.error('Error getting personalised recommendations:', error)
-    return getTrendingCampaigns(limit)
+    return asRecommendationResults(await getTrendingCampaigns(limit), 'Trending now')
   }
+}
+
+function asRecommendationResults(
+  campaigns: CampaignRecommendation[],
+  reason: string
+): RecommendationResult[] {
+  return campaigns.map((campaign) => ({
+    campaign,
+    score: 0,
+    reason,
+  }))
 }
 
 export async function getTrendingCampaigns(

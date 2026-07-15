@@ -227,7 +227,7 @@ export function NotificationCenter({ campaignId }: NotificationCenterProps) {
       {/* Filter Buttons */}
       <div className="flex flex-wrap gap-2 border-b border-gray-200 pb-4">
         <Button
-          variant={filter === 'all' ? 'default' : 'outline'}
+          variant={filter === 'all' ? 'primary' : 'outline'}
           size="sm"
           onClick={() => setFilter('all')}
           className="h-8 gap-2"
@@ -236,7 +236,7 @@ export function NotificationCenter({ campaignId }: NotificationCenterProps) {
           All
         </Button>
         <Button
-          variant={filter === 'unread' ? 'default' : 'outline'}
+          variant={filter === 'unread' ? 'primary' : 'outline'}
           size="sm"
           onClick={() => setFilter('unread')}
           className="h-8"
@@ -244,7 +244,7 @@ export function NotificationCenter({ campaignId }: NotificationCenterProps) {
           Unread {unreadCount > 0 && `(${unreadCount})`}
         </Button>
         <Button
-          variant={filter === 'lobbies' ? 'default' : 'outline'}
+          variant={filter === 'lobbies' ? 'primary' : 'outline'}
           size="sm"
           onClick={() => setFilter('lobbies')}
           className="h-8"
@@ -252,7 +252,7 @@ export function NotificationCenter({ campaignId }: NotificationCenterProps) {
           Lobbies
         </Button>
         <Button
-          variant={filter === 'comments' ? 'default' : 'outline'}
+          variant={filter === 'comments' ? 'primary' : 'outline'}
           size="sm"
           onClick={() => setFilter('comments')}
           className="h-8"
@@ -260,7 +260,7 @@ export function NotificationCenter({ campaignId }: NotificationCenterProps) {
           Comments
         </Button>
         <Button
-          variant={filter === 'shares' ? 'default' : 'outline'}
+          variant={filter === 'shares' ? 'primary' : 'outline'}
           size="sm"
           onClick={() => setFilter('shares')}
           className="h-8"

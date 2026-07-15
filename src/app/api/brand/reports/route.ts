@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getCurrentUser } from '@/lib/auth'
 import { prisma } from '@/lib/db'
-import { generateDemandReport } from '@/lib/brand-analytics'
+import { generateDemandReport, DemandReport } from '@/lib/brand-analytics'
 
 /**
  * Brand Reports API
@@ -43,7 +43,7 @@ export async function GET(request: NextRequest) {
       })
     }
 
-    let reports = []
+    let reports: DemandReport[] = []
 
     if (campaignId) {
       const campaign = await prisma.campaign.findUnique({
@@ -51,7 +51,7 @@ export async function GET(request: NextRequest) {
         select: { targetedBrandId: true },
       })
 
-      if (!campaign || !brandIds.includes(campaign.targetedBrandId)) {
+      if (!campaign || !campaign.targetedBrandId || !brandIds.includes(campaign.targetedBrandId)) {
         return NextResponse.json(
           { success: false, error: 'Campaign not found or access denied' },
           { status: 403 }
@@ -74,11 +74,11 @@ export async function GET(request: NextRequest) {
       const startDate = startDateStr ? new Date(startDateStr) : undefined
       const endDate = endDateStr ? new Date(endDateStr) : undefined
 
-      reports = await Promise.all(
+      const generatedReports = await Promise.all(
         campaigns.map((c) => generateDemandReport(c.id, startDate, endDate))
       )
 
-      reports = reports.filter((r) => r !== null)
+      reports = generatedReports.filter((r): r is DemandReport => r !== null)
     }
 
     return NextResponse.json({

@@ -87,10 +87,15 @@ export async function GET(
     const intentPledges = pledges.filter((p) => p.pledgeType === 'INTENT').length
     const supportPledges = pledges.filter((p) => p.pledgeType === 'SUPPORT').length
 
-    // Calculate average intensity
+    // Calculate average intensity (weighted like the creator/signal-score analytics elsewhere)
+    const intensityWeight: Record<string, number> = {
+      TAKE_MY_MONEY: 30,
+      PROBABLY_BUY: 15,
+      NEAT_IDEA: 5,
+    }
     const avgIntensity =
       lobbies.length > 0
-        ? lobbies.reduce((sum, l) => sum + (l.intensity || 0), 0) / lobbies.length
+        ? lobbies.reduce((sum, l) => sum + (intensityWeight[l.intensity] || 0), 0) / lobbies.length
         : 0
 
     // Format response for embedding

@@ -175,7 +175,7 @@ export function MediaGallery({ campaignId, isCreator }: MediaGalleryProps) {
           <Button
             onClick={() => setShowForm(!showForm)}
             className="bg-violet-600 hover:bg-violet-700"
-            variant="default"
+            variant="primary"
           >
             <Plus className="mr-2 h-4 w-4" />
             Add Media

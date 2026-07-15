@@ -15,6 +15,10 @@ interface ChatMetadata {
   content?: string
 }
 
+function isRecord(v: unknown): v is Record<string, unknown> {
+  return typeof v === 'object' && v !== null && !Array.isArray(v)
+}
+
 // GET /api/campaigns/[id]/chat - Fetch chat messages with pagination
 export async function GET(request: NextRequest, { params }: ChatParams) {
   try {
@@ -80,7 +84,9 @@ export async function GET(request: NextRequest, { params }: ChatParams) {
 
     // Format messages
     const formattedMessages = messages.map((event) => {
-      const metadata = event.metadata as ChatMetadata
+      const metadata: ChatMetadata = isRecord(event.metadata)
+        ? (event.metadata as unknown as ChatMetadata)
+        : { action: 'chat_message' }
 
       return {
         id: event.id,

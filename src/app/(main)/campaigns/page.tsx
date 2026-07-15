@@ -45,6 +45,20 @@ interface ApiCampaign {
   }
 }
 
+function mapCampaignStatus(status: string): 'active' | 'completed' | 'paused' | 'draft' {
+  switch (status) {
+    case 'LIVE':
+      return 'active'
+    case 'PAUSED':
+      return 'paused'
+    case 'CLOSED':
+      return 'completed'
+    case 'DRAFT':
+    default:
+      return 'draft'
+  }
+}
+
 function mapApiToCampaignCard(campaign: ApiCampaign): CampaignCardProps {
   const lobbyCount = campaign._count.lobbies
   // Estimate intensity distribution from available data
@@ -62,7 +76,7 @@ function mapApiToCampaignCard(campaign: ApiCampaign): CampaignCardProps {
     lobbyCount,
     intensityDistribution: { low, medium, high },
     completenessScore: campaign.completenessScore,
-    status: campaign.status === 'LIVE' ? 'active' : campaign.status.toLowerCase(),
+    status: mapCampaignStatus(campaign.status),
     creator: {
       id: campaign.creator.id,
       displayName: campaign.creator.displayName,

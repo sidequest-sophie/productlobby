@@ -3,7 +3,7 @@ import { Image, Download, Palette, Camera, FileText, Mail } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 
 export const metadata: Metadata = {
-  title: 'Media Kit | ProductLobby',
+  title: 'Media Kit',
   description: 'Download ProductLobby media assets, logos, and press materials.',
 };
 

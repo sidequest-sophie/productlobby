@@ -43,6 +43,7 @@ export function BrandAnalyticsGate({
   const [data, setData] = useState<AnalyticsData | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
+  const [notAvailable, setNotAvailable] = useState(false)
 
   useEffect(() => {
     const fetchAnalytics = async () => {
@@ -55,6 +56,11 @@ export function BrandAnalyticsGate({
             headers: { 'Content-Type': 'application/json' },
           }
         )
+
+        if (response.status === 404) {
+          setNotAvailable(true)
+          return
+        }
 
         if (!response.ok) {
           throw new Error('Failed to fetch analytics')
@@ -71,6 +77,10 @@ export function BrandAnalyticsGate({
 
     fetchAnalytics()
   }, [campaignId])
+
+  if (notAvailable) {
+    return null
+  }
 
   if (loading) {
     return (

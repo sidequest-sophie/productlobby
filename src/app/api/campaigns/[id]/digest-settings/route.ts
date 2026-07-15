@@ -3,6 +3,7 @@ export const dynamic = 'force-dynamic'
 import { prisma } from '@/lib/db'
 import { NextRequest, NextResponse } from 'next/server'
 import { getCurrentUser } from '@/lib/auth'
+import { Prisma } from '@prisma/client'
 
 interface DigestSettings {
   frequency: 'daily' | 'weekly' | 'monthly'
@@ -24,6 +25,10 @@ interface PostResponse {
   settings?: DigestSettings
   message?: string
   error?: string
+}
+
+function isRecord(v: unknown): v is Record<string, unknown> {
+  return typeof v === 'object' && v !== null && !Array.isArray(v)
 }
 
 // GET - Fetch digest settings for a campaign
@@ -69,12 +74,21 @@ export async function GET(
       )
     }
 
-    // Try to find existing digest settings in metadata
-    const campaignData = await prisma.campaign.findUnique({
-      where: { id: campaign.id },
+    // Try to find existing digest settings, persisted as a ContributionEvent
+    // (Campaign has no dedicated digest-settings storage, so the most recent
+    // 'digest_settings' event for this campaign acts as the saved state).
+    const recentEvents = await prisma.contributionEvent.findMany({
+      where: {
+        campaignId: campaign.id,
+        eventType: 'SOCIAL_SHARE',
+      },
       select: {
         metadata: true,
       },
+      orderBy: {
+        createdAt: 'desc',
+      },
+      take: 50,
     })
 
     let settings: DigestSettings = {
@@ -86,14 +100,15 @@ export async function GET(
       enabled: true,
     }
 
-    // If metadata contains digestSettings, use those
-    if (
-      campaignData?.metadata &&
-      typeof campaignData.metadata === 'object' &&
-      'digestSettings' in campaignData.metadata
-    ) {
-      const savedSettings = (campaignData.metadata as any).digestSettings
-      settings = { ...settings, ...savedSettings }
+    const savedEvent = recentEvents.find(
+      (event) => isRecord(event.metadata) && event.metadata.action === 'digest_settings'
+    )
+
+    if (savedEvent && isRecord(savedEvent.metadata)) {
+      const savedSettings = savedEvent.metadata.settings
+      if (isRecord(savedSettings)) {
+        settings = { ...settings, ...(savedSettings as unknown as Partial<DigestSettings>) }
+      }
     }
 
     return NextResponse.json({
@@ -144,7 +159,6 @@ export async function POST(
         id: true,
         creatorUserId: true,
         title: true,
-        metadata: true,
       },
     })
 
@@ -175,13 +189,21 @@ export async function POST(
       enabled: Boolean(settings.enabled),
     }
 
-    // Update campaign metadata with digest settings
-    const currentMetadata = campaign.metadata || {}
-    const updatedMetadata = {
-      ...currentMetadata,
-      digestSettings: validatedSettings,
-      digestSettingsUpdatedAt: new Date().toISOString(),
-    }
+    // Persist the digest settings as a ContributionEvent (Campaign has no
+    // dedicated digest-settings storage) so the latest one can be read back.
+    await prisma.contributionEvent.create({
+      data: {
+        userId: user.id,
+        campaignId: campaign.id,
+        eventType: 'SOCIAL_SHARE',
+        points: 0,
+        metadata: {
+          action: 'digest_settings',
+          settings: validatedSettings,
+          updatedAt: new Date().toISOString(),
+        } as unknown as Prisma.InputJsonValue,
+      },
+    })
 
     // If sendTestEmail is true, also log this as a contribution event
     if (sendTestEmail) {
@@ -200,14 +222,6 @@ export async function POST(
         },
       })
     }
-
-    // Update the campaign with new metadata
-    await prisma.campaign.update({
-      where: { id: campaign.id },
-      data: {
-        metadata: updatedMetadata,
-      },
-    })
 
     return NextResponse.json({
       success: true,

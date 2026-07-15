@@ -4,6 +4,27 @@ import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/db'
 import { getCurrentUser } from '@/lib/auth'
 
+// There is no dedicated CampaignMetadata/content-library model in the schema,
+// so content library items are persisted as ContributionEvent records
+// (eventType SOCIAL_SHARE) with the item data in `metadata`, matching the
+// convention used by the sibling ../route.ts (GET/POST) for this feature.
+interface ContentLibraryMetadata {
+  action: 'content_library_item'
+  title: string
+  type: 'Image' | 'Document' | 'Video' | 'Template' | 'Link'
+  description?: string | null
+  url?: string | null
+  fileSize?: number
+}
+
+function isRecord(v: unknown): v is Record<string, unknown> {
+  return typeof v === 'object' && v !== null && !Array.isArray(v)
+}
+
+function parseContentLibraryMetadata(metadata: unknown): ContentLibraryMetadata | null {
+  return isRecord(metadata) ? (metadata as unknown as ContentLibraryMetadata) : null
+}
+
 // DELETE /api/campaigns/[id]/content-library/[contentId]
 // Delete a content item from the library
 export async function DELETE(
@@ -22,7 +43,7 @@ export async function DELETE(
     // Verify user has access to this campaign
     const campaign = await prisma.campaign.findUnique({
       where: { id: campaignId },
-      select: { creatorId: true, id: true },
+      select: { creatorUserId: true, id: true },
     })
 
     if (!campaign) {
@@ -32,7 +53,7 @@ export async function DELETE(
       )
     }
 
-    if (campaign.creatorId !== user.id) {
+    if (campaign.creatorUserId !== user.id) {
       return NextResponse.json(
         { error: 'You do not have permission to modify this campaign' },
         { status: 403 }
@@ -40,11 +61,18 @@ export async function DELETE(
     }
 
     // Verify the content item exists and belongs to this campaign
-    const contentItem = await prisma.campaignMetadata.findUnique({
+    const contentItem = await prisma.contributionEvent.findUnique({
       where: { id: contentId },
     })
 
-    if (!contentItem || contentItem.campaignId !== campaignId) {
+    const itemData = contentItem ? parseContentLibraryMetadata(contentItem.metadata) : null
+
+    if (
+      !contentItem ||
+      contentItem.campaignId !== campaignId ||
+      contentItem.eventType !== 'SOCIAL_SHARE' ||
+      itemData?.action !== 'content_library_item'
+    ) {
       return NextResponse.json(
         { error: 'Content item not found' },
         { status: 404 }
@@ -52,15 +80,11 @@ export async function DELETE(
     }
 
     // Delete the content item
-    await prisma.campaignMetadata.delete({
+    await prisma.contributionEvent.delete({
       where: { id: contentId },
     })
 
     // Log contribution event
-    const itemData = typeof contentItem.metaValue === 'string'
-      ? JSON.parse(contentItem.metaValue)
-      : contentItem.metaValue
-
     await prisma.contributionEvent.create({
       data: {
         userId: user.id,

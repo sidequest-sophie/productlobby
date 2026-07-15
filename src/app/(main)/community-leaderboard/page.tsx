@@ -207,7 +207,7 @@ export default function CommunityLeaderboardPage() {
                     {PERIODS.map((period) => (
                       <Button
                         key={period.value}
-                        variant={selectedPeriod === period.value ? 'default' : 'outline'}
+                        variant={selectedPeriod === period.value ? 'primary' : 'outline'}
                         size="sm"
                         onClick={() => setSelectedPeriod(period.value)}
                         className={cn(

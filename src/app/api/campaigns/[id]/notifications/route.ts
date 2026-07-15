@@ -23,7 +23,7 @@ export async function GET(
     // Verify that user is the campaign creator
     const campaign = await prisma.campaign.findUnique({
       where: { id: campaignId },
-      select: { userId: true },
+      select: { creatorUserId: true },
     })
 
     if (!campaign) {
@@ -34,7 +34,7 @@ export async function GET(
     }
 
     // Allow campaign creator to view notifications
-    if (campaign.userId !== user.id) {
+    if (campaign.creatorUserId !== user.id) {
       return NextResponse.json(
         { error: 'Forbidden: You are not the campaign creator' },
         { status: 403 }
@@ -96,7 +96,7 @@ export async function PATCH(
     // Verify that user is the campaign creator
     const campaign = await prisma.campaign.findUnique({
       where: { id: campaignId },
-      select: { userId: true },
+      select: { creatorUserId: true },
     })
 
     if (!campaign) {
@@ -106,7 +106,7 @@ export async function PATCH(
       )
     }
 
-    if (campaign.userId !== user.id) {
+    if (campaign.creatorUserId !== user.id) {
       return NextResponse.json(
         { error: 'Forbidden: You are not the campaign creator' },
         { status: 403 }

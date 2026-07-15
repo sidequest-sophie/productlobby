@@ -1,8 +1,14 @@
 export const dynamic = 'force-dynamic'
 
 import { NextRequest, NextResponse } from 'next/server'
+import { Prisma } from '@prisma/client'
 import { prisma } from '@/lib/db'
 import { getCurrentUser } from '@/lib/auth'
+import { isFeatureEnabled } from '@/lib/feature-flags'
+
+function isRecord(v: unknown): v is Record<string, unknown> {
+  return typeof v === 'object' && v !== null && !Array.isArray(v)
+}
 
 // ============================================================================
 // TYPES
@@ -38,6 +44,9 @@ export async function GET(
   request: NextRequest,
   { params }: { params: { id: string } }
 ): Promise<NextResponse<GetResponse>> {
+  if (!isFeatureEnabled('smart-notifications')) {
+    return NextResponse.json({ success: false, error: 'This feature is not yet available' }, { status: 404 })
+  }
   try {
     const user = await getCurrentUser()
 
@@ -87,18 +96,21 @@ export async function GET(
 
       notifications = events
         .filter(
-          (e) => e.metadata && typeof e.metadata === 'object' && 'action' in e.metadata && e.metadata.action === 'smart_notification'
+          (e) => isRecord(e.metadata) && e.metadata.action === 'smart_notification'
         )
-        .map((event) => ({
-          id: event.id,
-          campaignId: event.campaignId,
-          type: (event.metadata?.type || 'update') as Notification['type'],
-          title: event.metadata?.title || 'Update',
-          message: event.metadata?.message || event.description || 'New activity',
-          read: event.metadata?.read === true,
-          priority: (event.metadata?.priority || 'medium') as Notification['priority'],
-          createdAt: event.createdAt.toISOString(),
-        }))
+        .map((event) => {
+          const metadata = isRecord(event.metadata) ? event.metadata : {}
+          return {
+            id: event.id,
+            campaignId: event.campaignId,
+            type: ((metadata.type as string) || 'update') as Notification['type'],
+            title: (metadata.title as string) || 'Update',
+            message: (metadata.message as string) || 'New activity',
+            read: metadata.read === true,
+            priority: ((metadata.priority as string) || 'medium') as Notification['priority'],
+            createdAt: event.createdAt.toISOString(),
+          }
+        })
     } catch (dbError) {
       // If database query fails, continue with simulated notifications
       console.error('Error fetching notifications from database:', dbError)
@@ -180,6 +192,9 @@ export async function PATCH(
   request: NextRequest,
   { params }: { params: { id: string } }
 ): Promise<NextResponse<PatchResponse>> {
+  if (!isFeatureEnabled('smart-notifications')) {
+    return NextResponse.json({ success: false, error: 'This feature is not yet available' }, { status: 404 })
+  }
   try {
     const user = await getCurrentUser()
 
@@ -229,13 +244,14 @@ export async function PATCH(
     })
 
     if (event && event.campaignId === campaign.id) {
+      const existingMetadata = isRecord(event.metadata) ? event.metadata : {}
       await prisma.contributionEvent.update({
         where: { id: notificationId },
         data: {
           metadata: {
-            ...event.metadata,
+            ...existingMetadata,
             read: read === true,
-          },
+          } as Prisma.InputJsonValue,
         },
       })
     }

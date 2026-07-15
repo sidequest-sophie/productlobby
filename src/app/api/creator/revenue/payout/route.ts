@@ -68,11 +68,17 @@ export async function PATCH(request: NextRequest) {
       return NextResponse.json({ error: 'Payout ID is required' }, { status: 400 })
     }
 
-    const payout = await getCreatorPayoutRequest(payoutId)
+    const result = await getCreatorPayoutRequest(payoutId, user.id)
 
-    if (!payout) {
+    if (result.status === 'not_found') {
       return NextResponse.json({ error: 'Payout not found' }, { status: 404 })
     }
+
+    if (result.status === 'forbidden') {
+      return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+    }
+
+    const payout = result.data
 
     return NextResponse.json({
       ...payout,

@@ -3,7 +3,7 @@ import { Building, Award, TrendingUp, Clock, ArrowRight, Star } from 'lucide-rea
 import { Button } from '@/components/ui/button';
 
 export const metadata: Metadata = {
-  title: 'Brand Showcase | ProductLobby',
+  title: 'Brand Showcase',
   description: 'Discover brands that are leading the way by responding to campaigns and engaging with the ProductLobby community.',
 };
 

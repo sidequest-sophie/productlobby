@@ -21,7 +21,12 @@ import { getCurrentUser } from '@/lib/auth'
 const mockGetCurrentUser = getCurrentUser as jest.MockedFunction<
   typeof getCurrentUser
 >
-const mockPrisma = prisma as jest.Mocked<typeof prisma>
+const mockPrisma = prisma as unknown as {
+  brandTeam: { findMany: jest.Mock }
+  campaign: { findMany: jest.Mock }
+  lobby: { findMany: jest.Mock }
+  pledge: { findMany: jest.Mock }
+}
 
 beforeEach(() => {
   jest.clearAllMocks()
@@ -35,6 +40,9 @@ const mockUser = {
   id: 'user-123',
   email: 'user@example.com',
   displayName: 'Test User',
+  handle: 'testuser',
+  avatar: null,
+  emailVerified: true,
 }
 
 const mockBrandMemberships = [

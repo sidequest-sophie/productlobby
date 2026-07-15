@@ -16,11 +16,11 @@ import {
 } from 'lucide-react';
 
 export const metadata: Metadata = {
-  title: 'Service Level Agreement (SLA) | ProductLobby',
+  title: 'Service Level Agreement (SLA)',
   description:
     'ProductLobby Service Level Agreement - Uptime commitments, response times, service credits, and support channels.',
   openGraph: {
-    title: 'Service Level Agreement (SLA) | ProductLobby',
+    title: 'Service Level Agreement (SLA)',
     description:
       'ProductLobby Service Level Agreement - Uptime commitments, response times, service credits, and support channels.',
     type: 'website',

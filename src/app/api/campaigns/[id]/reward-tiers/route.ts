@@ -4,6 +4,65 @@ import { getCurrentUser } from '@/lib/auth'
 
 export const dynamic = 'force-dynamic'
 
+// NOTE: There is no dedicated RewardTier table in the Prisma schema, so (like
+// several other ad-hoc campaign features in this codebase, e.g. reactions and
+// collaboration tasks) reward tiers are persisted as ContributionEvent rows
+// with a distinguishing `action` marker in `metadata`.
+
+interface RewardTier {
+  id: string
+  campaignId: string
+  name: string
+  description: string
+  minLobbiesRequired: number
+  rewardDescription: string
+  benefits: string[]
+  color: string
+  createdAt: string
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null && !Array.isArray(value)
+}
+
+function extractRewardTier(event: {
+  id: string
+  campaignId: string
+  createdAt: Date
+  metadata: unknown
+}): RewardTier | null {
+  const metadata = event.metadata
+  if (!isRecord(metadata) || metadata.action !== 'reward_tier_definition') {
+    return null
+  }
+
+  const { name, description, minLobbiesRequired, rewardDescription, benefits, color } = metadata
+
+  if (
+    typeof name !== 'string' ||
+    typeof description !== 'string' ||
+    typeof minLobbiesRequired !== 'number' ||
+    typeof rewardDescription !== 'string' ||
+    typeof color !== 'string'
+  ) {
+    return null
+  }
+
+  return {
+    id: event.id,
+    campaignId: event.campaignId,
+    name,
+    description,
+    minLobbiesRequired,
+    rewardDescription,
+    benefits: Array.isArray(benefits)
+      ? benefits.filter((b): b is string => typeof b === 'string')
+      : [],
+    color,
+    createdAt: event.createdAt.toISOString(),
+  }
+}
+
 export async function GET(
   request: NextRequest,
   { params }: { params: { id: string } }
@@ -24,33 +83,43 @@ export async function GET(
       )
     }
 
-    // Get reward tiers for the campaign, ordered by min lobbies required
-    const rewardTiers = await prisma.rewardTier.findMany({
-      where: { campaignId },
-      orderBy: { minLobbiesRequired: 'asc' },
+    // Get reward tiers for the campaign
+    const events = await prisma.contributionEvent.findMany({
+      where: {
+        campaignId,
+        eventType: 'SOCIAL_SHARE',
+        metadata: {
+          path: ['action'],
+          equals: 'reward_tier_definition',
+        },
+      },
+      orderBy: { createdAt: 'asc' },
     })
 
-    // Calculate supporter count for each tier using ContributionEvent
-    const tiersWithStats = await Promise.all(
-      rewardTiers.map(async (tier) => {
-        const supportersCount = await prisma.contributionEvent.count({
-          where: {
-            campaignId,
-            eventType: 'SOCIAL_SHARE',
-            metadata: {
-              path: ['action'],
-              equals: 'reward_tier',
-            },
-          },
-          distinct: ['userId'],
-        })
+    const rewardTiers = events
+      .map(extractRewardTier)
+      .filter((tier): tier is RewardTier => tier !== null)
+      .sort((a, b) => a.minLobbiesRequired - b.minLobbiesRequired)
 
-        return {
-          ...tier,
-          supportersCount,
-        }
-      })
-    )
+    // Calculate supporter count using ContributionEvent
+    const supporterEvents = await prisma.contributionEvent.findMany({
+      where: {
+        campaignId,
+        eventType: 'SOCIAL_SHARE',
+        metadata: {
+          path: ['action'],
+          equals: 'reward_tier',
+        },
+      },
+      distinct: ['userId'],
+      select: { userId: true },
+    })
+    const supportersCount = supporterEvents.length
+
+    const tiersWithStats = rewardTiers.map((tier) => ({
+      ...tier,
+      supportersCount,
+    }))
 
     return NextResponse.json({
       rewardTiers: tiersWithStats,
@@ -128,35 +197,39 @@ export async function POST(
     // Validate color
     const validColors = ['bronze', 'silver', 'gold', 'platinum', 'diamond']
     const tierColor = validColors.includes(color) ? color : 'bronze'
+    const tierBenefits: string[] = Array.isArray(benefits) ? benefits : []
 
-    // Create reward tier
-    const rewardTier = await prisma.rewardTier.create({
-      data: {
-        campaignId,
-        name,
-        description,
-        minLobbiesRequired,
-        rewardDescription,
-        benefits: benefits || [],
-        color: tierColor,
-      },
-    })
-
-    // Record as contribution event
-    await prisma.contributionEvent.create({
+    // Create reward tier (persisted as a ContributionEvent; also awards
+    // points to the creator for building out the campaign)
+    const event = await prisma.contributionEvent.create({
       data: {
         userId: user.id,
         campaignId,
         eventType: 'SOCIAL_SHARE',
         points: 15,
         metadata: {
-          action: 'reward_tier',
-          rewardTierId: rewardTier.id,
-          tierName: name,
-          tierColor: tierColor,
+          action: 'reward_tier_definition',
+          name,
+          description,
+          minLobbiesRequired,
+          rewardDescription,
+          benefits: tierBenefits,
+          color: tierColor,
         },
       },
     })
+
+    const rewardTier: RewardTier = {
+      id: event.id,
+      campaignId,
+      name,
+      description,
+      minLobbiesRequired,
+      rewardDescription,
+      benefits: tierBenefits,
+      color: tierColor,
+      createdAt: event.createdAt.toISOString(),
+    }
 
     return NextResponse.json(
       {

@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/db'
 import { getCurrentUser } from '@/lib/auth'
+import { isFeatureEnabled } from '@/lib/feature-flags'
+import { Prisma } from '@prisma/client'
 
 export const dynamic = 'force-dynamic'
 
@@ -21,6 +23,9 @@ export async function GET(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
+  if (!isFeatureEnabled('content-scheduler')) {
+    return NextResponse.json({ error: 'This feature is not yet available' }, { status: 404 })
+  }
   try {
     const { id } = await params
     const user = await getCurrentUser()
@@ -121,6 +126,9 @@ export async function POST(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
+  if (!isFeatureEnabled('content-scheduler')) {
+    return NextResponse.json({ error: 'This feature is not yet available' }, { status: 404 })
+  }
   try {
     const { id } = await params
     const user = await getCurrentUser()
@@ -154,14 +162,16 @@ export async function POST(
       data: {
         campaignId: campaign.id,
         userId: user.id,
-        action: 'content_schedule',
+        eventType: 'SOCIAL_SHARE',
+        points: 1,
         metadata: {
+          action: 'content_schedule',
           title: body.title,
           content: body.content,
           platform: body.platform,
           scheduledDate: body.scheduledDate,
           scheduledTime: body.scheduledTime,
-        },
+        } as Prisma.InputJsonValue,
       },
     })
 

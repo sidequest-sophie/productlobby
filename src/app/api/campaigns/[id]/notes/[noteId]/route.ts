@@ -49,7 +49,7 @@ export async function DELETE(
       where: { id: campaignId },
       select: {
         id: true,
-        creatorId: true,
+        creatorUserId: true,
       },
     })
 
@@ -60,7 +60,7 @@ export async function DELETE(
       )
     }
 
-    if (campaign.creatorId !== user.id) {
+    if (campaign.creatorUserId !== user.id) {
       return NextResponse.json(
         { error: 'Unauthorized - only creator can delete notes' },
         { status: 403 }

@@ -4,6 +4,15 @@ import { getCurrentUser } from '@/lib/auth'
 
 export const dynamic = 'force-dynamic'
 
+// NOTE: There is no dedicated RewardTier table in the Prisma schema. As in
+// ../route.ts, reward tiers are persisted as ContributionEvent rows with a
+// distinguishing `action` marker in `metadata`, and `tierId` here refers to
+// the underlying ContributionEvent's id.
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null && !Array.isArray(value)
+}
+
 export async function DELETE(
   request: NextRequest,
   { params }: { params: { id: string; tierId: string } }
@@ -41,12 +50,16 @@ export async function DELETE(
     }
 
     // Verify tier exists and belongs to this campaign
-    const tier = await prisma.rewardTier.findUnique({
+    const tier = await prisma.contributionEvent.findUnique({
       where: { id: tierId },
-      select: { id: true, campaignId: true },
+      select: { id: true, campaignId: true, metadata: true },
     })
 
-    if (!tier) {
+    if (
+      !tier ||
+      !isRecord(tier.metadata) ||
+      tier.metadata.action !== 'reward_tier_definition'
+    ) {
       return NextResponse.json(
         { error: 'Reward tier not found' },
         { status: 404 }
@@ -61,7 +74,7 @@ export async function DELETE(
     }
 
     // Delete the reward tier
-    await prisma.rewardTier.delete({
+    await prisma.contributionEvent.delete({
       where: { id: tierId },
     })
 

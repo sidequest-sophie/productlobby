@@ -4,7 +4,7 @@ import { Map, CheckCircle, Clock, Lightbulb, ArrowRight } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 
 export const metadata: Metadata = {
-  title: 'Roadmap | ProductLobby',
+  title: 'Roadmap',
   description: 'Discover upcoming features and our product roadmap.',
 };
 

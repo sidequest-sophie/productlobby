@@ -105,37 +105,46 @@ export async function POST(
       );
     }
 
-    // Create or update the notification preference event
-    const event = await prisma.contributionEvent.upsert({
+    // ContributionEvent has no unique constraint on (userId, campaignId,
+    // eventType), so emulate an upsert by finding the existing preference
+    // event for this user/campaign first.
+    const existingEvent = await prisma.contributionEvent.findFirst({
       where: {
-        userId_campaignId_eventType_unique: {
-          userId: user.id,
-          campaignId: id,
-          eventType: 'SOCIAL_SHARE',
-        },
-      },
-      create: {
         userId: user.id,
         campaignId: id,
         eventType: 'SOCIAL_SHARE',
         metadata: {
-          action: 'notification_pref',
-          newLobbies: body.newLobbies,
-          comments: body.comments,
-          brandResponses: body.brandResponses,
-          milestones: body.milestones,
+          path: ['action'],
+          equals: 'notification_pref',
         },
       },
-      update: {
-        metadata: {
-          action: 'notification_pref',
-          newLobbies: body.newLobbies,
-          comments: body.comments,
-          brandResponses: body.brandResponses,
-          milestones: body.milestones,
-        },
-      },
+      select: { id: true },
     });
+
+    const metadata = {
+      action: 'notification_pref',
+      newLobbies: body.newLobbies,
+      comments: body.comments,
+      brandResponses: body.brandResponses,
+      milestones: body.milestones,
+    };
+
+    if (existingEvent) {
+      await prisma.contributionEvent.update({
+        where: { id: existingEvent.id },
+        data: { metadata },
+      });
+    } else {
+      await prisma.contributionEvent.create({
+        data: {
+          userId: user.id,
+          campaignId: id,
+          eventType: 'SOCIAL_SHARE',
+          points: 0,
+          metadata,
+        },
+      });
+    }
 
     return NextResponse.json({
       success: true,

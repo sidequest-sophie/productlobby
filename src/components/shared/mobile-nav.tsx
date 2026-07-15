@@ -146,7 +146,7 @@ export const MobileNav: React.FC<{ className?: string }> = ({ className }) => {
                   .join('')
                   .toUpperCase()
                   .slice(0, 2)}
-                size="md"
+                size="default"
               />
               <div className="flex-1 min-w-0">
                 <p className="font-medium text-foreground truncate">

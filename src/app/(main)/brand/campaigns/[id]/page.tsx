@@ -108,7 +108,7 @@ const QualifiedDemandReview: React.FC<{ params: { id: string } }> = ({ params })
               <h1 className="font-display font-bold text-4xl text-foreground mb-2">{campaign.title}</h1>
               <p className="text-lg text-gray-600 max-w-2xl mb-4">{campaign.description}</p>
               <div className="flex items-center gap-3">
-                <Avatar size="md" initials="ER" />
+                <Avatar size="default" initials="ER" />
                 <div>
                   <p className="text-sm text-gray-600">Campaign by</p>
                   <p className="font-semibold text-foreground">{campaign.creator}</p>
@@ -268,7 +268,7 @@ const QualifiedDemandReview: React.FC<{ params: { id: string } }> = ({ params })
               <div className="space-y-2">
                 {colorPreferences.map((item, index) => (
                   <div key={index} className="flex items-center justify-between">
-                    <Badge variant="outline" size="md">
+                    <Badge variant="outline" size="default">
                       {item.color}
                     </Badge>
                     <p className="text-sm font-semibold text-foreground">{item.count}</p>
@@ -335,7 +335,7 @@ const QualifiedDemandReview: React.FC<{ params: { id: string } }> = ({ params })
 
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-3">
           {wishlistThemes.map((item, index) => (
-            <Card key={index} hover className="text-center">
+            <Card key={index} variant="interactive" className="text-center">
               <CardContent className="pt-6 pb-6">
                 <p className="font-display font-semibold text-foreground mb-2">{item.theme}</p>
                 <p className="font-display font-bold text-2xl text-violet-600">{item.mentions}</p>

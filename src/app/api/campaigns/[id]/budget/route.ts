@@ -3,6 +3,7 @@ export const dynamic = 'force-dynamic'
 import { prisma } from '@/lib/db'
 import { getCurrentUser } from '@/lib/auth'
 import { NextRequest, NextResponse } from 'next/server'
+import { Prisma } from '@prisma/client'
 
 interface BudgetItemMetadata {
   action: 'budget_item'
@@ -84,7 +85,7 @@ export async function GET(
 
     // Parse budget items from events
     const budgetItems = budgetEvents.map((event) => {
-      const metadata = event.metadata as BudgetItemMetadata
+      const metadata = event.metadata as unknown as BudgetItemMetadata
 
       return {
         id: event.id,
@@ -190,7 +191,8 @@ export async function POST(
         campaignId: campaign.id,
         userId: user.id,
         eventType: 'SOCIAL_SHARE',
-        metadata: metadata,
+        points: 1,
+        metadata: metadata as unknown as Prisma.InputJsonValue,
       },
     })
 

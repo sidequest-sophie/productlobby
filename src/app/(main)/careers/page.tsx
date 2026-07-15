@@ -3,7 +3,7 @@ import { Briefcase, MapPin, Clock, Heart, Rocket, Users, Zap, Globe } from 'luci
 import { Button } from '@/components/ui/button'
 
 export const metadata = {
-  title: 'Careers | ProductLobby',
+  title: 'Careers',
   description:
     'Join the ProductLobby team and help democratize consumer advocacy and product lobbying.',
 }

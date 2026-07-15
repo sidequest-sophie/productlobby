@@ -126,7 +126,7 @@ export default function BrandVerifyPage() {
 
   if (loading) {
     return (
-      <DashboardLayout>
+      <DashboardLayout role="brand">
         <div className="min-h-screen bg-gradient-to-b from-violet-50 to-white py-12">
           <div className="max-w-3xl mx-auto px-4 flex items-center justify-center">
             <div className="text-center">
@@ -141,7 +141,7 @@ export default function BrandVerifyPage() {
 
   if (error || !verification) {
     return (
-      <DashboardLayout>
+      <DashboardLayout role="brand">
         <div className="min-h-screen bg-gradient-to-b from-violet-50 to-white py-12">
           <div className="max-w-3xl mx-auto px-4">
             <Card className="border-2 border-red-200 bg-red-50">
@@ -171,7 +171,7 @@ export default function BrandVerifyPage() {
   const progress = getProgressPercentage(status)
 
   return (
-    <DashboardLayout>
+    <DashboardLayout role="brand">
       <div className="min-h-screen bg-gradient-to-b from-violet-50 to-white py-12">
         <div className="max-w-3xl mx-auto px-4">
           {/* Status Card */}

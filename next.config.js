@@ -1,9 +1,9 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   typescript: {
-    // Skip type checking during build — Prisma generated types
-    // cause false positives until DB is connected. Will re-enable later.
-    ignoreBuildErrors: true,
+    // Type checking is enforced during build. Keep it that way — the errors
+    // it caught were real schema-drift bugs, not false positives.
+    ignoreBuildErrors: false,
   },
   images: {
     remotePatterns: [

@@ -16,7 +16,7 @@ import {
 import { Button } from '@/components/ui/button';
 
 export const metadata: Metadata = {
-  title: 'Achievements | ProductLobby',
+  title: 'Achievements',
   description:
     'Discover all available platform achievements and badges you can earn on ProductLobby.',
 };
@@ -364,7 +364,7 @@ export default function AchievementsPage() {
           {categories.map((category) => (
             <Button
               key={category}
-              variant={category === 'All' ? 'default' : 'outline'}
+              variant={category === 'All' ? 'primary' : 'outline'}
               className={
                 category === 'All'
                   ? 'bg-gradient-to-r from-violet-600 to-lime-600 hover:from-violet-700 hover:to-lime-700'

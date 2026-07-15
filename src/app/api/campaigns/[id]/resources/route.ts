@@ -50,14 +50,17 @@ export async function GET(
         const metadata = event.metadata as any
         const resourceId = metadata.resourceId || event.id
 
-        // Check if current user has bookmarked this resource
+        // The Bookmark model only tracks campaign-level bookmarks (no
+        // per-resource granularity), so use the user's bookmark of the
+        // parent campaign as the closest available signal.
         let isBookmarked = false
         if (user) {
-          const bookmark = await prisma.bookmark.findFirst({
+          const bookmark = await prisma.bookmark.findUnique({
             where: {
-              userId: user.id,
-              itemId: resourceId,
-              itemType: 'RESOURCE',
+              userId_campaignId: {
+                userId: user.id,
+                campaignId,
+              },
             },
           })
           isBookmarked = !!bookmark
@@ -73,7 +76,7 @@ export async function GET(
           viewCount: metadata.viewCount || 0,
           isBookmarked,
           createdAt: event.createdAt,
-          updatedAt: event.updatedAt,
+          updatedAt: event.createdAt,
         }
       })
     )
@@ -186,7 +189,7 @@ export async function POST(
         viewCount: 0,
         isBookmarked: false,
         createdAt: contributionEvent.createdAt,
-        updatedAt: contributionEvent.updatedAt,
+        updatedAt: contributionEvent.createdAt,
       },
       { status: 201 }
     )

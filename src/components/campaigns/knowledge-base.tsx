@@ -351,7 +351,7 @@ export function KnowledgeBase({ campaignId }: KnowledgeBaseProps) {
         <div className="flex flex-wrap gap-2">
           <Button
             onClick={() => setSelectedCategory(null)}
-            variant={selectedCategory === null ? 'default' : 'outline'}
+            variant={selectedCategory === null ? 'primary' : 'outline'}
             className={cn(
               selectedCategory === null && 'bg-violet-600 hover:bg-violet-700 text-white'
             )}
@@ -366,7 +366,7 @@ export function KnowledgeBase({ campaignId }: KnowledgeBaseProps) {
                   selectedCategory === cat.id ? null : (cat.id as any)
                 )
               }
-              variant={selectedCategory === cat.id ? 'default' : 'outline'}
+              variant={selectedCategory === cat.id ? 'primary' : 'outline'}
               className={cn(
                 selectedCategory === cat.id && 'bg-lime-600 hover:bg-lime-700 text-white'
               )}

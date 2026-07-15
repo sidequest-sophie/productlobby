@@ -1,6 +1,7 @@
 import { getCurrentUser } from '@/lib/auth'
 import { prisma } from '@/lib/db'
 import { NextRequest, NextResponse } from 'next/server'
+import { Prisma } from '@prisma/client'
 
 export const dynamic = 'force-dynamic'
 
@@ -238,12 +239,13 @@ export async function POST(
           userId: user.id,
           campaignId: id,
           eventType: 'SOCIAL_SHARE',
+          points: 1,
           metadata: {
             action: 'campaign_link',
             linkedCampaignId,
             reason: reason || 'Related campaign',
             linkedAt: new Date().toISOString(),
-          },
+          } as Prisma.InputJsonValue,
         },
       })
     }

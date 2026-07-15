@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { Prisma } from '@prisma/client'
 import { prisma } from '@/lib/db'
 import { getCurrentUser } from '@/lib/auth'
 
@@ -200,7 +201,7 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
         campaignId: campaignId,
         eventType: 'PREFERENCE_SUBMITTED',
         points: 0,
-        metadata: metadata,
+        metadata: metadata as unknown as Prisma.InputJsonValue,
       },
     })
 

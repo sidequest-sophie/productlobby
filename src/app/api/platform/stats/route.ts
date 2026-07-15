@@ -8,6 +8,7 @@ interface PlatformStats {
   totalUsers: number
   totalLobbies: number
   totalComments: number
+  totalBrands: number
   campaignsByStatus: {
     status: string
     count: number
@@ -32,6 +33,7 @@ export async function GET() {
     const totalUsers = await prisma.user.count()
     const totalLobbies = await prisma.lobby.count()
     const totalComments = await prisma.comment.count()
+    const totalBrands = await prisma.brand.count()
 
     // Campaigns by status
     const campaignsByStatusData = await prisma.campaign.groupBy({
@@ -51,7 +53,7 @@ export async function GET() {
       _count: true,
       orderBy: {
         _count: {
-          _all: 'desc',
+          category: 'desc',
         },
       },
       take: 10,
@@ -144,6 +146,7 @@ export async function GET() {
       totalUsers,
       totalLobbies,
       totalComments,
+      totalBrands,
       campaignsByStatus,
       topCategories,
       monthlyGrowth,

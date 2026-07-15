@@ -4,7 +4,7 @@ import { CheckCircle, Users, BarChart3, Zap, Shield, Lightbulb } from 'lucide-re
 import { Button } from '@/components/ui/button'
 
 export const metadata = {
-  title: 'Platform Governance | ProductLobby',
+  title: 'Platform Governance',
   description:
     'Learn about how ProductLobby is governed, our decision-making processes, and community involvement.',
 }

@@ -50,12 +50,18 @@ export default function EmailPreviewPage() {
   const [data, setData] = useState<DigestData | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
+  const [notAvailable, setNotAvailable] = useState(false)
 
   useEffect(() => {
     const fetchDigestData = async () => {
       try {
         setLoading(true)
         const response = await fetch('/api/users/digest-preview')
+
+        if (response.status === 404) {
+          setNotAvailable(true)
+          return
+        }
 
         if (!response.ok) {
           throw new Error('Failed to fetch digest preview')
@@ -86,7 +92,6 @@ export default function EmailPreviewPage() {
         <PageHeader
           title="Weekly Digest Preview"
           description="Preview what your weekly digest email will look like"
-          icon={<Mail className="w-8 h-8" />}
         />
 
         {error && (
@@ -106,7 +111,7 @@ export default function EmailPreviewPage() {
           </div>
         )}
 
-        {!loading && data && !hasContent && (
+        {!loading && !error && !hasContent && (
           <Card>
             <CardContent className="pt-6 text-center py-12">
               <Mail className="w-12 h-12 text-gray-400 mx-auto mb-4" />

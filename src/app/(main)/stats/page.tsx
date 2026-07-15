@@ -187,7 +187,7 @@ export default function StatsPage() {
                         </div>
                         <span className="text-sm text-foreground">{category.category}</span>
                       </div>
-                      <Badge variant="secondary">{category.count}</Badge>
+                      <Badge variant="default">{category.count}</Badge>
                     </div>
                   ))}
                 </div>

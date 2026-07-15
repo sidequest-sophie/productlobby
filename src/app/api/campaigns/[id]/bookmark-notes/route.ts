@@ -1,12 +1,52 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/db'
 import { getCurrentUser } from '@/lib/auth'
+import { Prisma } from '@prisma/client'
 
 export const dynamic = 'force-dynamic'
 
 interface BookmarkNote {
   note: string
   lastSaved: string
+}
+
+interface BookmarkNoteMetadata {
+  action: string
+  note?: string
+  noteLength?: number
+}
+
+function isRecord(v: unknown): v is Record<string, unknown> {
+  return typeof v === 'object' && v !== null && !Array.isArray(v)
+}
+
+// The Bookmark model has no `note` field of its own — bookmark notes are an
+// ad-hoc feature persisted via ContributionEvent.metadata, following this
+// codebase's convention for features without dedicated schema support.
+async function getLatestBookmarkNote(userId: string, campaignId: string) {
+  const event = await prisma.contributionEvent.findFirst({
+    where: {
+      userId,
+      campaignId,
+      eventType: 'SOCIAL_SHARE',
+      metadata: {
+        path: ['action'],
+        equals: 'bookmark_note',
+      },
+    },
+    orderBy: { createdAt: 'desc' },
+  })
+
+  if (!event) return null
+
+  const metadata: BookmarkNoteMetadata | null = isRecord(event.metadata)
+    ? (event.metadata as unknown as BookmarkNoteMetadata)
+    : null
+
+  return {
+    note: metadata?.note ?? '',
+    lastSaved: event.createdAt.toISOString(),
+  }
 }
 
 // GET /api/campaigns/[id]/bookmark-notes - Fetch user's bookmark note for this campaign
@@ -38,23 +78,13 @@ export async function GET(
       )
     }
 
-    // Get or create the bookmark with note
-    const bookmark = await prisma.bookmark.findUnique({
-      where: {
-        userId_campaignId: {
-          userId: user.id,
-          campaignId,
-        },
-      },
-      select: {
-        note: true,
-        updatedAt: true,
-      },
-    })
+    // Fetch the latest bookmark note (stored via ContributionEvent metadata,
+    // since Bookmark itself has no note field)
+    const latest = await getLatestBookmarkNote(user.id, campaignId)
 
     const responseData: BookmarkNote = {
-      note: bookmark?.note || '',
-      lastSaved: bookmark?.updatedAt?.toISOString() || '',
+      note: latest?.note || '',
+      lastSaved: latest?.lastSaved || '',
     }
 
     return NextResponse.json(responseData, { status: 200 })
@@ -113,8 +143,9 @@ export async function PUT(
       )
     }
 
-    // Get or create the bookmark
-    let bookmark = await prisma.bookmark.findUnique({
+    // Ensure the bookmark itself exists (Bookmark has no note field — the
+    // note is tracked separately via ContributionEvent metadata)
+    const existingBookmark = await prisma.bookmark.findUnique({
       where: {
         userId_campaignId: {
           userId: user.id,
@@ -123,64 +154,32 @@ export async function PUT(
       },
     })
 
-    if (!bookmark) {
-      // Create new bookmark with note
-      bookmark = await prisma.bookmark.create({
+    if (!existingBookmark) {
+      await prisma.bookmark.create({
         data: {
           userId: user.id,
           campaignId,
-          note: note || null,
         },
       })
-
-      // Record contribution event for bookmark creation
-      await prisma.contributionEvent.create({
-        data: {
-          userId: user.id,
-          campaignId,
-          eventType: 'SOCIAL_SHARE',
-          metadata: {
-            action: 'bookmark_note',
-            noteLength: note.length,
-          },
-        },
-      })
-    } else {
-      // Update existing bookmark
-      const wasEmpty = !bookmark.note || bookmark.note.length === 0
-      const nowHasNote = note && note.length > 0
-
-      bookmark = await prisma.bookmark.update({
-        where: {
-          userId_campaignId: {
-            userId: user.id,
-            campaignId,
-          },
-        },
-        data: {
-          note: note || null,
-        },
-      })
-
-      // Record contribution event if transitioning from empty to filled
-      if (wasEmpty && nowHasNote) {
-        await prisma.contributionEvent.create({
-          data: {
-            userId: user.id,
-            campaignId,
-            eventType: 'SOCIAL_SHARE',
-            metadata: {
-              action: 'bookmark_note',
-              noteLength: note.length,
-            },
-          },
-        })
-      }
     }
 
+    const event = await prisma.contributionEvent.create({
+      data: {
+        userId: user.id,
+        campaignId,
+        eventType: 'SOCIAL_SHARE',
+        points: 1,
+        metadata: {
+          action: 'bookmark_note',
+          note,
+          noteLength: note.length,
+        } as Prisma.InputJsonValue,
+      },
+    })
+
     const responseData: BookmarkNote = {
-      note: bookmark.note || '',
-      lastSaved: bookmark.updatedAt.toISOString(),
+      note,
+      lastSaved: event.createdAt.toISOString(),
     }
 
     return NextResponse.json(responseData, { status: 200 })

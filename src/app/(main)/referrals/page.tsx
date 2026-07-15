@@ -3,7 +3,7 @@ import { Gift, Users, Award, Share2, Trophy } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 
 export const metadata: Metadata = {
-  title: 'Referral Program | ProductLobby',
+  title: 'Referral Program',
   description: 'Invite friends and earn rewards through our referral program.',
 };
 

@@ -4,6 +4,10 @@ import { getCurrentUser } from '@/lib/auth'
 
 export const dynamic = 'force-dynamic'
 
+function isRecord(v: unknown): v is Record<string, unknown> {
+  return typeof v === 'object' && v !== null && !Array.isArray(v)
+}
+
 // ============================================================================
 // TYPE DEFINITIONS
 // ============================================================================
@@ -129,7 +133,9 @@ export async function GET(
       })
 
       votes.forEach((vote) => {
-        const featureId = vote.metadata?.featureSuggestionId as string | undefined
+        const featureId = isRecord(vote.metadata)
+          ? (vote.metadata.featureSuggestionId as string | undefined)
+          : undefined
         if (featureId) userVoteFeatureIds.add(featureId)
       })
     }
@@ -138,7 +144,8 @@ export async function GET(
     const featureMap = new Map<string, FeatureSuggestion>()
 
     for (const suggestion of allSuggestions) {
-      const featureSuggestionId = suggestion.metadata?.featureSuggestionId as
+      const suggestionMetadata = isRecord(suggestion.metadata) ? suggestion.metadata : {}
+      const featureSuggestionId = suggestionMetadata.featureSuggestionId as
         | string
         | undefined
 
@@ -148,9 +155,9 @@ export async function GET(
 
       const feature: FeatureSuggestion = {
         id: featureSuggestionId,
-        title: (suggestion.metadata?.title as string) || '',
-        description: (suggestion.metadata?.description as string) || '',
-        category: (suggestion.metadata?.category as string) || 'Features',
+        title: (suggestionMetadata.title as string) || '',
+        description: (suggestionMetadata.description as string) || '',
+        category: (suggestionMetadata.category as string) || 'Features',
         voteCount,
         userHasVoted: userVoteFeatureIds.has(featureSuggestionId),
         createdAt: suggestion.createdAt.toISOString(),
@@ -285,7 +292,8 @@ export async function POST(
 
       if (
         existingVote &&
-        existingVote.metadata?.featureSuggestionId === featureId
+        isRecord(existingVote.metadata) &&
+        existingVote.metadata.featureSuggestionId === featureId
       ) {
         return NextResponse.json(
           { success: false, error: 'You already voted for this feature' },

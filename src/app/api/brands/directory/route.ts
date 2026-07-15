@@ -8,21 +8,18 @@ export async function GET(request: NextRequest) {
     const searchParams = request.nextUrl.searchParams;
     const search = searchParams.get('search') || '';
 
-    // Fetch brands with claimed profiles (users with brand-related roles)
-    const brands = await prisma.user.findMany({
+    // Fetch brands with claimed profiles
+    const brands = await prisma.brand.findMany({
       where: {
         AND: [
           {
-            OR: [
-              { role: 'brand' },
-              { role: 'brand-admin' },
-            ],
+            OR: [{ status: 'CLAIMED' }, { status: 'VERIFIED' }],
           },
           search
             ? {
                 OR: [
                   { name: { contains: search, mode: 'insensitive' } },
-                  { handle: { contains: search, mode: 'insensitive' } },
+                  { slug: { contains: search, mode: 'insensitive' } },
                 ],
               }
             : {},
@@ -31,9 +28,8 @@ export async function GET(request: NextRequest) {
       select: {
         id: true,
         name: true,
-        handle: true,
-        avatar: true,
-        category: true,
+        slug: true,
+        logo: true,
         _count: {
           select: {
             campaigns: true,
@@ -47,9 +43,9 @@ export async function GET(request: NextRequest) {
     const brandDirectory = brands.map((brand) => ({
       id: brand.id,
       name: brand.name,
-      handle: brand.handle,
-      avatar: brand.avatar,
-      category: brand.category || 'General',
+      handle: brand.slug,
+      avatar: brand.logo,
+      category: 'General',
       campaignCount: brand._count.campaigns,
     }));
 

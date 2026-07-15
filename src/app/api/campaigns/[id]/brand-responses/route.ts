@@ -4,6 +4,10 @@ import { getCurrentUser } from '@/lib/auth'
 
 export const dynamic = 'force-dynamic'
 
+function isRecord(v: unknown): v is Record<string, unknown> {
+  return typeof v === 'object' && v !== null && !Array.isArray(v)
+}
+
 export async function GET(
   request: NextRequest,
   { params }: { params: { id: string } }
@@ -44,15 +48,18 @@ export async function GET(
     })
 
     // Map events to responses
-    const responses = events.map((event) => ({
-      id: event.id,
-      campaignId: event.campaignId,
-      status: (event.metadata?.status as string) || 'unread',
-      templateUsed: (event.metadata?.templateUsed as string) || undefined,
-      responseText: (event.metadata?.responseText as string) || undefined,
-      createdAt: event.createdAt,
-      updatedAt: event.updatedAt,
-    }))
+    const responses = events.map((event) => {
+      const metadata = isRecord(event.metadata) ? event.metadata : {}
+      return {
+        id: event.id,
+        campaignId: event.campaignId,
+        status: (metadata.status as string) || 'unread',
+        templateUsed: (metadata.templateUsed as string) || undefined,
+        responseText: (metadata.responseText as string) || undefined,
+        createdAt: event.createdAt,
+        updatedAt: event.createdAt,
+      }
+    })
 
     // Calculate stats
     const responded = responses.filter((r) => r.status === 'responded').length

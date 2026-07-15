@@ -504,7 +504,7 @@ export function CompetitorComparison({
                 )}
 
                 {/* Price */}
-                {competitor.price !== null && (
+                {competitor.price !== null && competitor.price !== undefined && (
                   <div className="flex items-baseline gap-2">
                     <span className="text-2xl font-bold text-violet-600">
                       {competitor.currency} {competitor.price.toFixed(2)}

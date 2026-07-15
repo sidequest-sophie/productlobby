@@ -1,6 +1,6 @@
 import { prisma } from '@/lib/db'
 import { LobbyIntensity } from '@prisma/client'
-import slugify from 'slugify'
+import { slugify } from '@/lib/utils'
 
 interface CampaignTemplate {
   title: string
@@ -240,13 +240,50 @@ const campaigns: CampaignTemplate[] = [
   },
 ]
 
+// Brands campaigns can target, keyed loosely by category
+const BRAND_SEEDS: Array<{ name: string; website: string; categories: string[] }> = [
+  { name: 'Dyson', website: 'https://www.dyson.co.uk', categories: ['Home', 'Tech', 'Beauty'] },
+  { name: 'IKEA', website: 'https://www.ikea.com', categories: ['Home', 'Sustainability'] },
+  { name: 'Sony', website: 'https://www.sony.co.uk', categories: ['Tech', 'Audio', 'Gaming'] },
+  { name: 'Patagonia', website: 'https://www.patagonia.com', categories: ['Apparel', 'Sustainability'] },
+  { name: 'Fitbit', website: 'https://www.fitbit.com', categories: ['Health', 'Wearables'] },
+  { name: 'LEGO', website: 'https://www.lego.com', categories: ['Gaming', 'Other'] },
+  { name: 'Samsung', website: 'https://www.samsung.com', categories: ['Tech', 'Home'] },
+  { name: 'Nike', website: 'https://www.nike.com', categories: ['Apparel', 'Sports', 'Health'] },
+]
+
 export async function seedCampaigns(creatorUsers: Array<{ id: string; handle: string }>) {
   console.log('Seeding campaigns...')
   const intensityOptions: LobbyIntensity[] = ['NEAT_IDEA', 'PROBABLY_BUY', 'TAKE_MY_MONEY']
 
+  // Create brands first so campaigns can target them
+  const brands = []
+  for (const b of BRAND_SEEDS) {
+    const brand = await prisma.brand.upsert({
+      where: { slug: slugify(b.name) },
+      update: {},
+      create: {
+        name: b.name,
+        slug: slugify(b.name),
+        website: b.website,
+        status: 'UNCLAIMED',
+      },
+    })
+    brands.push({ ...brand, categories: b.categories })
+  }
+  console.log(`Seeded ${brands.length} brands`)
+
+  let campaignIndex = 0
   for (const campaign of campaigns) {
     const creator = creatorUsers[Math.floor(Math.random() * creatorUsers.length)]
-    const slug = slugify(campaign.title, { lower: true, strict: true })
+    const slug = slugify(campaign.title)
+
+    // Target a category-appropriate brand for ~3 in 4 campaigns;
+    // leave the rest open to alternatives
+    const matching = brands.filter((b) => b.categories.includes(campaign.category))
+    const pool = matching.length > 0 ? matching : brands
+    const targetBrand = campaignIndex % 4 === 3 ? null : pool[campaignIndex % pool.length]
+    campaignIndex++
 
     // Create campaign
     const createdCampaign = await prisma.campaign.create({
@@ -258,42 +295,33 @@ export async function seedCampaigns(creatorUsers: Array<{ id: string; handle: st
         category: campaign.category,
         status: 'LIVE',
         path: 'LOBBYING',
-        suggestedPrice: BigInt(campaign.targetPrice * 100) / BigInt(100), // Convert to Decimal
+        suggestedPrice: campaign.targetPrice,
         currency: 'GBP',
+        targetedBrandId: targetBrand?.id ?? null,
+        openToAlternatives: !targetBrand,
       },
     })
 
     console.log(`Created campaign: ${campaign.title}`)
 
-    // Add lobbies with varied intensities
-    const lobbies = await Promise.all(
-      campaign.lobbyIntensities.map(async (intensity, idx) => {
-        // Create or fetch random user
-        const randomUser = await prisma.user.findFirst({
-          where: {
-            id: {
-              not: creator.id,
-            },
-          },
-          skip: Math.floor(Math.random() * 5),
-        })
+    // Add lobbies with varied intensities — one distinct user per lobby
+    // (Lobby has a unique constraint on campaign_id + user_id)
+    const otherUsers = await prisma.user.findMany({
+      where: { id: { not: creator.id } },
+    })
+    const lobbies = await prisma.lobby.createMany({
+      data: campaign.lobbyIntensities
+        .slice(0, otherUsers.length)
+        .map((intensity, idx) => ({
+          campaignId: createdCampaign.id,
+          userId: otherUsers[idx].id,
+          intensity: intensity,
+          status: 'VERIFIED' as const,
+        })),
+      skipDuplicates: true,
+    })
 
-        if (!randomUser) {
-          return null
-        }
-
-        return await prisma.lobby.create({
-          data: {
-            campaignId: createdCampaign.id,
-            userId: randomUser.id,
-            intensity: intensity,
-            status: 'VERIFIED',
-          },
-        })
-      })
-    )
-
-    console.log(`Added ${lobbies.filter(Boolean).length} lobbies to ${campaign.title}`)
+    console.log(`Added ${lobbies.count} lobbies to ${campaign.title}`)
 
     // Add some comments
     const commentCount = Math.floor(Math.random() * 4) + 1

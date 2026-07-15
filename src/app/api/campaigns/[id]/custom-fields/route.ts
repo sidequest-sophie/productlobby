@@ -164,7 +164,7 @@ export async function POST(
       where: { id: campaignId },
       select: {
         id: true,
-        creatorId: true,
+        creatorUserId: true,
       },
     })
 
@@ -175,7 +175,7 @@ export async function POST(
       )
     }
 
-    if (campaign.creatorId !== user.id) {
+    if (campaign.creatorUserId !== user.id) {
       return NextResponse.json(
         { error: 'Unauthorized - only creator can add custom fields' },
         { status: 403 }
@@ -276,7 +276,7 @@ export async function DELETE(
       where: { id: campaignId },
       select: {
         id: true,
-        creatorId: true,
+        creatorUserId: true,
       },
     })
 
@@ -287,7 +287,7 @@ export async function DELETE(
       )
     }
 
-    if (campaign.creatorId !== user.id) {
+    if (campaign.creatorUserId !== user.id) {
       return NextResponse.json(
         { error: 'Unauthorized - only creator can delete custom fields' },
         { status: 403 }

@@ -61,7 +61,7 @@ export default function BrandClaimPage() {
   ]
 
   return (
-    <DashboardLayout>
+    <DashboardLayout role="brand">
       <div className="min-h-screen bg-gradient-to-b from-violet-50 to-white">
         {/* Hero Section */}
         <div className="max-w-6xl mx-auto px-4 py-12 sm:py-20">

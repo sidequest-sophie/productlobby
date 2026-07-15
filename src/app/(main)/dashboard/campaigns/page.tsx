@@ -70,14 +70,14 @@ const campaigns: Campaign[] = [
 
 type FilterType = 'All' | 'Live' | 'Draft' | 'Paused' | 'Closed'
 
-const getStatusColor = (status: string) => {
+const getStatusColor = (status: string): 'default' | 'success' | 'warning' | 'error' | 'outline' => {
   switch (status) {
     case 'Live':
-      return 'lime'
+      return 'success'
     case 'Draft':
-      return 'gray'
+      return 'outline'
     case 'Paused':
-      return 'yellow'
+      return 'warning'
     case 'Closed':
       return 'default'
     default:

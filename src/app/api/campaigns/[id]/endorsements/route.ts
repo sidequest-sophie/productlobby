@@ -66,7 +66,7 @@ export async function GET(request: NextRequest, { params }: EndorsementParams) {
 
     // Format endorsements
     const formattedEndorsements = endorsements.map((event) => {
-      const metadata = event.metadata as EndorsementMetadata
+      const metadata = event.metadata as unknown as EndorsementMetadata
 
       return {
         id: event.id,
@@ -147,7 +147,7 @@ export async function POST(request: NextRequest, { params }: EndorsementParams) 
 
     const campaign = await prisma.campaign.findFirst({
       where: isUuid ? { id } : { slug: id },
-      select: { id: true, createdByUserId: true },
+      select: { id: true, creatorUserId: true },
     })
 
     if (!campaign) {
@@ -158,7 +158,7 @@ export async function POST(request: NextRequest, { params }: EndorsementParams) 
     }
 
     // Check if user is the campaign creator
-    if (campaign.createdByUserId !== user.id) {
+    if (campaign.creatorUserId !== user.id) {
       return NextResponse.json(
         { success: false, error: 'Only campaign creators can add endorsements' },
         { status: 403 }
@@ -255,7 +255,7 @@ export async function DELETE(request: NextRequest, { params }: EndorsementParams
 
     const campaign = await prisma.campaign.findFirst({
       where: isUuid ? { id } : { slug: id },
-      select: { id: true, createdByUserId: true },
+      select: { id: true, creatorUserId: true },
     })
 
     if (!campaign) {
@@ -266,7 +266,7 @@ export async function DELETE(request: NextRequest, { params }: EndorsementParams
     }
 
     // Check if user is the campaign creator
-    if (campaign.createdByUserId !== user.id) {
+    if (campaign.creatorUserId !== user.id) {
       return NextResponse.json(
         { success: false, error: 'Only campaign creators can delete endorsements' },
         { status: 403 }

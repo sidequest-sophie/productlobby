@@ -38,7 +38,7 @@ export async function GET(
           select: { id: true, createdAt: true },
         },
         follows: {
-          select: { id: true },
+          select: { userId: true },
         },
         bookmarks: {
           select: { id: true },

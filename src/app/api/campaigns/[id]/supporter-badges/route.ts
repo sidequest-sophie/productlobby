@@ -159,12 +159,12 @@ export async function GET(
         OR: [{ id: campaignId }, { slug: campaignId }],
       },
       include: {
-        contributions: {
+        contributionEvents: {
           where: { userId: user.id },
           include: { user: true },
         },
         _count: {
-          select: { contributions: true },
+          select: { contributionEvents: true },
         },
       },
     })
@@ -191,9 +191,7 @@ export async function GET(
     const comments = await prisma.comment.count({
       where: {
         userId: user.id,
-        campaignUpdate: {
-          campaignId: campaign.id,
-        },
+        campaignId: campaign.id,
       },
     })
 
@@ -223,7 +221,7 @@ export async function GET(
       comments,
       totalScore: totalContributionScore,
       trackingDays,
-      isPioneer: campaign._count.contributions <= 100,
+      isPioneer: campaign._count.contributionEvents <= 100,
     })
 
     // Calculate progress for non-earned badges
@@ -237,15 +235,15 @@ export async function GET(
         // Calculate progress based on condition
         switch (badgeDef.condition) {
           case 'shares':
-            progress = Math.min(shares, badgeDef.conditionValue)
+            progress = Math.min(shares, badgeDef.conditionValue ?? 0)
             progressMax = badgeDef.conditionValue
             break
           case 'comments':
-            progress = Math.min(comments, badgeDef.conditionValue)
+            progress = Math.min(comments, badgeDef.conditionValue ?? 0)
             progressMax = badgeDef.conditionValue
             break
           case 'trackingDays':
-            progress = Math.min(trackingDays, badgeDef.conditionValue)
+            progress = Math.min(trackingDays, badgeDef.conditionValue ?? 0)
             progressMax = badgeDef.conditionValue
             break
           case 'allBadges':

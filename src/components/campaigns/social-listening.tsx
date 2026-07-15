@@ -54,6 +54,7 @@ export const SocialListening: React.FC<SocialListeningProps> = ({
   const [data, setData] = useState<ListeningData | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
+  const [notAvailable, setNotAvailable] = useState(false)
 
   useEffect(() => {
     const fetchData = async () => {
@@ -62,6 +63,10 @@ export const SocialListening: React.FC<SocialListeningProps> = ({
         const response = await fetch(
           `/api/campaigns/${campaignId}/social-listening`
         )
+        if (response.status === 404) {
+          setNotAvailable(true)
+          return
+        }
         if (!response.ok) {
           throw new Error('Failed to fetch social listening data')
         }
@@ -79,6 +84,10 @@ export const SocialListening: React.FC<SocialListeningProps> = ({
 
     fetchData()
   }, [campaignId])
+
+  if (notAvailable) {
+    return null
+  }
 
   if (loading) {
     return (

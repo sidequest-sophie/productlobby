@@ -70,6 +70,7 @@ export async function calculateMarketSize(campaignId: string): Promise<number> {
     const prices = pledges
       .map((p) => {
         const val = p.priceCeiling
+        if (val === null) return NaN
         return typeof val === 'object' ? parseFloat(val.toString()) : val
       })
       .filter((v) => !isNaN(v))
@@ -229,6 +230,7 @@ export async function generateDemandReport(
     const prices = intentPledges
       .map((p) => {
         const val = p.priceCeiling
+        if (val === null) return NaN
         return typeof val === 'object' ? parseFloat(val.toString()) : val
       })
       .filter((v) => !isNaN(v))

@@ -77,6 +77,7 @@ export function SupporterSegments({
     loading: true,
     error: null,
   })
+  const [notAvailable, setNotAvailable] = useState(false)
 
   useEffect(() => {
     const fetchSegmentData = async () => {
@@ -84,6 +85,11 @@ export function SupporterSegments({
         const res = await fetch(
           `/api/campaigns/${campaignId}/supporter-segments`
         )
+        if (res.status === 404) {
+          setNotAvailable(true)
+          setState((prev) => ({ ...prev, loading: false }))
+          return
+        }
         if (!res.ok) throw new Error('Failed to fetch segment data')
         const data = await res.json()
         setState({
@@ -103,6 +109,10 @@ export function SupporterSegments({
 
     fetchSegmentData()
   }, [campaignId])
+
+  if (notAvailable) {
+    return null
+  }
 
   if (state.loading) {
     return (

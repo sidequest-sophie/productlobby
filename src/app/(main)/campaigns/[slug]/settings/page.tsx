@@ -210,7 +210,7 @@ export default function CampaignSettingsPage() {
       {/* Header */}
       <div className="mb-8 flex items-center gap-4">
         <Link href={`/campaigns/${campaign.slug}`}>
-          <Button variant="ghost" size="icon">
+          <Button variant="ghost" size="sm" className="w-9 px-0">
             <ArrowLeft className="h-5 w-5" />
           </Button>
         </Link>

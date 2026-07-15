@@ -77,9 +77,9 @@ interface DashboardData {
 
 const getStatusVariant = (status: string) => {
   switch (status) {
-    case 'LIVE': return 'lime'
-    case 'DRAFT': return 'gray'
-    case 'PAUSED': return 'yellow'
+    case 'LIVE': return 'success'
+    case 'DRAFT': return 'outline'
+    case 'PAUSED': return 'warning'
     case 'CLOSED': return 'default'
     default: return 'default'
   }
@@ -390,7 +390,7 @@ export default function CreatorDashboard() {
                           </div>
                         </div>
                         <Badge
-                          variant={lobby.status === 'VERIFIED' ? 'lime' : 'yellow'}
+                          variant={lobby.status === 'VERIFIED' ? 'success' : 'warning'}
                           size="sm"
                         >
                           {lobby.status}
@@ -436,7 +436,7 @@ export default function CreatorDashboard() {
                           </div>
                         </div>
                         <Badge
-                          variant={pledge.pledgeType === 'INTENT' ? 'default' : 'lime'}
+                          variant={pledge.pledgeType === 'INTENT' ? 'default' : 'success'}
                           size="sm"
                         >
                           {pledge.pledgeType === 'INTENT' ? 'Intent to Buy' : 'Support'}

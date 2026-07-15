@@ -65,7 +65,7 @@ export default function TemplatePickerPage() {
           <div className="flex flex-wrap gap-2">
             <Button
               type="button"
-              variant={selectedCategory === null ? 'default' : 'outline'}
+              variant={selectedCategory === null ? 'primary' : 'outline'}
               onClick={() => setSelectedCategory(null)}
               className={selectedCategory === null ? 'bg-violet-600 hover:bg-violet-700' : ''}
             >
@@ -75,7 +75,7 @@ export default function TemplatePickerPage() {
               <Button
                 key={category}
                 type="button"
-                variant={selectedCategory === category ? 'default' : 'outline'}
+                variant={selectedCategory === category ? 'primary' : 'outline'}
                 onClick={() => setSelectedCategory(category)}
                 className={selectedCategory === category ? 'bg-violet-600 hover:bg-violet-700' : ''}
               >

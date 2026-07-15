@@ -3,7 +3,7 @@ import { Download, Database, Shield, Clock, FileText } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 
 export const metadata: Metadata = {
-  title: 'Data Export | ProductLobby',
+  title: 'Data Export',
 };
 
 export default function DataExportPage() {

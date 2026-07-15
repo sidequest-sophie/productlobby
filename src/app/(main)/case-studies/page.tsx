@@ -2,7 +2,7 @@ import { Metadata } from 'next';
 import { TrendingUp, Users, Zap, Award, Building2, BarChart3, Quote } from 'lucide-react';
 
 export const metadata: Metadata = {
-  title: 'Case Studies | ProductLobby',
+  title: 'Case Studies',
   description: 'Discover how leading companies use ProductLobby to drive innovation and accelerate their product development.',
 };
 

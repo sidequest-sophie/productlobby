@@ -95,14 +95,15 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
     })
 
     const trendingData: TrendingCampaign[] = trendingCampaigns.map((camp) => {
+      const signalScore = camp.signalScore ?? 0
       const ageDays = (Date.now() - camp.createdAt.getTime()) / (1000 * 60 * 60 * 24)
-      const growthRate = ageDays > 0 ? Math.round((camp.signalScore / Math.max(1, ageDays)) * 100) / 100 : 0
+      const growthRate = ageDays > 0 ? Math.round((signalScore / Math.max(1, ageDays)) * 100) / 100 : 0
 
       return {
         id: camp.id,
         title: camp.title,
         category: camp.category,
-        signalScore: camp.signalScore,
+        signalScore,
         lobbyCount: camp._count.pledges,
         growthRate,
       }

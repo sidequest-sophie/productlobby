@@ -280,9 +280,9 @@ export const HighlightsReel: React.FC<HighlightsReelProps> = ({
         {canScrollLeft && (
           <Button
             variant="ghost"
-            size="icon"
+            size="sm"
             onClick={() => scroll('left')}
-            className="absolute left-0 top-1/2 -translate-y-1/2 -translate-x-12 rounded-full bg-white border border-gray-200 shadow-md hover:bg-gray-50 opacity-0 group-hover:opacity-100 transition-opacity z-10"
+            className="absolute left-0 top-1/2 -translate-y-1/2 -translate-x-12 rounded-full bg-white border border-gray-200 shadow-md hover:bg-gray-50 opacity-0 group-hover:opacity-100 transition-opacity z-10 w-9 px-0"
             aria-label="Scroll left"
           >
             <ChevronLeft size={20} />
@@ -293,9 +293,9 @@ export const HighlightsReel: React.FC<HighlightsReelProps> = ({
         {canScrollRight && (
           <Button
             variant="ghost"
-            size="icon"
+            size="sm"
             onClick={() => scroll('right')}
-            className="absolute right-0 top-1/2 -translate-y-1/2 translate-x-12 rounded-full bg-white border border-gray-200 shadow-md hover:bg-gray-50 opacity-0 group-hover:opacity-100 transition-opacity z-10"
+            className="absolute right-0 top-1/2 -translate-y-1/2 translate-x-12 rounded-full bg-white border border-gray-200 shadow-md hover:bg-gray-50 opacity-0 group-hover:opacity-100 transition-opacity z-10 w-9 px-0"
             aria-label="Scroll right"
           >
             <ChevronRight size={20} />

@@ -3,6 +3,8 @@ export const dynamic = 'force-dynamic'
 import { prisma } from '@/lib/db'
 import { NextRequest, NextResponse } from 'next/server'
 import { getCurrentUser } from '@/lib/auth'
+import { isFeatureEnabled } from '@/lib/feature-flags'
+import { Prisma } from '@prisma/client'
 
 type TriggerType = 'supporter_milestone' | 'time_based' | 'engagement_threshold' | 'brand_response' | 'donation_received'
 type ActionType = 'send_email' | 'post_update' | 'notify_team' | 'award_badge' | 'trigger_webhook'
@@ -81,6 +83,9 @@ export async function GET(
   request: NextRequest,
   { params }: { params: { id: string } }
 ): Promise<NextResponse<AutomationRulesResponse>> {
+  if (!isFeatureEnabled('automation-rules')) {
+    return NextResponse.json({ success: false, error: 'This feature is not yet available' }, { status: 404 })
+  }
   try {
     const user = await getCurrentUser()
     if (!user) {
@@ -114,6 +119,9 @@ export async function POST(
   request: NextRequest,
   { params }: { params: { id: string } }
 ): Promise<NextResponse<AutomationRulesResponse>> {
+  if (!isFeatureEnabled('automation-rules')) {
+    return NextResponse.json({ success: false, error: 'This feature is not yet available' }, { status: 404 })
+  }
   try {
     const user = await getCurrentUser()
     if (!user) {
@@ -134,16 +142,18 @@ export async function POST(
     // Record the rule creation as a ContributionEvent
     await prisma.contributionEvent.create({
       data: {
-        action: 'automation_rule',
+        eventType: 'SOCIAL_SHARE',
+        points: 1,
         campaignId: params.id,
         userId: user.id,
         metadata: {
+          action: 'automation_rule',
           name,
           trigger,
-          action,
+          ruleAction: action,
           conditions,
           timestamp: new Date().toISOString(),
-        },
+        } as Prisma.InputJsonValue,
       },
     })
 
@@ -165,6 +175,9 @@ export async function PATCH(
   request: NextRequest,
   { params }: { params: { id: string } }
 ): Promise<NextResponse<AutomationRulesResponse>> {
+  if (!isFeatureEnabled('automation-rules')) {
+    return NextResponse.json({ success: false, error: 'This feature is not yet available' }, { status: 404 })
+  }
   try {
     const user = await getCurrentUser()
     if (!user) {
@@ -185,15 +198,17 @@ export async function PATCH(
     // Record the rule toggle as a ContributionEvent
     await prisma.contributionEvent.create({
       data: {
-        action: 'automation_rule',
+        eventType: 'SOCIAL_SHARE',
+        points: 1,
         campaignId: params.id,
         userId: user.id,
         metadata: {
+          action: 'automation_rule',
           ruleId,
           enabled,
-          action: enabled ? 'enabled' : 'disabled',
+          status: enabled ? 'enabled' : 'disabled',
           timestamp: new Date().toISOString(),
-        },
+        } as Prisma.InputJsonValue,
       },
     })
 

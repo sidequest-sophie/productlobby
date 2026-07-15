@@ -14,10 +14,10 @@ import {
 import { Button } from '@/components/ui/button';
 
 export const metadata: Metadata = {
-  title: 'API Documentation | ProductLobby',
+  title: 'API Documentation',
   description: 'Build with ProductLobby. Comprehensive API documentation with examples, authentication, and SDKs.',
   openGraph: {
-    title: 'API Documentation | ProductLobby',
+    title: 'API Documentation',
     description: 'Build with ProductLobby. Comprehensive API documentation with examples, authentication, and SDKs.',
     type: 'website',
   },

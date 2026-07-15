@@ -13,7 +13,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { getCurrentUser } from '@/lib/auth'
 import { prisma } from '@/lib/db'
 import { sendEmail } from '@/lib/email'
-import { generateVerificationToken, createBrandVerification } from '@/lib/brand-verification'
+import { generateVerificationToken, createBrandVerification, verifyEmailDomain } from '@/lib/brand-verification'
 import crypto from 'crypto'
 
 // Helper to generate a short verification code (6 digits)
@@ -51,10 +51,12 @@ export async function POST(request: NextRequest) {
 
     const emailDomain = email.split('@')[1].toLowerCase()
 
-    // Check if campaign exists
+    // Check if campaign exists.
+    // Note: Campaign's relation to Brand is named `targetedBrand`
+    // (FK `targetedBrandId`), not `brand`/`brandId`.
     const campaign = await prisma.campaign.findUnique({
       where: { id: campaignId },
-      include: { brand: true },
+      include: { targetedBrand: true },
     })
 
     if (!campaign) {
@@ -62,6 +64,29 @@ export async function POST(request: NextRequest) {
         { success: false, error: 'Campaign not found' },
         { status: 404 }
       )
+    }
+
+    if (!campaign.targetedBrand) {
+      return NextResponse.json(
+        { success: false, error: 'Campaign has no associated brand to claim' },
+        { status: 400 }
+      )
+    }
+
+    // Only users with an email domain matching the brand's website domain can
+    // claim it — otherwise anyone could claim a brand with a personal email
+    // address (mirrors src/app/api/brands/[id]/claim/route.ts:118-130).
+    if (campaign.targetedBrand.website) {
+      const brandDomain = new URL(campaign.targetedBrand.website).hostname.replace('www.', '')
+      if (!verifyEmailDomain(email, campaign.targetedBrand.website)) {
+        return NextResponse.json(
+          {
+            success: false,
+            error: `Email domain must match ${brandDomain}. Please use your work email address.`,
+          },
+          { status: 400 }
+        )
+      }
     }
 
     // For final submission, additional validation
@@ -78,9 +103,14 @@ export async function POST(request: NextRequest) {
     const token = generateVerificationToken()
     const verificationCode = generateVerificationCode()
 
-    // Store the verification code in a temporary verification record
-    // In a real app, this would be in a separate table for email codes
-    const verification = await createBrandVerification(campaign.brandId, 'EMAIL_DOMAIN', token)
+    // Store the verification code so it can be compared (not just length-checked)
+    // when the user submits it in /api/brand/claim/verify-email.
+    const verification = await createBrandVerification(
+      campaign.targetedBrandId!,
+      'EMAIL_DOMAIN',
+      token,
+      verificationCode
+    )
 
     // In production, you would store the code and send it via email
     // For now, we'll include it in the response for testing

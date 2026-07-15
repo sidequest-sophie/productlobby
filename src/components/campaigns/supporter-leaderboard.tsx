@@ -117,7 +117,7 @@ export const SupporterLeaderboard: React.FC<SupporterLeaderboardProps> = ({
         {periodOptions.map((option) => (
           <Button
             key={option.value}
-            variant={period === option.value ? 'default' : 'outline'}
+            variant={period === option.value ? 'primary' : 'outline'}
             size="sm"
             onClick={() => setPeriod(option.value)}
             className={cn(

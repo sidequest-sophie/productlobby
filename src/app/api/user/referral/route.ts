@@ -98,7 +98,7 @@ export async function POST(request: NextRequest) {
     }
 
     // Generate unique referral code
-    let code: string
+    let code = ''
     let isUnique = false
 
     while (!isUnique) {

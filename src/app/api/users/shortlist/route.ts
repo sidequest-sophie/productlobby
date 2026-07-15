@@ -11,7 +11,7 @@ interface ShortlistCampaign {
   description: string
   category: string
   status: string
-  image?: string
+  image?: string | null
   signalScore: number | null
   completenessScore: number
   createdAt: string
@@ -19,12 +19,12 @@ interface ShortlistCampaign {
     id: string
     displayName: string
     email: string
-    avatar?: string
+    avatar?: string | null
   }
   targetedBrand?: {
     id: string
     name: string
-    logo?: string
+    logo?: string | null
   } | null
   lobbyCount: number
   commentCount: number
@@ -66,6 +66,10 @@ export async function GET(request: NextRequest) {
                 name: true,
                 logo: true
               }
+            },
+            media: {
+              take: 1,
+              orderBy: { order: 'asc' }
             }
           }
         }
@@ -92,7 +96,7 @@ export async function GET(request: NextRequest) {
           description: bookmark.campaign.description,
           category: bookmark.campaign.category,
           status: bookmark.campaign.status,
-          image: bookmark.campaign.image,
+          image: bookmark.campaign.media[0]?.url,
           signalScore: bookmark.campaign.signalScore,
           completenessScore: bookmark.campaign.completenessScore,
           createdAt: bookmark.campaign.createdAt.toISOString(),

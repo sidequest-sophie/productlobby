@@ -81,8 +81,8 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
 
     // Verify campaign exists
     const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(campaignId)
-    const campaign = await prisma.campaign.findUnique({
-      where: isUuid ? { id: campaignId } : undefined,
+    const campaign = await prisma.campaign.findFirst({
+      where: isUuid ? { id: campaignId } : { slug: campaignId },
     })
 
     if (!campaign) {
@@ -240,9 +240,9 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
 
     // Verify campaign exists and user owns it
     const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(campaignId)
-    const campaign = await prisma.campaign.findUnique({
-      where: isUuid ? { id: campaignId } : undefined,
-      select: { id: true, creatorId: true },
+    const campaign = await prisma.campaign.findFirst({
+      where: isUuid ? { id: campaignId } : { slug: campaignId },
+      select: { id: true, creatorUserId: true },
     })
 
     if (!campaign) {
@@ -252,7 +252,7 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
       )
     }
 
-    if (campaign.creatorId !== user.id) {
+    if (campaign.creatorUserId !== user.id) {
       return NextResponse.json(
         { success: false, error: 'Forbidden: You do not own this campaign' },
         { status: 403 }

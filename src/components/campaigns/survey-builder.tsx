@@ -419,7 +419,7 @@ const PreviewMode: React.FC<{ survey: Survey }> = ({ survey }) => {
 }
 
 const ResultsView: React.FC<{ survey: Survey }> = ({ survey }) => {
-  const calculateStats = (question: Question) => {
+  const calculateStats = (question: Question): Record<string, number> => {
     if (!question.responses || question.responses.length === 0) {
       return {}
     }
@@ -439,7 +439,7 @@ const ResultsView: React.FC<{ survey: Survey }> = ({ survey }) => {
     }
 
     if (question.questionType === 'RATING_SCALE') {
-      const counts: Record<number, number> = {}
+      const counts: Record<string, number> = {}
       question.responses.forEach((resp) => {
         const answer = JSON.parse(resp.answer)
         const num = parseInt(answer)

@@ -106,3 +106,25 @@ export function maskPhone(phone: string): string {
   if (phone.length < 4) return phone
   return '*'.repeat(phone.length - 4) + phone.slice(-4)
 }
+
+export const DEFAULT_POST_AUTH_REDIRECT = '/campaigns'
+
+export function isSafeRedirectPath(path: string | null | undefined): boolean {
+  if (!path || !path.startsWith('/')) return false
+  // Browsers resolve `//host` and `/\host` to a different origin.
+  if (path.startsWith('//') || path.startsWith('/\\')) return false
+  // Control characters can be stripped during URL parsing, smuggling a
+  // different destination past the checks above.
+  return !/[\x00-\x1f\x7f]/.test(path)
+}
+
+export function safeRedirectPath(path: string | null | undefined): string {
+  return isSafeRedirectPath(path) ? path! : DEFAULT_POST_AUTH_REDIRECT
+}
+
+export function buildVerifyUrl(appUrl: string, token: string, redirect?: string): string {
+  const base = `${appUrl}/verify?token=${encodeURIComponent(token)}`
+  return isSafeRedirectPath(redirect)
+    ? `${base}&redirect=${encodeURIComponent(redirect!)}`
+    : base
+}

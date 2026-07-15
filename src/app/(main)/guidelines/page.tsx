@@ -2,7 +2,7 @@ import { ArrowLeft, AlertCircle, CheckCircle2, MessageSquare, Flag, Shield } fro
 import Link from 'next/link'
 
 export const metadata = {
-  title: 'Content Guidelines | ProductLobby',
+  title: 'Content Guidelines',
   description: 'Community content guidelines, campaign rules, and moderation policies',
 }
 

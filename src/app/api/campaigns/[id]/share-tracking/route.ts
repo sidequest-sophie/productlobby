@@ -38,6 +38,17 @@ interface PostRequestBody {
   platform: string
 }
 
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null && !Array.isArray(value)
+}
+
+function getPlatform(metadata: unknown): string {
+  if (isRecord(metadata) && typeof metadata.platform === 'string') {
+    return metadata.platform
+  }
+  return 'Direct'
+}
+
 // GET - Retrieve share tracking data
 export async function GET(
   request: NextRequest,
@@ -53,7 +64,7 @@ export async function GET(
       },
       include: {
         creator: {
-          select: { id: true, name: true },
+          select: { id: true, displayName: true },
         },
       },
     })
@@ -75,7 +86,7 @@ export async function GET(
         user: {
           select: {
             id: true,
-            name: true,
+            displayName: true,
             avatar: true,
           },
         },
@@ -96,11 +107,7 @@ export async function GET(
     }
 
     shareEvents.forEach((event) => {
-      const platform =
-        event.metadata && typeof event.metadata === 'object'
-          ? (event.metadata as Record<string, unknown>).platform ||
-            'Direct'
-          : 'Direct'
+      const platform = getPlatform(event.metadata)
 
       if (!sharesByPlatform[platform]) {
         sharesByPlatform[platform] = 0
@@ -125,15 +132,12 @@ export async function GET(
 
     shareEvents.forEach((event) => {
       if (!sharerMap.has(event.userId)) {
-        const platform =
-          event.metadata && typeof event.metadata === 'object'
-            ? (event.metadata as Record<string, unknown>).platform || 'Direct'
-            : 'Direct'
+        const platform = getPlatform(event.metadata)
 
         sharerMap.set(event.userId, {
           count: 0,
           user: event.user,
-          platform: platform as string,
+          platform,
         })
       }
       const entry = sharerMap.get(event.userId)!
@@ -145,7 +149,7 @@ export async function GET(
       .slice(0, 5)
       .map((entry) => ({
         userId: entry.user.id,
-        userName: entry.user.name || 'Anonymous',
+        userName: entry.user.displayName || 'Anonymous',
         avatar: entry.user.avatar || undefined,
         shareCount: entry.count,
         platform: entry.platform,
@@ -155,12 +159,8 @@ export async function GET(
     const recentShares = shareEvents.slice(0, 10).map((event) => ({
       id: event.id,
       userId: event.userId,
-      userName: event.user.name || 'Anonymous',
-      platform:
-        event.metadata && typeof event.metadata === 'object'
-          ? ((event.metadata as Record<string, unknown>).platform as string) ||
-            'Direct'
-          : 'Direct',
+      userName: event.user.displayName || 'Anonymous',
+      platform: getPlatform(event.metadata),
       timestamp: event.createdAt.toISOString(),
       avatar: event.user.avatar || undefined,
     }))
@@ -295,7 +295,7 @@ export async function POST(
         user: {
           select: {
             id: true,
-            name: true,
+            displayName: true,
             avatar: true,
           },
         },
@@ -308,10 +308,7 @@ export async function POST(
     // Calculate shares by platform
     const sharesByPlatform: Record<string, number> = {}
     shareEvents.forEach((event) => {
-      const platform =
-        event.metadata && typeof event.metadata === 'object'
-          ? (event.metadata as Record<string, unknown>).platform || 'Direct'
-          : 'Direct'
+      const platform = getPlatform(event.metadata)
 
       if (!sharesByPlatform[platform]) {
         sharesByPlatform[platform] = 0
@@ -331,15 +328,12 @@ export async function POST(
 
     shareEvents.forEach((event) => {
       if (!sharerMap.has(event.userId)) {
-        const platform =
-          event.metadata && typeof event.metadata === 'object'
-            ? (event.metadata as Record<string, unknown>).platform || 'Direct'
-            : 'Direct'
+        const platform = getPlatform(event.metadata)
 
         sharerMap.set(event.userId, {
           count: 0,
           user: event.user,
-          platform: platform as string,
+          platform,
         })
       }
       const entry = sharerMap.get(event.userId)!
@@ -351,7 +345,7 @@ export async function POST(
       .slice(0, 5)
       .map((entry) => ({
         userId: entry.user.id,
-        userName: entry.user.name || 'Anonymous',
+        userName: entry.user.displayName || 'Anonymous',
         avatar: entry.user.avatar || undefined,
         shareCount: entry.count,
         platform: entry.platform,
@@ -361,12 +355,8 @@ export async function POST(
     const recentShares = shareEvents.slice(0, 10).map((event) => ({
       id: event.id,
       userId: event.userId,
-      userName: event.user.name || 'Anonymous',
-      platform:
-        event.metadata && typeof event.metadata === 'object'
-          ? ((event.metadata as Record<string, unknown>).platform as string) ||
-            'Direct'
-          : 'Direct',
+      userName: event.user.displayName || 'Anonymous',
+      platform: getPlatform(event.metadata),
       timestamp: event.createdAt.toISOString(),
       avatar: event.user.avatar || undefined,
     }))

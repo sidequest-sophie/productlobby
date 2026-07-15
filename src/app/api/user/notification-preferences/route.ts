@@ -41,7 +41,9 @@ export async function GET(request: NextRequest) {
       lobbyActivity: true, // Not in current schema, default true
       brandResponses: notificationPreference?.emailBrandResponses ?? true,
       comments: true, // Not in current schema, default true
-      weeklyDigest: notificationPreference?.emailDigestFrequency !== 'NEVER' ?? true,
+      weeklyDigest: notificationPreference
+        ? notificationPreference.emailDigestFrequency !== 'NEVER'
+        : true,
       marketingEmails: true, // Not in current schema, default true
       newFollowers: notificationPreference?.emailNewFollowers ?? false,
     }

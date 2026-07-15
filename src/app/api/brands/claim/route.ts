@@ -99,7 +99,7 @@ export async function POST(request: NextRequest) {
     let campaignId: string | null = null
 
     const userCampaigns = await prisma.campaign.findFirst({
-      where: { creatorId: user.id },
+      where: { creatorUserId: user.id },
       select: { id: true },
     })
 

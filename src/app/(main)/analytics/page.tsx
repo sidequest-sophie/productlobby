@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect } from 'react'
 import Link from 'next/link'
-import { TrendingUp, Users, Target, Zap, Calendar, ChevronRight, Loader2, AlertCircle } from 'lucide-react'
+import { TrendingUp, Users, Target, Zap, Calendar, ChevronRight, Loader2, AlertCircle, type LucideIcon } from 'lucide-react'
 import { Navbar } from '@/components/shared/navbar'
 import { Footer } from '@/components/shared/footer'
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card'
@@ -65,7 +65,7 @@ const MetricCard = ({
   change,
   changeType,
 }: {
-  icon: React.ComponentType<{ className: string }>
+  icon: LucideIcon
   label: string
   value: string | number
   change?: number
@@ -208,7 +208,7 @@ export default function AnalyticsDashboard() {
               {(['7d', '30d', '90d', 'all'] as PeriodType[]).map((p) => (
                 <Button
                   key={p}
-                  variant={period === p ? 'default' : 'outline'}
+                  variant={period === p ? 'primary' : 'outline'}
                   size="sm"
                   onClick={() => setPeriod(p)}
                   className={period === p ? 'bg-violet-600 hover:bg-violet-700' : ''}

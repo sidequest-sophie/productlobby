@@ -24,6 +24,10 @@ interface ReactionCounts {
   party: number
 }
 
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null && !Array.isArray(value)
+}
+
 // ============================================================================
 // GET /api/campaigns/[id]/reactions
 // ============================================================================
@@ -81,7 +85,8 @@ export async function GET(
     const userReactions: Record<string, boolean> = {}
 
     for (const reaction of reactions) {
-      const type = reaction.metadata?.type as ReactionType
+      const meta = reaction.metadata
+      const type = isRecord(meta) ? (meta.type as ReactionType) : undefined
       if (type && VALID_REACTIONS.includes(type)) {
         counts[type]++
 
@@ -177,6 +182,7 @@ export async function POST(
           campaignId,
           userId: user.id,
           eventType: 'SOCIAL_SHARE',
+          points: 1,
           metadata: {
             action: 'reaction',
             type: reactionType,
@@ -213,7 +219,8 @@ export async function POST(
     const userReactions: Record<string, boolean> = {}
 
     for (const reaction of reactions) {
-      const reactionTypeFromDb = reaction.metadata?.type as ReactionType
+      const meta = reaction.metadata
+      const reactionTypeFromDb = isRecord(meta) ? (meta.type as ReactionType) : undefined
       if (reactionTypeFromDb && VALID_REACTIONS.includes(reactionTypeFromDb)) {
         counts[reactionTypeFromDb]++
 

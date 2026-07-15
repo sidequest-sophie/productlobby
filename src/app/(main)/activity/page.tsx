@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useCallback } from 'react'
 import Link from 'next/link'
+import { useRouter } from 'next/navigation'
 import { DashboardLayout, PageHeader, FeedItem } from '@/components/shared'
 import { Card, CardContent, Badge, Button, Tabs, TabsList, TabsTrigger, TabsContent, EmptyState, Spinner } from '@/components/ui'
 import {
@@ -171,6 +172,7 @@ function ActivityItemComponent({ item, onMarkAsRead }: { item: ActivityItem; onM
 
 export default function ActivityPage() {
   const { user } = useAuth()
+  const router = useRouter()
   const [activeTab, setActiveTab] = useState('following')
   const [items, setItems] = useState<ActivityItem[]>([])
   const [feedItems, setFeedItems] = useState<FeedItemData[]>([])
@@ -417,13 +419,10 @@ export default function ActivityPage() {
                     icon={<Users className="w-12 h-12 text-gray-400" />}
                     title="No activity from people you follow"
                     description="Follow other users to see their campaigns, lobbies, and comments here"
-                    action={
-                      <Link href="/campaigns">
-                        <Button variant="primary" size="sm">
-                          Discover Campaigns
-                        </Button>
-                      </Link>
-                    }
+                    action={{
+                      label: 'Discover Campaigns',
+                      onClick: () => router.push('/campaigns'),
+                    }}
                   />
                 </CardContent>
               </Card>

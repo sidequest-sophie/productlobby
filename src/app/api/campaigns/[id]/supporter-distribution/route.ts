@@ -30,22 +30,21 @@ export async function GET(
       include: {
         user: {
           select: {
-            metadata: true,
+            location: true,
           },
         },
       },
     })
 
-    // Group lobbies by region/country from user metadata
+    // Group lobbies by region/country from user location
     const regionCounts: Record<string, number> = {}
 
     lobbies.forEach((lobby) => {
-      // Try to extract region from user metadata
+      // Try to extract region from user location
       let region = 'Unknown'
 
-      if (lobby.user?.metadata) {
-        const metadata = lobby.user.metadata as Record<string, any>
-        region = metadata.country || metadata.region || 'Unknown'
+      if (lobby.user?.location) {
+        region = lobby.user.location
       }
 
       // Normalize region name

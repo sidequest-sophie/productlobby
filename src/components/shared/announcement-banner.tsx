@@ -129,9 +129,9 @@ export const AnnouncementBanner: React.FC = () => {
               'transition-all duration-200',
               'focus:outline-none focus:ring-2 focus:ring-offset-2',
               config.dismissBgClass,
-              config.type === 'info' && 'focus:ring-blue-500',
-              config.type === 'warning' && 'focus:ring-yellow-500',
-              config.type === 'success' && 'focus:ring-green-500',
+              announcement.type === 'info' && 'focus:ring-blue-500',
+              announcement.type === 'warning' && 'focus:ring-yellow-500',
+              announcement.type === 'success' && 'focus:ring-green-500',
               config.textClass
             )}
             aria-label="Dismiss announcement"

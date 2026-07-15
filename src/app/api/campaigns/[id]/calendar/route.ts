@@ -9,6 +9,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getCurrentUser } from '@/lib/auth'
 import { prisma } from '@/lib/db'
+import { Prisma } from '@prisma/client'
 
 export const dynamic = 'force-dynamic'
 
@@ -18,6 +19,21 @@ interface ScheduledItem {
   type: 'update' | 'social_post' | 'email' | 'milestone'
   description: string
   createdAt: string
+}
+
+interface CalendarEventMetadata {
+  action: string
+  date?: string
+  type?: ScheduledItem['type']
+  description?: string
+}
+
+function isRecord(v: unknown): v is Record<string, unknown> {
+  return typeof v === 'object' && v !== null && !Array.isArray(v)
+}
+
+function parseCalendarMetadata(metadata: unknown): CalendarEventMetadata | null {
+  return isRecord(metadata) ? (metadata as unknown as CalendarEventMetadata) : null
 }
 
 /**
@@ -82,13 +98,16 @@ export async function GET(
     })
 
     // Transform events to scheduled items
-    const items: ScheduledItem[] = events.map((event) => ({
-      id: event.id,
-      date: event.metadata?.date || event.createdAt.toISOString(),
-      type: event.metadata?.type || 'update',
-      description: event.metadata?.description || '',
-      createdAt: event.createdAt.toISOString(),
-    }))
+    const items: ScheduledItem[] = events.map((event) => {
+      const metadata = parseCalendarMetadata(event.metadata)
+      return {
+        id: event.id,
+        date: metadata?.date || event.createdAt.toISOString(),
+        type: metadata?.type || 'update',
+        description: metadata?.description || '',
+        createdAt: event.createdAt.toISOString(),
+      }
+    })
 
     return NextResponse.json({
       success: true,
@@ -168,20 +187,22 @@ export async function POST(
         userId: user.id,
         campaignId: campaignId,
         eventType: 'SOCIAL_SHARE',
+        points: 1,
         metadata: {
           action: 'content_calendar',
           date: new Date(date).toISOString(),
           type: type,
           description: description,
-        },
+        } as Prisma.InputJsonValue,
       },
     })
 
+    const metadata = parseCalendarMetadata(event.metadata)
     const item: ScheduledItem = {
       id: event.id,
-      date: event.metadata?.date || event.createdAt.toISOString(),
-      type: event.metadata?.type || 'update',
-      description: event.metadata?.description || '',
+      date: metadata?.date || event.createdAt.toISOString(),
+      type: metadata?.type || 'update',
+      description: metadata?.description || '',
       createdAt: event.createdAt.toISOString(),
     }
 

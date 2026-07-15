@@ -160,7 +160,7 @@ export function CreatorPollCard({
           <div className="flex-1">
             <div className="flex items-center gap-2 mb-2">
               <Badge
-                variant="secondary"
+                variant="default"
                 className="bg-violet-100 text-violet-700 dark:bg-violet-900 dark:text-violet-200"
               >
                 {getPollTypeLabel()}
@@ -230,12 +230,11 @@ export function CreatorPollCard({
               <RadioGroup
                 value={selectedOptions[0] || ''}
                 onValueChange={handleSingleSelect}
-                disabled={isVoting}
               >
                 <div className="space-y-3">
                   {poll.options.map((option) => (
                     <div key={option.id} className="flex items-center space-x-2">
-                      <RadioGroupItem value={option.id} id={option.id} />
+                      <RadioGroupItem value={option.id} id={option.id} disabled={isVoting} />
                       <Label htmlFor={option.id} className="cursor-pointer font-normal">
                         {option.text}
                       </Label>

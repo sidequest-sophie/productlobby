@@ -10,6 +10,9 @@ const PROTECTED_ROUTES = [
   '/profile',
   '/lobbies',
   '/notifications',
+  '/admin',
+  '/creator/revenue',
+  '/data-export',
 ]
 
 // Routes only accessible when NOT authenticated
@@ -70,9 +73,11 @@ export function middleware(request: NextRequest) {
     }
   }
 
-  // Check if route requires authentication
-  const isProtectedRoute = PROTECTED_ROUTES.some((route) =>
-    pathname.startsWith(route)
+  // Check if route requires authentication.
+  // Exact-segment matching (not plain startsWith) so e.g. "/brand-showcase"
+  // does not incorrectly match the "/brand" protected-route prefix.
+  const isProtectedRoute = PROTECTED_ROUTES.some(
+    (route) => pathname === route || pathname.startsWith(route + '/')
   )
 
   // Check if route is auth-only (login/signup)
@@ -114,9 +119,13 @@ export function middleware(request: NextRequest) {
   )
 
   // Content Security Policy
+  // Next.js dev mode evaluates webpack chunks via eval(), so 'unsafe-eval'
+  // is required in development only — never in production.
+  const scriptSrcDev =
+    process.env.NODE_ENV === 'development' ? " 'unsafe-eval'" : ''
   const cspHeader = [
     "default-src 'self'",
-    "script-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net https://cdn.vercel-analytics.com https://va.vercel-analytics.com",
+    `script-src 'self' 'unsafe-inline'${scriptSrcDev} https://cdn.jsdelivr.net https://cdn.vercel-analytics.com https://va.vercel-analytics.com`,
     "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com https://fonts.gstatic.com",
     "font-src 'self' https://fonts.googleapis.com https://fonts.gstatic.com data:",
     "img-src 'self' https: data:",

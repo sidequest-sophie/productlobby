@@ -25,7 +25,7 @@ export async function GET(
       where: { id: campaignId },
       select: {
         id: true,
-        creatorId: true,
+        creatorUserId: true,
       },
     })
 
@@ -36,7 +36,7 @@ export async function GET(
       )
     }
 
-    if (campaign.creatorId !== user.id) {
+    if (campaign.creatorUserId !== user.id) {
       return NextResponse.json(
         { error: 'Unauthorized - only creator can view notes' },
         { status: 403 }
@@ -117,7 +117,7 @@ export async function POST(
       where: { id: campaignId },
       select: {
         id: true,
-        creatorId: true,
+        creatorUserId: true,
       },
     })
 
@@ -128,7 +128,7 @@ export async function POST(
       )
     }
 
-    if (campaign.creatorId !== user.id) {
+    if (campaign.creatorUserId !== user.id) {
       return NextResponse.json(
         { error: 'Unauthorized - only creator can add notes' },
         { status: 403 }

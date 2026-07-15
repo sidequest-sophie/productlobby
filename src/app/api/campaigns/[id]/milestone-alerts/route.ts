@@ -44,7 +44,7 @@ export async function GET(
         id: true,
         lobbies: { select: { id: true } },
         comments: { select: { id: true } },
-        follows: { select: { id: true } },
+        follows: { select: { userId: true } },
       },
     })
 
@@ -168,10 +168,10 @@ export async function POST(
       where: { id: campaignId },
       select: {
         id: true,
-        creatorId: true,
+        creatorUserId: true,
         lobbies: { select: { id: true } },
         comments: { select: { id: true } },
-        follows: { select: { id: true } },
+        follows: { select: { userId: true } },
       },
     })
 
@@ -183,7 +183,7 @@ export async function POST(
     }
 
     // Only campaign creator can update milestone alerts
-    if (campaign.creatorId !== user.id) {
+    if (campaign.creatorUserId !== user.id) {
       return NextResponse.json(
         { success: false, error: 'Unauthorized - only campaign creator can update alerts' },
         { status: 403 }

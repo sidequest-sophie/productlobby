@@ -3,7 +3,7 @@
 import React, { useState, useEffect } from 'react'
 import { Button } from '@/components/ui/button'
 import { Textarea } from '@/components/ui/textarea'
-import { Avatar, AvatarImage, AvatarFallback } from '@/components/ui/avatar'
+import { Avatar } from '@/components/ui/avatar'
 import { Loader2, Send } from 'lucide-react'
 import { cn, formatRelativeTime } from '@/lib/utils'
 import { useAuth } from '@/hooks/useAuth'
@@ -209,17 +209,12 @@ export function MicroUpdates({
               >
                 {/* Creator Info */}
                 <div className="flex items-center gap-3 mb-3">
-                  <Avatar className="h-8 w-8">
-                    {update.creator.avatar && (
-                      <AvatarImage
-                        src={update.creator.avatar}
-                        alt={update.creator.displayName}
-                      />
-                    )}
-                    <AvatarFallback>
-                      {update.creator.displayName[0]?.toUpperCase()}
-                    </AvatarFallback>
-                  </Avatar>
+                  <Avatar
+                    size="sm"
+                    src={update.creator.avatar || undefined}
+                    alt={update.creator.displayName}
+                    initials={update.creator.displayName[0]?.toUpperCase()}
+                  />
 
                   <div className="flex-1 min-w-0">
                     <p className="font-semibold text-gray-900 truncate">

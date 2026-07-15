@@ -1,4 +1,5 @@
 import { Resend } from 'resend'
+import { buildVerifyUrl } from './utils'
 import {
   welcomeTemplate,
   magicLinkTemplate,
@@ -146,9 +147,10 @@ export async function sendWelcomeEmail({
 // Send magic link login email
 export async function sendMagicLinkEmail(
   email: string,
-  token: string
+  token: string,
+  redirect?: string
 ): Promise<EmailResult> {
-  const magicLink = `${APP_URL}/verify?token=${token}`
+  const magicLink = buildVerifyUrl(APP_URL, token, redirect)
   const html = magicLinkTemplate(magicLink)
 
   return sendEmail({

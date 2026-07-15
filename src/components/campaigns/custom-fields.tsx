@@ -341,7 +341,7 @@ export function CustomFields({ campaignId }: CustomFieldsProps) {
                 </div>
                 {(formData.options || []).length > 0 && (
                   <div className="flex flex-wrap gap-2 mt-2">
-                    {formData.options.map((opt, idx) => (
+                    {(formData.options || []).map((opt, idx) => (
                       <Badge
                         key={idx}
                         variant="outline"

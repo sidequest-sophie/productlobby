@@ -147,17 +147,17 @@ export async function GET(
         content: true,
         user: {
           select: {
-            name: true,
+            displayName: true,
           },
         },
         _count: {
           select: {
-            likes: true,
+            replies: true,
           },
         },
       },
       orderBy: {
-        likes: {
+        replies: {
           _count: 'desc',
         },
       },
@@ -179,7 +179,7 @@ export async function GET(
         },
       },
       select: {
-        name: true,
+        displayName: true,
         _count: {
           select: {
             comments: true,
@@ -205,11 +205,11 @@ export async function GET(
       newShares,
       topComment: topComment ? {
         content: topComment.content,
-        author: topComment.user?.name || 'Anonymous',
-        likes: topComment._count.likes,
+        author: topComment.user?.displayName || 'Anonymous',
+        likes: topComment._count.replies,
       } : null,
       mostActiveSupporter: mostActiveSupporter ? {
-        name: mostActiveSupporter.name || 'Anonymous',
+        name: mostActiveSupporter.displayName || 'Anonymous',
         contributions: mostActiveSupporter._count.comments,
       } : null,
       comparison: {

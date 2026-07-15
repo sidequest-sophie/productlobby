@@ -47,7 +47,7 @@ export async function GET(
         title: true,
         _count: {
           select: {
-            lobby: true
+            lobbies: true
           }
         }
       }
@@ -66,14 +66,14 @@ export async function GET(
         id: {
           not: campaignId
         },
-        status: 'ACTIVE'
+        status: 'LIVE'
       },
       select: {
         id: true,
         title: true,
         _count: {
           select: {
-            lobby: true
+            lobbies: true
           }
         }
       },
@@ -85,7 +85,7 @@ export async function GET(
       .map(campaign => ({
         id: campaign.id,
         title: campaign.title,
-        lobbyCount: campaign._count.lobby,
+        lobbyCount: campaign._count.lobbies,
         similarity: calculateWordOverlapSimilarity(
           currentCampaign.title,
           campaign.title
@@ -100,7 +100,7 @@ export async function GET(
       currentCampaign: {
         id: currentCampaign.id,
         title: currentCampaign.title,
-        lobbyCount: currentCampaign._count.lobby
+        lobbyCount: currentCampaign._count.lobbies
       }
     })
   } catch (error) {

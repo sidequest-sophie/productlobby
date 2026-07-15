@@ -305,7 +305,7 @@ export function BrandedColors({
           onClick={handleApply}
           disabled={isSaving}
           className="flex-1 gap-2"
-          variant="default"
+          variant="primary"
         >
           {isSaving ? (
             <>

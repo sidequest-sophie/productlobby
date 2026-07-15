@@ -197,8 +197,9 @@ export async function POST(
         campaignId: campaign.id,
         userId: user.id,
         eventType: 'BRAND_OUTREACH',
-        action: 'email_outreach',
+        points: 1,
         metadata: {
+          action: 'email_outreach',
           subject,
           body: emailBody,
           type: 'email_template',

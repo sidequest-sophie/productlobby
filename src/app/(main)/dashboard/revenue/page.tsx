@@ -132,7 +132,7 @@ export default function RevenueDashboard() {
                         </td>
                         <td className="py-3 px-4 text-right">
                           <Badge
-                            variant={record.status === 'Paid' ? 'green' : 'yellow'}
+                            variant={record.status === 'Paid' ? 'success' : 'warning'}
                             size="sm"
                           >
                             {record.status}
@@ -193,7 +193,7 @@ export default function RevenueDashboard() {
                   <p className="font-display font-bold text-lg text-foreground">
                     {payout.amount}
                   </p>
-                  <Badge variant={payout.status === 'Paid' ? 'green' : 'yellow'} size="sm">
+                  <Badge variant={payout.status === 'Paid' ? 'success' : 'warning'} size="sm">
                     {payout.status}
                   </Badge>
                 </div>
