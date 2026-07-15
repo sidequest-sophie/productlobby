@@ -4,12 +4,14 @@ import { getCurrentUser } from '@/lib/auth'
 import { BrandClaimSchema } from '@/types'
 import { nanoid } from 'nanoid'
 import { verifyEmailDomain } from '@/lib/brand-verification'
+import { sendEmail } from '@/lib/email'
 
 interface RouteParams {
   params: Promise<{ id: string }>
 }
 
-// Helper: attempt to send email via Resend, falling back to console log in dev
+// Helper: send the brand-claim verification email (falls back to a console
+// log in dev when no email provider is configured — see sendEmail()).
 async function sendVerificationEmail(
   to: string,
   brandName: string,
@@ -26,28 +28,7 @@ async function sendVerificationEmail(
     </div>
   `
 
-  // Dev mode bypass: log to console instead of sending real emails
-  if (
-    !process.env.RESEND_API_KEY ||
-    process.env.RESEND_API_KEY === 'placeholder' ||
-    process.env.RESEND_API_KEY === 're_placeholder'
-  ) {
-    console.log('\n========================================')
-    console.log('DEV MODE: Verification email (not sent)')
-    console.log('========================================')
-    console.log(`To: ${to}`)
-    console.log(`Subject: Verify your claim to ${brandName} on ProductLobby`)
-    console.log(`Verify URL: ${verifyUrl}`)
-    console.log('========================================\n')
-    return
-  }
-
-  // Production: send via Resend
-  const { Resend } = await import('resend')
-  const resend = new Resend(process.env.RESEND_API_KEY)
-
-  await resend.emails.send({
-    from: process.env.EMAIL_FROM || 'ProductLobby <noreply@productlobby.com>',
+  await sendEmail({
     to,
     subject: `Verify your claim to ${brandName} on ProductLobby`,
     html,
