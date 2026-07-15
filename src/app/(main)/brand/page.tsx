@@ -13,7 +13,7 @@ interface StatCard {
   icon?: React.ReactNode
   badge?: {
     text: string
-    variant: 'lime' | 'green' | 'red' | 'yellow'
+    variant: 'default' | 'success' | 'warning' | 'error'
   }
 }
 
@@ -56,7 +56,7 @@ const BrandDashboard: React.FC = () => {
       label: 'Responsiveness Score',
       value: '8.2/10',
       icon: <Zap className="w-5 h-5 text-green-600" />,
-      badge: { text: 'Excellent', variant: 'green' },
+      badge: { text: 'Excellent', variant: 'success' },
     },
   ]
 
@@ -148,8 +148,8 @@ const BrandDashboard: React.FC = () => {
 
   const getStatusBadge = (status: Campaign['status']) => {
     const statusConfig = {
-      awaiting: { text: 'Awaiting Response', variant: 'yellow' as const },
-      'path-a': { text: 'Path A: In Development', variant: 'green' as const },
+      awaiting: { text: 'Awaiting Response', variant: 'warning' as const },
+      'path-a': { text: 'Path A: In Development', variant: 'success' as const },
       'path-b': { text: 'Path B: Pre-orders Open', variant: 'default' as const },
     }
     return statusConfig[status]
@@ -173,7 +173,7 @@ const BrandDashboard: React.FC = () => {
       {/* Stats Section */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
         {stats.map((stat, index) => (
-          <Card key={index} hover>
+          <Card key={index} className="hover:shadow-card-hover transition-shadow">
             <CardContent className="pt-6">
               <div className="flex items-start justify-between mb-3">
                 <div>{stat.icon}</div>
@@ -218,7 +218,7 @@ const BrandDashboard: React.FC = () => {
             {topCampaigns.map((campaign) => {
               const statusConfig = getStatusBadge(campaign.status)
               return (
-                <Card key={campaign.id} hover>
+                <Card key={campaign.id} className="hover:shadow-card-hover transition-shadow">
                   <CardContent className="pt-6">
                     <div className="flex items-start justify-between gap-4 mb-3">
                       <div className="flex-1">
@@ -237,7 +237,6 @@ const BrandDashboard: React.FC = () => {
                       <Progress
                         value={campaign.intensity}
                         max={100}
-                        variant="violet"
                         showPercentage={false}
                       />
                     </div>

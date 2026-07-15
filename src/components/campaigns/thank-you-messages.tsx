@@ -7,7 +7,7 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Textarea } from '@/components/ui/textarea'
 import { Badge } from '@/components/ui/badge'
-import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
+import { Avatar } from '@/components/ui/avatar'
 import { cn, formatRelativeTime } from '@/lib/utils'
 
 interface Creator {
@@ -145,7 +145,7 @@ export function ThankYouMessages({
           <Button
             onClick={() => setShowForm(!showForm)}
             className="gap-2"
-            variant={showForm ? 'outline' : 'default'}
+            variant={showForm ? 'outline' : 'primary'}
           >
             <Plus className="w-4 h-4" />
             {showForm ? 'Cancel' : 'New Message'}
@@ -242,12 +242,12 @@ export function ThankYouMessages({
                 <CardHeader className="pb-3">
                   <div className="flex items-start justify-between gap-4">
                     <div className="flex items-center gap-3 flex-1">
-                      <Avatar className="h-10 w-10">
-                        <AvatarImage src={msg.creator.avatar || undefined} />
-                        <AvatarFallback className="bg-pink-200 dark:bg-pink-800 text-pink-900 dark:text-pink-100">
-                          {initials}
-                        </AvatarFallback>
-                      </Avatar>
+                      <Avatar
+                        className="h-10 w-10"
+                        src={msg.creator.avatar || undefined}
+                        alt={msg.creator.displayName}
+                        initials={initials}
+                      />
                       <div className="min-w-0 flex-1">
                         <p className="font-semibold text-sm">{msg.creator.displayName}</p>
                         {msg.creator.handle && (

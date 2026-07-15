@@ -28,7 +28,7 @@ export async function GET(
       where: { category: currentCampaign.category },
       select: {
         id: true,
-        name: true,
+        title: true,
         _count: { select: { lobbies: true } },
       },
       orderBy: { lobbies: { _count: 'desc' } },
@@ -39,7 +39,7 @@ export async function GET(
     const competitors = campaignsInCategory.map((campaign, index) => ({
       rank: index + 1,
       id: campaign.id,
-      name: campaign.name,
+      name: campaign.title,
       lobbyCount: campaign._count.lobbies,
       trend: 'stable' as const,
       isCurrentCampaign: campaign.id === campaignId,

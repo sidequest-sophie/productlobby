@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/db'
 import { getCurrentUser } from '@/lib/auth'
+import { isFeatureEnabled } from '@/lib/feature-flags'
 
 export const dynamic = 'force-dynamic'
 
@@ -8,6 +9,9 @@ export async function GET(
   request: NextRequest,
   { params }: { params: { id: string } }
 ) {
+  if (!isFeatureEnabled('brand-analytics')) {
+    return NextResponse.json({ error: 'This feature is not yet available' }, { status: 404 })
+  }
   try {
     const { id: campaignId } = params
     const user = await getCurrentUser()
@@ -40,6 +44,7 @@ export async function GET(
           userId: user.id,
           campaignId: campaign.id,
           eventType: 'SOCIAL_SHARE',
+          points: 1,
           metadata: {
             action: 'brand_analytics_view',
             isBrandOwner,
@@ -84,11 +89,13 @@ export async function GET(
     }
 
     // BRAND OWNER: Calculate full premium analytics
-    const exactSupportCount = events.filter(
-      (e) => e.eventType === 'PLEDGE'
-    ).length
+    // Exact support = real pledges made against this campaign.
+    const exactSupportCount = await prisma.pledge.count({
+      where: { campaignId: campaign.id },
+    })
+    // Intent = soft-commitment (wishlist) signals recorded as contribution events.
     const intentCount = events.filter(
-      (e) => e.eventType === 'EMAIL_SIGNUP'
+      (e) => e.eventType === 'WISHLIST_SUBMITTED'
     ).length
 
     // Estimate demand value (mock calculation)

@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { Prisma } from '@prisma/client'
 import { getCurrentUser } from '@/lib/auth'
 import { prisma } from '@/lib/db'
 
@@ -93,7 +94,7 @@ export async function PUT(
               question: q.question,
               description: q.description || null,
               questionType: q.questionType,
-              options: q.options ? JSON.stringify(q.options) : null,
+              options: q.options ? (q.options as Prisma.InputJsonValue) : Prisma.JsonNull,
               minScale: q.minScale || null,
               maxScale: q.maxScale || null,
               minLabel: q.minLabel || null,

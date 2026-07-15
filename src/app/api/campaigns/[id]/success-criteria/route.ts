@@ -45,11 +45,14 @@ export async function GET(
         id: true,
         title: true,
         createdAt: true,
-        pledgeCount: true,
-        pledgeAmount: true,
         lobbies: {
           select: {
             id: true,
+          },
+        },
+        pledges: {
+          select: {
+            priceCeiling: true,
           },
         },
       },
@@ -88,7 +91,10 @@ export async function GET(
     const minPledgeValue = (metadata.minPledgeValue as number) || 0
 
     const lobbiesCount = campaign.lobbies.length
-    const pledgeAmount = campaign.pledgeAmount || 0
+    const pledgeAmount = campaign.pledges.reduce((sum, p) => {
+      if (p.priceCeiling === null) return sum
+      return sum + parseFloat(p.priceCeiling.toString())
+    }, 0)
 
     const criteria: SuccessCriterion[] = []
 
@@ -148,7 +154,7 @@ export async function GET(
         id: criteriaEvent.id,
         campaignId,
         criteria,
-        lastUpdated: criteriaEvent.updatedAt.toISOString(),
+        lastUpdated: criteriaEvent.createdAt.toISOString(),
         createdAt: criteriaEvent.createdAt.toISOString(),
       },
     })
@@ -262,7 +268,7 @@ export async function POST(
         campaignId,
         metadata,
         createdAt: existingEvent.createdAt.toISOString(),
-        updatedAt: existingEvent.updatedAt.toISOString(),
+        updatedAt: existingEvent.createdAt.toISOString(),
       },
     })
   } catch (error) {

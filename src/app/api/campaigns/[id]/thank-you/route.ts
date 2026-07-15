@@ -1,8 +1,60 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { Prisma } from '@prisma/client'
 import { prisma } from '@/lib/db'
 import { getCurrentUser } from '@/lib/auth'
 
 export const dynamic = 'force-dynamic'
+
+// NOTE: There is no dedicated ThankYouMessage table in the Prisma schema, so
+// (like several other ad-hoc campaign features in this codebase) thank you
+// messages are persisted as ContributionEvent rows with a distinguishing
+// `action` marker in `metadata`.
+
+interface ThankYouMessage {
+  id: string
+  campaignId: string
+  milestone: number
+  message: string
+  createdAt: string
+  creator: {
+    id: string
+    displayName: string
+    handle: string | null
+    avatar: string | null
+  }
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null && !Array.isArray(value)
+}
+
+function extractThankYouMessage(event: {
+  id: string
+  campaignId: string
+  createdAt: Date
+  metadata: unknown
+  user: { id: string; displayName: string; handle: string | null; avatar: string | null }
+}): ThankYouMessage | null {
+  const metadata = event.metadata
+  if (!isRecord(metadata) || metadata.action !== 'thank_you_message') {
+    return null
+  }
+
+  const { milestone, message } = metadata
+
+  if (typeof milestone !== 'number' || typeof message !== 'string') {
+    return null
+  }
+
+  return {
+    id: event.id,
+    campaignId: event.campaignId,
+    milestone,
+    message,
+    createdAt: event.createdAt.toISOString(),
+    creator: event.user,
+  }
+}
 
 export async function GET(
   request: NextRequest,
@@ -25,10 +77,17 @@ export async function GET(
     }
 
     // Get thank you messages for the campaign, ordered by date descending
-    const messages = await prisma.thankYouMessage.findMany({
-      where: { campaignId },
+    const events = await prisma.contributionEvent.findMany({
+      where: {
+        campaignId,
+        eventType: 'SOCIAL_SHARE',
+        metadata: {
+          path: ['action'],
+          equals: 'thank_you_message',
+        },
+      },
       include: {
-        creator: {
+        user: {
           select: {
             id: true,
             displayName: true,
@@ -39,6 +98,10 @@ export async function GET(
       },
       orderBy: { createdAt: 'desc' },
     })
+
+    const messages = events
+      .map(extractThankYouMessage)
+      .filter((message): message is ThankYouMessage => message !== null)
 
     return NextResponse.json({
       messages,
@@ -72,7 +135,7 @@ export async function POST(
     // Verify campaign exists and user is creator
     const campaign = await prisma.campaign.findUnique({
       where: { id: campaignId },
-      select: { id: true, creatorUserId: true, lobbyCount: true },
+      select: { id: true, creatorUserId: true },
     })
 
     if (!campaign) {
@@ -106,16 +169,21 @@ export async function POST(
       )
     }
 
-    // Create thank you message
-    const thankYouMessage = await prisma.thankYouMessage.create({
+    // Create thank you message as a ContributionEvent
+    const event = await prisma.contributionEvent.create({
       data: {
+        userId: user.id,
         campaignId,
-        creatorUserId: user.id,
-        milestone,
-        message,
+        eventType: 'SOCIAL_SHARE',
+        points: 10,
+        metadata: {
+          action: 'thank_you_message',
+          milestone,
+          message,
+        } as Prisma.InputJsonValue,
       },
       include: {
-        creator: {
+        user: {
           select: {
             id: true,
             displayName: true,
@@ -126,20 +194,14 @@ export async function POST(
       },
     })
 
-    // Record as contribution event
-    await prisma.contributionEvent.create({
-      data: {
-        userId: user.id,
-        campaignId,
-        eventType: 'SOCIAL_SHARE',
-        points: 10,
-        metadata: {
-          action: 'thank_you_message',
-          messageId: thankYouMessage.id,
-          milestone,
-        },
-      },
-    })
+    const thankYouMessage: ThankYouMessage = {
+      id: event.id,
+      campaignId,
+      milestone,
+      message,
+      createdAt: event.createdAt.toISOString(),
+      creator: event.user,
+    }
 
     return NextResponse.json(
       {

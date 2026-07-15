@@ -11,7 +11,7 @@ import {
 import { Button } from '@/components/ui/button';
 
 export const metadata: Metadata = {
-  title: 'Impact Report | ProductLobby',
+  title: 'Impact Report',
   description: 'Discover ProductLobby\'s platform impact and statistics.',
 };
 

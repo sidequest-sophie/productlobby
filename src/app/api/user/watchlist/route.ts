@@ -41,6 +41,7 @@ export async function GET(request: NextRequest) {
       select: {
         campaignId: true,
         createdAt: true,
+        metadata: true,
       },
       orderBy: {
         createdAt: 'desc',
@@ -52,8 +53,12 @@ export async function GET(request: NextRequest) {
     // Filter for active watches and extract campaign IDs
     const activeCampaignIds = watchEvents
       .filter((event) => {
-        const meta = event as any
-        return meta.metadata?.action === 'watch' && meta.metadata?.active === true
+        const metadata = event.metadata
+        if (typeof metadata !== 'object' || metadata === null || Array.isArray(metadata)) {
+          return false
+        }
+        const meta = metadata as Record<string, unknown>
+        return meta.action === 'watch' && meta.active === true
       })
       .map((event) => event.campaignId)
 
@@ -70,7 +75,11 @@ export async function GET(request: NextRequest) {
         slug: true,
         description: true,
         category: true,
-        image: true,
+        media: {
+          where: { kind: 'IMAGE' },
+          take: 1,
+          orderBy: { order: 'asc' },
+        },
         status: true,
         createdAt: true,
         updatedAt: true,
@@ -105,7 +114,7 @@ export async function GET(request: NextRequest) {
       slug: campaign.slug,
       description: campaign.description,
       category: campaign.category,
-      image: campaign.image,
+      image: campaign.media[0]?.url ?? null,
       status: campaign.status,
       lobbyCount: campaign._count.lobbies,
       createdAt: campaign.createdAt,

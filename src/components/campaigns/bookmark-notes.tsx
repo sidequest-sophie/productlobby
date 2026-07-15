@@ -168,7 +168,7 @@ export const BookmarkNotes: React.FC<BookmarkNotesProps> = ({
           disabled={isSavingDisabled}
           size="sm"
           className="flex items-center gap-2"
-          variant={note.length > 0 ? 'default' : 'outline'}
+          variant={note.length > 0 ? 'primary' : 'outline'}
         >
           {isSaving ? (
             <Loader2 size={16} className="animate-spin" />

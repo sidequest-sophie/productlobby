@@ -209,7 +209,7 @@ export function ExportManager({ campaignId }: ExportManagerProps) {
   const formatDate = (dateString: string): string => {
     const date = new Date(dateString)
     return date.toLocaleDateString('en-GB', {
-      day: 'short',
+      day: '2-digit',
       month: 'short',
       year: 'numeric',
       hour: '2-digit',

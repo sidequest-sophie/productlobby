@@ -141,7 +141,7 @@ const stats: Stat[] = [
 ]
 
 export const metadata = {
-  title: 'Partnerships | ProductLobby',
+  title: 'Partnerships',
   description:
     'Join our growing network of partners and collaborate with ProductLobby to create exceptional opportunities.',
 }

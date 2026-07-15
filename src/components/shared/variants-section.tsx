@@ -142,7 +142,7 @@ export function VariantsSection({ campaignId, isCreator }: VariantsSectionProps)
         <Button
           onClick={() => setShowForm(true)}
           className="bg-lime-500 hover:bg-lime-600"
-          variant="default"
+          variant="primary"
         >
           <Plus className="mr-2 h-4 w-4" />
           Add Variant Option

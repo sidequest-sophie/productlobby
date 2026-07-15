@@ -1,8 +1,57 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/db'
 import { getCurrentUser } from '@/lib/auth'
+import { Prisma } from '@prisma/client'
 
 export const dynamic = 'force-dynamic'
+
+interface AutoUpdateSettings {
+  enabled: boolean
+  frequency: 'daily' | 'weekly' | 'monthly'
+  includeStats: boolean
+  includeComments: boolean
+  lastSentAt: string | null
+}
+
+function isRecord(v: unknown): v is Record<string, unknown> {
+  return typeof v === 'object' && v !== null && !Array.isArray(v)
+}
+
+const DEFAULT_AUTO_UPDATE_SETTINGS: AutoUpdateSettings = {
+  enabled: false,
+  frequency: 'weekly',
+  includeStats: true,
+  includeComments: true,
+  lastSentAt: null,
+}
+
+// Auto-update settings have no dedicated Campaign columns, so they are
+// persisted as the most recent 'auto_update_config' ContributionEvent for
+// the campaign, matching the convention used elsewhere in this codebase.
+async function getAutoUpdateSettings(campaignId: string): Promise<AutoUpdateSettings> {
+  const events = await prisma.contributionEvent.findMany({
+    where: {
+      campaignId,
+      eventType: 'SOCIAL_SHARE',
+    },
+    select: { metadata: true },
+    orderBy: { createdAt: 'desc' },
+    take: 50,
+  })
+
+  const savedEvent = events.find(
+    (event) => isRecord(event.metadata) && event.metadata.action === 'auto_update_config'
+  )
+
+  if (savedEvent && isRecord(savedEvent.metadata)) {
+    const saved = savedEvent.metadata.settings
+    if (isRecord(saved)) {
+      return { ...DEFAULT_AUTO_UPDATE_SETTINGS, ...(saved as unknown as Partial<AutoUpdateSettings>) }
+    }
+  }
+
+  return DEFAULT_AUTO_UPDATE_SETTINGS
+}
 
 // GET /api/campaigns/[id]/auto-updates - Get auto-update schedule settings
 export async function GET(
@@ -27,11 +76,6 @@ export async function GET(
       select: {
         id: true,
         creatorUserId: true,
-        autoUpdatesEnabled: true,
-        autoUpdatesFrequency: true,
-        autoUpdatesIncludeStats: true,
-        autoUpdatesIncludeComments: true,
-        autoUpdatesLastSentAt: true,
       },
     })
 
@@ -50,11 +94,13 @@ export async function GET(
       )
     }
 
+    const settings = await getAutoUpdateSettings(campaign.id)
+
     // Calculate next scheduled update
     let nextScheduledUpdate = null
-    if (campaign.autoUpdatesEnabled && campaign.autoUpdatesLastSentAt) {
-      const lastSent = new Date(campaign.autoUpdatesLastSentAt)
-      const frequency = campaign.autoUpdatesFrequency || 'weekly'
+    if (settings.enabled && settings.lastSentAt) {
+      const lastSent = new Date(settings.lastSentAt)
+      const frequency = settings.frequency || 'weekly'
 
       let nextDate = new Date(lastSent)
       if (frequency === 'daily') {
@@ -70,11 +116,11 @@ export async function GET(
 
     return NextResponse.json({
       campaignId: campaign.id,
-      enabled: campaign.autoUpdatesEnabled || false,
-      frequency: campaign.autoUpdatesFrequency || 'weekly',
-      includeStats: campaign.autoUpdatesIncludeStats !== false,
-      includeComments: campaign.autoUpdatesIncludeComments !== false,
-      lastSentAt: campaign.autoUpdatesLastSentAt,
+      enabled: settings.enabled || false,
+      frequency: settings.frequency || 'weekly',
+      includeStats: settings.includeStats !== false,
+      includeComments: settings.includeComments !== false,
+      lastSentAt: settings.lastSentAt,
       nextScheduledUpdate,
     })
   } catch (error) {
@@ -128,7 +174,7 @@ export async function POST(
     // Get campaign and verify ownership
     const campaign = await prisma.campaign.findUnique({
       where: { id },
-      select: { creatorUserId: true },
+      select: { id: true, creatorUserId: true },
     })
 
     if (!campaign) {
@@ -145,38 +191,18 @@ export async function POST(
       )
     }
 
-    // Update campaign with auto-update settings
-    const updateData: any = {}
-
-    if (enabled !== undefined) {
-      updateData.autoUpdatesEnabled = enabled
+    // Merge the incoming changes on top of the currently persisted settings
+    const existingSettings = await getAutoUpdateSettings(campaign.id)
+    const newSettings: AutoUpdateSettings = {
+      ...existingSettings,
+      ...(enabled !== undefined ? { enabled } : {}),
+      ...(frequency ? { frequency } : {}),
+      ...(includeStats !== undefined ? { includeStats } : {}),
+      ...(includeComments !== undefined ? { includeComments } : {}),
     }
 
-    if (frequency) {
-      updateData.autoUpdatesFrequency = frequency
-    }
-
-    if (includeStats !== undefined) {
-      updateData.autoUpdatesIncludeStats = includeStats
-    }
-
-    if (includeComments !== undefined) {
-      updateData.autoUpdatesIncludeComments = includeComments
-    }
-
-    const updatedCampaign = await prisma.campaign.update({
-      where: { id },
-      data: updateData,
-      select: {
-        id: true,
-        autoUpdatesEnabled: true,
-        autoUpdatesFrequency: true,
-        autoUpdatesIncludeStats: true,
-        autoUpdatesIncludeComments: true,
-      },
-    })
-
-    // Log contribution event for auto-update configuration
+    // Log contribution event for auto-update configuration; this doubles as
+    // the persisted settings record (see getAutoUpdateSettings above).
     await prisma.contributionEvent.create({
       data: {
         userId: user.id,
@@ -185,18 +211,17 @@ export async function POST(
         points: 5,
         metadata: {
           action: 'auto_update_config',
-          enabled: enabled !== undefined ? enabled : undefined,
-          frequency: frequency || undefined,
-        },
+          settings: newSettings,
+        } as unknown as Prisma.InputJsonValue,
       },
     })
 
     return NextResponse.json({
-      campaignId: updatedCampaign.id,
-      enabled: updatedCampaign.autoUpdatesEnabled || false,
-      frequency: updatedCampaign.autoUpdatesFrequency || 'weekly',
-      includeStats: updatedCampaign.autoUpdatesIncludeStats !== false,
-      includeComments: updatedCampaign.autoUpdatesIncludeComments !== false,
+      campaignId: campaign.id,
+      enabled: newSettings.enabled || false,
+      frequency: newSettings.frequency || 'weekly',
+      includeStats: newSettings.includeStats !== false,
+      includeComments: newSettings.includeComments !== false,
     })
   } catch (error) {
     console.error('[POST /api/campaigns/[id]/auto-updates]', error)

@@ -6,6 +6,9 @@ import { Download, Share2 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { formatNumber } from '@/lib/utils'
 
+// NOTE: `html2canvas` is not currently an installed dependency (see
+// package.json), so this dynamic import will fail at runtime. It now
+// type-checks via the ambient declaration in src/types/html2canvas.d.ts.
 interface ShareableInfographicProps {
   campaignId: string
   title: string

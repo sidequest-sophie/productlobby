@@ -1,6 +1,7 @@
 export const dynamic = 'force-dynamic'
 
 import { prisma } from '@/lib/db'
+import { Prisma } from '@prisma/client'
 import { NextRequest, NextResponse } from 'next/server'
 import { getCurrentUser } from '@/lib/auth'
 
@@ -439,23 +440,23 @@ export async function POST(
       },
     }
 
-    // Store custom segment metadata in campaign
-    const updatedCampaign = await prisma.campaign.update({
-      where: { id: campaign.id },
+    // Store custom segment definition as a ContributionEvent since Campaign
+    // has no generic metadata field. Ad-hoc feature data convention used
+    // elsewhere in this codebase.
+    await prisma.contributionEvent.create({
       data: {
+        userId: user.id,
+        campaignId: campaign.id,
+        eventType: 'SOCIAL_SHARE',
+        points: 0,
         metadata: {
-          ...((campaign as any).metadata || {}),
-          customSegments: [
-            ...((campaign as any)?.metadata?.customSegments || []),
-            {
-              id: segmentId,
-              name: body.name,
-              description: body.description || '',
-              rules: body.rules,
-              createdAt: new Date().toISOString(),
-            },
-          ],
-        },
+          action: 'custom_segment',
+          id: segmentId,
+          name: body.name,
+          description: body.description || '',
+          rules: body.rules,
+          createdAt: new Date().toISOString(),
+        } as unknown as Prisma.InputJsonValue,
       },
     })
 

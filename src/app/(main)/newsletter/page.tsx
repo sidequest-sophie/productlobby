@@ -4,7 +4,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 
 export const metadata: Metadata = {
-  title: 'Newsletter Archive | ProductLobby',
+  title: 'Newsletter Archive',
 };
 
 interface NewsletterIssue {

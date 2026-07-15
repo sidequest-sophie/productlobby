@@ -3,7 +3,7 @@ import { Button } from '@/components/ui/button'
 import { Metadata } from 'next'
 
 export const metadata: Metadata = {
-  title: 'Community Guidelines | ProductLobby',
+  title: 'Community Guidelines',
   description:
     'Learn about ProductLobby community guidelines, policies, and enforcement measures.',
 }

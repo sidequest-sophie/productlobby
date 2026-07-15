@@ -4,6 +4,7 @@
  */
 
 import crypto from 'crypto'
+import dns from 'dns/promises'
 import { prisma } from '@/lib/db'
 
 export type VerificationStatus =
@@ -30,24 +31,17 @@ export function generateVerificationToken(): string {
 }
 
 /**
- * Verify domain ownership by checking DNS TXT records
- * In production, this would check actual DNS records.
- * For now, we accept the verification if the token is stored.
+ * Verify domain ownership by checking DNS TXT records.
+ * Mirrors the working implementation in
+ * src/app/api/brands/[id]/verify/route.ts:92-105 — looks up the domain's
+ * TXT records and confirms one of them equals `productlobby-verify=<token>`.
  */
 export async function verifyDomainOwnership(
   domain: string,
   token: string
 ): Promise<boolean> {
   try {
-    // Expected TXT record name for domain verification
-    const txtRecordName = `_productlobby.${domain}`
-
-    // In production, you would:
-    // 1. Use a DNS lookup library to query the TXT records
-    // 2. Check if the token appears in the TXT records
-    // 3. For now, we'll validate that we have stored the verification attempt
-
-    // Verify that a recent verification attempt exists for this domain and token
+    // Verify that a pending verification attempt exists for this token
     const verification = await prisma.brandVerification.findFirst({
       where: {
         token,
@@ -59,10 +53,21 @@ export async function verifyDomainOwnership(
       return false
     }
 
-    // In a real implementation, you would check actual DNS records here
-    // For MVP, we trust the verification if token was sent to email
-    // In production: dns.resolveTxt(txtRecordName)
-    return true
+    // Normalize domain (strip protocol/www/path)
+    let normalizedDomain = domain.toLowerCase()
+    if (normalizedDomain.startsWith('http://')) {
+      normalizedDomain = normalizedDomain.slice(7)
+    } else if (normalizedDomain.startsWith('https://')) {
+      normalizedDomain = normalizedDomain.slice(8)
+    }
+    normalizedDomain = normalizedDomain.replace(/^www\./, '').split('/')[0]
+
+    const records = await dns.resolveTxt(normalizedDomain)
+    const expectedValue = `productlobby-verify=${token}`
+
+    return records.some((recordArray) =>
+      recordArray.some((record) => record === expectedValue)
+    )
   } catch (error) {
     console.error('Domain verification error:', error)
     return false
@@ -179,7 +184,8 @@ export async function getBrandVerificationStatus(
 export async function createBrandVerification(
   brandId: string,
   method: 'EMAIL_DOMAIN' | 'DNS_TXT',
-  token: string
+  token: string,
+  code?: string
 ) {
   return prisma.brandVerification.create({
     data: {
@@ -187,6 +193,7 @@ export async function createBrandVerification(
       method,
       status: 'PENDING',
       token,
+      code,
     },
   })
 }

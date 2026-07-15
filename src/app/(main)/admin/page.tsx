@@ -39,6 +39,7 @@ interface StatsData {
 interface Report {
   id: string
   reason: string
+  details: string | null
   status: string
   targetType: string
   targetId: string
@@ -254,7 +255,7 @@ export default function AdminDashboard() {
                 </div>
                 <div className="flex gap-2 mt-2">
                   {stats.campaignsByStatus.map((item) => (
-                    <Badge key={item.status} variant="secondary">
+                    <Badge key={item.status} variant="default">
                       {item.status}: {item.count}
                     </Badge>
                   ))}
@@ -325,7 +326,7 @@ export default function AdminDashboard() {
                             {campaign.title}
                           </p>
                           <div className="flex gap-2 mt-1">
-                            <Badge variant="secondary">
+                            <Badge variant="default">
                               {campaign.status}
                             </Badge>
                             <span className="text-sm text-gray-500">
@@ -359,7 +360,7 @@ export default function AdminDashboard() {
                 (status) => (
                   <Button
                     key={status}
-                    variant={reportStatus === status ? 'default' : 'outline'}
+                    variant={reportStatus === status ? 'primary' : 'outline'}
                     onClick={() => {
                       setReportStatus(status)
                       setPage(1)
@@ -395,7 +396,7 @@ export default function AdminDashboard() {
                           <div className="flex items-center gap-2 mb-2">
                             <Badge
                               className={getStatusColor(report.status)}
-                              variant="secondary"
+                              variant="default"
                             >
                               {report.status}
                             </Badge>
@@ -532,12 +533,12 @@ export default function AdminDashboard() {
                             <td className="py-3 px-4">
                               <div className="flex gap-1">
                                 {user.emailVerified && (
-                                  <Badge variant="secondary">
+                                  <Badge variant="default">
                                     Email Verified
                                   </Badge>
                                 )}
                                 {user.phoneVerified && (
-                                  <Badge variant="secondary">
+                                  <Badge variant="default">
                                     Phone Verified
                                   </Badge>
                                 )}
@@ -551,7 +552,7 @@ export default function AdminDashboard() {
                             </td>
                             <td className="py-3 px-4 text-center">
                               {user.reportCount > 0 && (
-                                <Badge variant="destructive">
+                                <Badge variant="error">
                                   {user.reportCount}
                                 </Badge>
                               )}
@@ -593,7 +594,7 @@ export default function AdminDashboard() {
                             <p className="font-medium text-gray-900">
                               {campaign.title}
                             </p>
-                            <Badge variant="secondary">
+                            <Badge variant="default">
                               {campaign.status}
                             </Badge>
                           </div>

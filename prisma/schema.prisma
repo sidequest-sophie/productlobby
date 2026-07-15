@@ -171,6 +171,7 @@ model Brand {
   offers         Offer[]
   payouts        Payout[]
   surveys        Survey[]
+  apiKeys        ApiKey[]
 
   @@map("brands")
 }
@@ -210,6 +211,7 @@ model BrandVerification {
   method     VerificationMethod
   status     VerificationStatus @default(PENDING)
   token      String
+  code       String?            @map("code")
   createdAt  DateTime           @default(now()) @map("created_at")
   verifiedAt DateTime?          @map("verified_at")
 
@@ -1440,4 +1442,37 @@ enum PayoutRequestStatus {
   FAILED
 
   @@map("payout_request_status")
+}
+
+// ============================================================================
+// API KEYS
+// ============================================================================
+
+model ApiKey {
+  id          String    @id @default(uuid())
+  hashedKey   String    @unique @map("hashed_key")
+  brandId     String    @map("brand_id")
+  brand       Brand     @relation(fields: [brandId], references: [id], onDelete: Cascade)
+  environment String    @default("live")
+  createdAt   DateTime  @default(now()) @map("created_at")
+  lastUsedAt  DateTime? @map("last_used_at")
+  revokedAt   DateTime? @map("revoked_at")
+
+  usageLogs ApiKeyUsageLog[]
+
+  @@index([brandId])
+  @@map("api_keys")
+}
+
+model ApiKeyUsageLog {
+  id         String   @id @default(uuid())
+  keyId      String   @map("key_id")
+  apiKey     ApiKey   @relation(fields: [keyId], references: [id], onDelete: Cascade)
+  endpoint   String
+  statusCode Int      @map("status_code")
+  createdAt  DateTime @default(now()) @map("created_at")
+
+  @@index([keyId])
+  @@index([createdAt])
+  @@map("api_key_usage_logs")
 }

@@ -144,7 +144,7 @@ export const ImpactScore: React.FC<ImpactScoreProps> = ({ campaignId }) => {
 
           {/* Rank Badge */}
           <div className="mt-4 text-center">
-            <Badge variant="secondary" className="text-xs">
+            <Badge variant="default" className="text-xs">
               Rank {data.rank.position} of {data.rank.total} ({data.rank.percentile}th percentile)
             </Badge>
           </div>

@@ -25,7 +25,7 @@ export async function GET(
     const user = await getCurrentUser()
 
     // Get active poll for campaign
-    const poll = await prisma.quickPoll.findFirst({
+    const poll = await prisma.poll.findFirst({
       where: { campaignId: params.id },
       orderBy: { createdAt: 'desc' },
       include: {
@@ -49,7 +49,7 @@ export async function GET(
     // Check if user has voted
     let userVoteOptionId: string | null = null
     if (user) {
-      const userVote = await prisma.quickPollVote.findFirst({
+      const userVote = await prisma.pollVote.findFirst({
         where: {
           pollId: poll.id,
           userId: user.id,
@@ -67,7 +67,7 @@ export async function GET(
       question: poll.question,
       options: poll.options.map((opt) => ({
         id: opt.id,
-        text: opt.text,
+        text: opt.optionText,
         voteCount: opt.votes.length,
         percentage: totalVotes > 0 ? Math.round((opt.votes.length / totalVotes) * 100) : 0,
       })),
@@ -126,7 +126,7 @@ export async function POST(
     }
 
     // Verify poll exists and belongs to campaign
-    const poll = await prisma.quickPoll.findUnique({
+    const poll = await prisma.poll.findUnique({
       where: { id: pollId },
       select: { id: true, campaignId: true },
     })
@@ -139,7 +139,7 @@ export async function POST(
     }
 
     // Verify option exists
-    const option = await prisma.quickPollOption.findUnique({
+    const option = await prisma.pollOption.findUnique({
       where: { id: optionId },
       select: { id: true, pollId: true },
     })
@@ -152,7 +152,7 @@ export async function POST(
     }
 
     // Check if user already voted
-    const existingVote = await prisma.quickPollVote.findFirst({
+    const existingVote = await prisma.pollVote.findFirst({
       where: {
         pollId: pollId,
         userId: user.id,
@@ -167,7 +167,7 @@ export async function POST(
     }
 
     // Create vote
-    const vote = await prisma.quickPollVote.create({
+    const vote = await prisma.pollVote.create({
       data: {
         pollId: pollId,
         userId: user.id,

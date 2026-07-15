@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/db'
 import { getCurrentUser } from '@/lib/auth'
+import { Prisma } from '@prisma/client'
 
 export const dynamic = 'force-dynamic'
 
@@ -50,7 +51,7 @@ export async function GET(
 
     // Transform events into dependency objects
     const dependencies = dependencyEvents.map((event) => {
-      const metadata = event.metadata as DependencyMetadata
+      const metadata = event.metadata as unknown as DependencyMetadata
       return {
         id: event.id,
         sourceItem: metadata.sourceItem,
@@ -151,7 +152,7 @@ export async function POST(
         campaignId,
         eventType: 'SOCIAL_SHARE',
         points: 5,
-        metadata,
+        metadata: metadata as unknown as Prisma.InputJsonValue,
       },
       include: {
         user: {

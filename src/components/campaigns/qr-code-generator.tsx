@@ -457,7 +457,7 @@ export function QRCodeGenerator({
             <Button
               onClick={handleDownloadQR}
               disabled={downloadInProgress}
-              variant="default"
+              variant="primary"
               size="default"
               className="w-full justify-center"
               style={{ backgroundColor: brandColor }}

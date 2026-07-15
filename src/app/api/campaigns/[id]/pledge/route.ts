@@ -203,7 +203,7 @@ export async function POST(
             },
           },
           update: {
-            priceCeiling: priceCeiling ? BigInt(Math.round(priceCeiling * 100)) / BigInt(100) : null,
+            priceCeiling: priceCeiling ? Math.round(priceCeiling * 100) / 100 : null,
             timeframeDays,
             isPrivate,
           },
@@ -211,7 +211,7 @@ export async function POST(
             campaignId,
             userId: user.id,
             pledgeType: 'INTENT',
-            priceCeiling: priceCeiling ? BigInt(Math.round(priceCeiling * 100)) / BigInt(100) : null,
+            priceCeiling: priceCeiling ? Math.round(priceCeiling * 100) / 100 : null,
             timeframeDays,
             isPrivate,
           },

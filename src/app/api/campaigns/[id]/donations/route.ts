@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/db'
 import { getCurrentUser } from '@/lib/auth'
+import { isFeatureEnabled } from '@/lib/feature-flags'
 
 export const dynamic = 'force-dynamic'
 
@@ -29,6 +30,9 @@ export async function GET(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
+  if (!isFeatureEnabled('donations')) {
+    return NextResponse.json({ error: 'This feature is not yet available' }, { status: 404 })
+  }
   try {
     const { id } = await params
     const user = await getCurrentUser()
@@ -153,6 +157,9 @@ export async function POST(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
+  if (!isFeatureEnabled('donations')) {
+    return NextResponse.json({ error: 'This feature is not yet available' }, { status: 404 })
+  }
   try {
     const { id } = await params
     const user = await getCurrentUser()
@@ -186,8 +193,10 @@ export async function POST(
       data: {
         campaignId: campaign.id,
         userId: user.id,
-        action: 'donation',
+        eventType: 'SOCIAL_SHARE',
+        points: 1,
         metadata: {
+          action: 'donation',
           amount: body.amount,
           currency: 'GBP',
           donorName: body.donorName,

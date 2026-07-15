@@ -351,7 +351,7 @@ export const ContentLibrary: React.FC<ContentLibraryProps> = ({
       {/* Content Type Filter */}
       <div className="flex gap-2 flex-wrap">
         <Button
-          variant={selectedType === 'All' ? 'default' : 'outline'}
+          variant={selectedType === 'All' ? 'primary' : 'outline'}
           size="sm"
           onClick={() => setSelectedType('All')}
         >
@@ -360,7 +360,7 @@ export const ContentLibrary: React.FC<ContentLibraryProps> = ({
         {contentTypes.map((type) => (
           <Button
             key={type}
-            variant={selectedType === type ? 'default' : 'outline'}
+            variant={selectedType === type ? 'primary' : 'outline'}
             size="sm"
             onClick={() => setSelectedType(type)}
             className="gap-1"

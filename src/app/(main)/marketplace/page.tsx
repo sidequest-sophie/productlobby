@@ -3,7 +3,7 @@ import { ShoppingBag, Star, TrendingUp, Shield, Zap, Users, CheckCircle } from '
 import { Button } from '@/components/ui/button'
 
 export const metadata = {
-  title: 'Marketplace | ProductLobby',
+  title: 'Marketplace',
   description:
     'Discover and trade product offers, exclusive deals, and community-powered marketplace on ProductLobby.',
 }

@@ -129,8 +129,8 @@ export async function GET(
         status: 'LIVE',
       },
       orderBy: {
-        _count: {
-          lobbies: 'desc',
+        lobbies: {
+          _count: 'desc',
         },
       },
       take: 3,
@@ -252,8 +252,14 @@ export async function GET(
           activeCampaigns,
           totalFollows,
         },
-        featured,
-        recent,
+        featured: featured.map((campaign) => ({
+          ...campaign,
+          createdAt: campaign.createdAt.toISOString(),
+        })),
+        recent: recent.map((campaign) => ({
+          ...campaign,
+          createdAt: campaign.createdAt.toISOString(),
+        })),
       },
     })
   } catch (error) {

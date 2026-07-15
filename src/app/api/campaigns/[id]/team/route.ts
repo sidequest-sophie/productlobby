@@ -122,7 +122,7 @@ export async function POST(
       data: {
         userId: user.id,
         campaignId,
-        eventType: 'CONTRIBUTION',
+        eventType: 'SOCIAL_SHARE',
         points: 0,
         metadata: {
           action: 'team_invite',

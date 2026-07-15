@@ -32,6 +32,7 @@ export function ContentScheduler({ campaignId }: ContentSchedulerProps) {
     scheduledDate: '',
     scheduledTime: '',
   })
+  const [notAvailable, setNotAvailable] = useState(false)
 
   useEffect(() => {
     fetchScheduledPosts()
@@ -41,6 +42,10 @@ export function ContentScheduler({ campaignId }: ContentSchedulerProps) {
     try {
       setLoading(true)
       const response = await fetch(`/api/campaigns/${campaignId}/content-scheduler`)
+      if (response.status === 404) {
+        setNotAvailable(true)
+        return
+      }
       if (!response.ok) throw new Error('Failed to fetch scheduled posts')
       const data = await response.json()
       setPosts(data)
@@ -122,6 +127,10 @@ export function ContentScheduler({ campaignId }: ContentSchedulerProps) {
       default:
         return 'bg-gray-100 text-gray-800'
     }
+  }
+
+  if (notAvailable) {
+    return null
   }
 
   if (loading) {

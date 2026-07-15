@@ -399,7 +399,12 @@ export default function BrandDashboard({
                   signalScore={campaign._count.lobbies}
                   completenessScore={getCompletenessScore(campaign)}
                   status={getCampaignStatus(campaign.status)}
-                  creator={campaign.creator}
+                  creator={{
+                    id: campaign.creator.id,
+                    displayName: campaign.creator.displayName,
+                    email: campaign.creator.email,
+                    avatar: campaign.creator.avatar ?? undefined,
+                  }}
                   brand={{ id: brand.id, name: brand.name, logo: brand.logo || undefined }}
                   createdAt={campaign.createdAt.toISOString()}
                 />

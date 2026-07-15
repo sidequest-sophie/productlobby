@@ -219,7 +219,7 @@ export function BulkActionsToolbar({
                 Cancel
               </Button>
               <Button
-                variant={showConfirmation === 'archive' ? 'destructive' : 'default'}
+                variant={showConfirmation === 'archive' ? 'destructive' : 'primary'}
                 onClick={() => handleAction(showConfirmation as 'archive' | 'publish')}
                 disabled={isLoading}
                 className="gap-2"

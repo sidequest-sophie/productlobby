@@ -9,12 +9,6 @@ export async function GET() {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
-    // Check admin role
-    const fullUser = await prisma.user.findUnique({
-      where: { id: user.id },
-      select: { role: true },
-    })
-
     // Note: The User model doesn't have a role field by default
     // For now, check if user is in ADMIN_EMAIL
     const adminEmail = process.env.ADMIN_EMAIL

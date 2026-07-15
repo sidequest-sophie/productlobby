@@ -3,7 +3,7 @@
 import React, { useState, useEffect } from 'react'
 import { useParams, useRouter } from 'next/navigation'
 import Link from 'next/link'
-import { ArrowLeft, Loader2, AlertCircle, Eye, Users, MessageSquare, Share2, TrendingUp } from 'lucide-react'
+import { ArrowLeft, Loader2, AlertCircle, Eye, Users, MessageSquare, Share2, TrendingUp, type LucideIcon } from 'lucide-react'
 import { Navbar } from '@/components/shared/navbar'
 import { Footer } from '@/components/shared/footer'
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card'
@@ -52,7 +52,7 @@ const MetricSmall = ({
   value,
   unit = '',
 }: {
-  icon: React.ComponentType<{ className: string }>
+  icon: LucideIcon
   label: string
   value: string | number
   unit?: string

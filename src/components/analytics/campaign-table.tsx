@@ -23,7 +23,7 @@ export interface CampaignTableProps {
   isLoading?: boolean
 }
 
-type SortField = 'title' | 'lobbyCount' | 'commentCount' | 'signalScore' | 'createdAt'
+type SortField = 'title' | 'status' | 'lobbyCount' | 'commentCount' | 'signalScore' | 'createdAt'
 type SortDirection = 'asc' | 'desc'
 
 export const CampaignTable: React.FC<CampaignTableProps> = ({
@@ -67,11 +67,11 @@ export const CampaignTable: React.FC<CampaignTableProps> = ({
       case 'LIVE':
         return 'default'
       case 'DRAFT':
-        return 'secondary'
+        return 'default'
       case 'CLOSED':
         return 'outline'
       case 'PAUSED':
-        return 'secondary'
+        return 'default'
       default:
         return 'outline'
     }

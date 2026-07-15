@@ -18,7 +18,7 @@ export async function GET(
     // Verify campaign exists
     const campaign = await prisma.campaign.findUnique({
       where: { id: campaignId },
-      select: { id: true, creatorId: true },
+      select: { id: true, creatorUserId: true },
     })
 
     if (!campaign) {
@@ -103,7 +103,7 @@ export async function POST(
     // Verify campaign exists and user is creator
     const campaign = await prisma.campaign.findUnique({
       where: { id: campaignId },
-      select: { id: true, creatorId: true },
+      select: { id: true, creatorUserId: true },
     })
 
     if (!campaign) {
@@ -113,7 +113,7 @@ export async function POST(
       )
     }
 
-    if (campaign.creatorId !== user.id) {
+    if (campaign.creatorUserId !== user.id) {
       return NextResponse.json(
         { error: 'Forbidden' },
         { status: 403 }
@@ -145,6 +145,7 @@ export async function POST(
         campaignId,
         userId: user.id,
         eventType: 'SOCIAL_SHARE',
+        points: 1,
         metadata: {
           action: 'pinned_update',
           title,
@@ -204,7 +205,7 @@ export async function DELETE(
     // Verify campaign exists and user is creator
     const campaign = await prisma.campaign.findUnique({
       where: { id: campaignId },
-      select: { id: true, creatorId: true },
+      select: { id: true, creatorUserId: true },
     })
 
     if (!campaign) {
@@ -214,7 +215,7 @@ export async function DELETE(
       )
     }
 
-    if (campaign.creatorId !== user.id) {
+    if (campaign.creatorUserId !== user.id) {
       return NextResponse.json(
         { error: 'Forbidden' },
         { status: 403 }

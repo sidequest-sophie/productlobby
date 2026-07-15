@@ -22,7 +22,7 @@ export async function checkUserAchievements(userId: string): Promise<EarnedBadge
     prisma.campaign.count({ where: { creatorUserId: userId } }),
     prisma.lobby.count({ where: { userId } }),
     prisma.comment.count({ where: { userId } }),
-    prisma.follow.count({ where: { followerId: userId } }),
+    prisma.follow.count({ where: { userId } }),
     prisma.brandResponse.count({ where: { campaign: { creatorUserId: userId } } }),
     prisma.campaign.findFirst({
       where: { creatorUserId: userId },

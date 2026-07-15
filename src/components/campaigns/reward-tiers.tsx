@@ -48,6 +48,17 @@ interface RewardTiersData {
   total: number
 }
 
+type TierColor = 'bronze' | 'silver' | 'gold' | 'platinum' | 'diamond'
+
+interface RewardTierFormData {
+  name: string
+  description: string
+  minLobbiesRequired: string
+  rewardDescription: string
+  benefits: string
+  color: TierColor
+}
+
 const TIER_COLORS = {
   bronze: {
     bg: 'bg-amber-50 dark:bg-amber-950',
@@ -107,13 +118,13 @@ export function RewardTiers({
   const [editingId, setEditingId] = useState<string | null>(null)
   const [posting, setPosting] = useState(false)
   const [deletingId, setDeletingId] = useState<string | null>(null)
-  const [formData, setFormData] = useState({
+  const [formData, setFormData] = useState<RewardTierFormData>({
     name: '',
     description: '',
     minLobbiesRequired: '',
     rewardDescription: '',
     benefits: '',
-    color: 'bronze' as const,
+    color: 'bronze',
   })
 
   useEffect(() => {
@@ -264,7 +275,7 @@ export function RewardTiers({
               })
             }}
             className="gap-2"
-            variant={showForm ? 'outline' : 'default'}
+            variant={showForm ? 'outline' : 'primary'}
           >
             <Plus className="w-4 h-4" />
             {showForm ? 'Cancel' : 'Add Tier'}

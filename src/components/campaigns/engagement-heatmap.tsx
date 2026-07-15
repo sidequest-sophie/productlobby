@@ -156,7 +156,7 @@ export const EngagementHeatmap: React.FC<EngagementHeatmapProps> = ({
   }
 
   // Group data by week (rows)
-  const weeks = []
+  const weeks: HeatmapData[][] = []
   for (let i = 0; i < data.length; i += 7) {
     weeks.push(data.slice(i, i + 7))
   }

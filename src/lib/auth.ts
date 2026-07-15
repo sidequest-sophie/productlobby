@@ -228,7 +228,7 @@ export async function createMagicLink(email: string): Promise<string> {
 
     // Generate magic link token
     const token = crypto.randomUUID()
-    const expiresAt = new Date(Date.now() + 24 * 60 * 60 * 1000) // 24 hours
+    const expiresAt = new Date(Date.now() + 30 * 60 * 1000) // 30 minutes
 
     // Create magic link in database
     await prisma.magicLink.create({
@@ -304,7 +304,7 @@ export async function verifyPhoneCode(userId: string, code: string): Promise<boo
     // Update user phone verification status
     await prisma.user.update({
       where: { id: userId },
-      data: { phoneVerified: true, phone: verification.phone },
+      data: { phoneVerified: true, phoneE164: verification.phone },
     })
 
     return true

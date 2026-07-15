@@ -419,7 +419,7 @@ export function CampaignPriorityQueue({
       {/* Filter Section */}
       <div className="flex flex-wrap gap-2">
         <Button
-          variant={filterPriority === 'all' ? 'default' : 'outline'}
+          variant={filterPriority === 'all' ? 'primary' : 'outline'}
           size="sm"
           onClick={() => setFilterPriority('all')}
         >
@@ -428,7 +428,7 @@ export function CampaignPriorityQueue({
         {PRIORITY_LEVELS.map((level) => (
           <Button
             key={level}
-            variant={filterPriority === level ? 'default' : 'outline'}
+            variant={filterPriority === level ? 'primary' : 'outline'}
             size="sm"
             onClick={() => setFilterPriority(level)}
             className={

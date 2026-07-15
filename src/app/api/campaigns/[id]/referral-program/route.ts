@@ -178,7 +178,8 @@ export async function POST(
       data: {
         campaignId: campaign.id,
         userId: user.id,
-        action: 'referral',
+        eventType: 'REFERRAL_SIGNUP',
+        points: 100,
         metadata: {
           referredEmail: body.referredEmail,
           referrerName: body.referrerName,

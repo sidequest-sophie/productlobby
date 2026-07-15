@@ -144,7 +144,6 @@ export default function SavedCampaignsPage() {
                 category={campaign.category}
                 image={campaign.image}
                 lobbyCount={campaign.lobbyCount}
-                pledgeCount={campaign.pledgeCount}
                 intensityDistribution={{
                   low: Math.ceil(campaign.lobbyCount * 0.2),
                   medium: Math.ceil(campaign.lobbyCount * 0.3),

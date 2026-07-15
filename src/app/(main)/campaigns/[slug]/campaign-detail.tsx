@@ -120,6 +120,8 @@ interface ApiCampaign {
   }>
 }
 
+const LOBBY_MILESTONE_LADDER = [25, 50, 100, 250, 500, 1000, 2500, 5000]
+
 const getCreatorInitials = (name: string) => {
   return name
     .split(' ')
@@ -254,7 +256,9 @@ export default function CampaignDetailPage({ params }: CampaignDetailPageProps) 
       try {
         const response = await fetch('/api/auth/me')
         if (response.ok) {
-          const userData = await response.json()
+          // /api/auth/me responds with { success, data: user } — unwrap it so
+          // user.id / user.displayName etc. resolve correctly below.
+          const { data: userData } = await response.json()
           setUser(userData)
         }
       } catch (err) {
@@ -290,8 +294,31 @@ export default function CampaignDetailPage({ params }: CampaignDetailPageProps) 
 
   const creatorInitials = getCreatorInitials(campaign.creator.displayName)
 
+  // Pick the next rung on the milestone ladder above the current lobby count.
+  const nextLobbyMilestone =
+    LOBBY_MILESTONE_LADDER.find((m) => m > lobbyCount) ??
+    LOBBY_MILESTONE_LADDER[LOBBY_MILESTONE_LADDER.length - 1]
+
   // Transform preferenceData into preferences object for display
-  const preferences = campaign.preferenceData.reduce((acc, pref) => {
+  interface SizeDistributionItem {
+    size: string
+    count: number
+  }
+  interface ColorPreferenceItem {
+    color: string
+    count: number
+  }
+  interface PriceWillingnessItem {
+    range: string
+    percent: number
+  }
+  interface PreferencesAccumulator {
+    sizeDistribution?: SizeDistributionItem[]
+    colorPreferences?: ColorPreferenceItem[]
+    priceWillingness?: PriceWillingnessItem[]
+  }
+
+  const preferences = campaign.preferenceData.reduce<PreferencesAccumulator>((acc, pref) => {
     if (pref.fieldType === 'size') {
       acc.sizeDistribution = Object.entries(pref.valueCounts).map(([size, count]) => ({
         size,
@@ -309,15 +336,15 @@ export default function CampaignDetailPage({ params }: CampaignDetailPageProps) 
       }))
     }
     return acc
-  }, {} as any)
+  }, {})
 
   // Fallback empty preferences if data is missing
   const sizeDistribution = preferences.sizeDistribution || []
   const colorPreferences = preferences.colorPreferences || []
   const priceWillingness = preferences.priceWillingness || []
 
-  const maxSizeCount = sizeDistribution.length > 0 ? Math.max(...sizeDistribution.map(s => s.count)) : 1
-  const maxColorCount = colorPreferences.length > 0 ? Math.max(...colorPreferences.map(c => c.count)) : 1
+  const maxSizeCount = sizeDistribution.length > 0 ? Math.max(...sizeDistribution.map((s) => s.count)) : 1
+  const maxColorCount = colorPreferences.length > 0 ? Math.max(...colorPreferences.map((c) => c.count)) : 1
 
   // Map wishlist themes (rename count to mentions)
   const wishlistThemes = campaign.topWishlistThemes.map(item => ({
@@ -339,7 +366,9 @@ export default function CampaignDetailPage({ params }: CampaignDetailPageProps) 
     ? { status: 'responsive', message: campaign.brandResponses[0].message || 'Brand has responded!' }
     : { status: 'unresponsive', message: `${campaign.targetedBrand?.name || 'The brand'} hasn't responded to this campaign yet.` }
 
-  const brand = campaign.targetedBrand || { id: '', name: 'Unknown Brand', logo: '📦' }
+  // targetedBrand is nullable — campaigns can be open to any brand (openToAlternatives).
+  const brand = campaign.targetedBrand
+  const brandDisplayName = brand?.name || 'any brand'
 
   return (
     <div className="min-h-screen bg-white flex flex-col">
@@ -363,7 +392,7 @@ export default function CampaignDetailPage({ params }: CampaignDetailPageProps) 
               </Link>
               <ChevronRight className="w-4 h-4 text-gray-400" />
               <Link href="/campaigns" className="text-violet-600 hover:text-violet-700">
-                {campaign.category}
+                Campaigns
               </Link>
               <ChevronRight className="w-4 h-4 text-gray-400" />
               <span className="text-gray-600">{campaign.title}</span>
@@ -380,10 +409,15 @@ export default function CampaignDetailPage({ params }: CampaignDetailPageProps) 
                   alt={campaign.title}
                   className="w-full h-full object-cover"
                 />
-              ) : (
+              ) : brand ? (
                 <div className="text-center">
                   <div className="text-8xl mb-4">{brand.logo || '📦'}</div>
                   <p className="text-violet-600 text-lg font-display font-semibold">{brand.name}</p>
+                </div>
+              ) : (
+                <div className="text-center">
+                  <Megaphone className="w-16 h-16 text-violet-300 mx-auto mb-4" />
+                  <p className="text-violet-600 text-lg font-display font-semibold">Open to any brand</p>
                 </div>
               )}
             </div>
@@ -397,7 +431,9 @@ export default function CampaignDetailPage({ params }: CampaignDetailPageProps) 
               {/* Badges & Info Row */}
               <div className="flex flex-wrap items-center gap-3 mb-6">
                 <Badge variant="default">{campaign.category}</Badge>
-                <Badge variant="outline">Targeted at: {brand.name}</Badge>
+                <Badge variant="outline">
+                  {brand ? `Targeted at: ${brand.name}` : 'Open to any brand'}
+                </Badge>
               </div>
 
               {/* Creator Info & Dates */}
@@ -529,10 +565,12 @@ export default function CampaignDetailPage({ params }: CampaignDetailPageProps) 
               {/* Lobby Milestone Progress */}
               <div>
                 <div className="flex items-center justify-between mb-3">
-                  <p className="text-sm font-medium text-foreground">Next lobby milestone: 5,000 lobbies</p>
-                  <p className="text-sm text-gray-600">{lobbyCount} of 5,000</p>
+                  <p className="text-sm font-medium text-foreground">
+                    Next lobby milestone: {formatNumber(nextLobbyMilestone)} lobbies
+                  </p>
+                  <p className="text-sm text-gray-600">{lobbyCount} of {formatNumber(nextLobbyMilestone)}</p>
                 </div>
-                <Progress value={(lobbyCount / 5000) * 100} className="h-2" />
+                <Progress value={Math.min((lobbyCount / nextLobbyMilestone) * 100, 100)} className="h-2" />
               </div>
             </div>
           </div>
@@ -602,47 +640,34 @@ export default function CampaignDetailPage({ params }: CampaignDetailPageProps) 
                         </ul>
                       </div>
 
-                      <div>
-                        <h3 className="font-display font-semibold text-lg text-foreground mb-4">Campaign Gallery</h3>
-                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                          {campaign.media.slice(0, 4).map((media, i) => (
-                            <div
-                              key={media.url}
-                              className="h-48 bg-gradient-to-br from-violet-50 to-violet-100 rounded-lg flex items-center justify-center overflow-hidden"
-                            >
-                              {media.type.startsWith('image') ? (
-                                <img src={media.url} alt={`Campaign media ${i + 1}`} className="w-full h-full object-cover" />
-                              ) : (
-                                <div className="text-center">
-                                  <div className="text-4xl mb-2">📸</div>
-                                  <p className="text-xs text-violet-600">Media {i + 1}</p>
-                                </div>
-                              )}
-                            </div>
-                          ))}
-                          {campaign.media.length === 0 && (
-                            <>
-                              {[1, 2, 3, 4].map((i) => (
-                                <div
-                                  key={i}
-                                  className="h-48 bg-gradient-to-br from-violet-50 to-violet-100 rounded-lg flex items-center justify-center"
-                                >
+                      {campaign.media.length > 0 && (
+                        <div>
+                          <h3 className="font-display font-semibold text-lg text-foreground mb-4">Campaign Gallery</h3>
+                          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                            {campaign.media.slice(0, 4).map((media, i) => (
+                              <div
+                                key={media.url}
+                                className="h-48 bg-gradient-to-br from-violet-50 to-violet-100 rounded-lg flex items-center justify-center overflow-hidden"
+                              >
+                                {media.type.startsWith('image') ? (
+                                  <img src={media.url} alt={`Campaign media ${i + 1}`} className="w-full h-full object-cover" />
+                                ) : (
                                   <div className="text-center">
                                     <div className="text-4xl mb-2">📸</div>
-                                    <p className="text-xs text-violet-600">Image {i}</p>
+                                    <p className="text-xs text-violet-600">Media {i + 1}</p>
                                   </div>
-                                </div>
-                              ))}
-                            </>
-                          )}
+                                )}
+                              </div>
+                            ))}
+                          </div>
                         </div>
-                      </div>
+                      )}
 
                       <div>
                         <h3 className="font-display font-semibold text-lg text-foreground mb-3">Why This Matters</h3>
                         <div className="bg-violet-50 border border-violet-200 rounded-lg p-4">
                           <p className="text-gray-700 italic">
-                            "This product should exist. Help me prove to {brand.name} that the demand is real."
+                            "This product should exist. Help me prove to {brandDisplayName} that the demand is real."
                           </p>
                           <p className="text-sm text-gray-600 mt-3">— {campaign.creator.displayName}, Campaign Creator</p>
                         </div>
@@ -826,7 +851,7 @@ export default function CampaignDetailPage({ params }: CampaignDetailPageProps) 
                           {brandResponse.message}
                         </p>
                         {brandResponse.status === 'unresponsive' && (
-                          <Badge variant="yellow" className="mb-6">
+                          <Badge variant="warning" className="mb-6">
                             Unresponsive
                           </Badge>
                         )}
@@ -837,7 +862,7 @@ export default function CampaignDetailPage({ params }: CampaignDetailPageProps) 
                         className="inline-flex items-center gap-2"
                       >
                         <Megaphone className="w-4 h-4" />
-                        Help lobby {brand.name}
+                        {brand ? `Help lobby ${brand.name}` : 'Help lobby this campaign'}
                       </Button>
                     </div>
                   </TabsContent>
@@ -905,14 +930,14 @@ export default function CampaignDetailPage({ params }: CampaignDetailPageProps) 
                       </Badge>
                     </div>
                     <div>
-                      <p className="text-xs text-gray-600 mb-1">Targeted Brand</p>
+                      <p className="text-xs text-gray-600 mb-1">{brand ? 'Targeted Brand' : 'Brand'}</p>
                       <Badge variant="outline" size="sm">
-                        {brand.name}
+                        {brand ? brand.name : 'Open to any brand'}
                       </Badge>
                     </div>
                     <div>
                       <p className="text-xs text-gray-600 mb-1">Status</p>
-                      <Badge variant="lime" size="sm">
+                      <Badge variant="success" size="sm">
                         {campaign.status.charAt(0).toUpperCase() + campaign.status.slice(1)}
                       </Badge>
                     </div>
@@ -937,7 +962,7 @@ export default function CampaignDetailPage({ params }: CampaignDetailPageProps) 
                         src={campaign.creator.avatar}
                         alt={campaign.creator.displayName}
                         initials={creatorInitials}
-                        size="md"
+                        size="default"
                       />
                       <div>
                         <p className="font-medium text-foreground">{campaign.creator.displayName}</p>
@@ -957,7 +982,7 @@ export default function CampaignDetailPage({ params }: CampaignDetailPageProps) 
                     )}
                     <Button
                       variant="secondary"
-                      size="md"
+                      size="default"
                       className="w-full"
                     >
                       View profile
@@ -981,6 +1006,11 @@ export default function CampaignDetailPage({ params }: CampaignDetailPageProps) 
         onClose={() => setIsLobbyFlowOpen(false)}
         campaignTitle={campaign?.title || 'Campaign'}
         campaignId={campaign?.id || ''}
+        campaignSlug={campaign?.slug || params.slug}
+        brandName={campaign?.targetedBrand?.name}
+        preferenceFields={campaign?.preferenceFields || []}
+        isAuthenticated={!!user}
+        onResumePending={() => setIsLobbyFlowOpen(true)}
       />
     </div>
   )

@@ -191,9 +191,16 @@ export async function POST(
       },
     })
 
+    if (!updatedPoll) {
+      return NextResponse.json(
+        { success: false, error: 'Poll not found' },
+        { status: 404 }
+      )
+    }
+
     // Count unique voters
     const uniqueVoters = new Set(
-      updatedPoll.votes.flatMap((v) => v.userId)
+      updatedPoll.options.flatMap((o) => o.votes.map((v) => v.userId))
     )
     const totalVotes = uniqueVoters.size
 
@@ -325,9 +332,16 @@ export async function DELETE(
       },
     })
 
+    if (!updatedPoll) {
+      return NextResponse.json(
+        { success: false, error: 'Poll not found' },
+        { status: 404 }
+      )
+    }
+
     // Count unique voters
     const uniqueVoters = new Set(
-      updatedPoll.votes.flatMap((v) => v.userId)
+      updatedPoll.options.flatMap((o) => o.votes.map((v) => v.userId))
     )
     const totalVotes = uniqueVoters.size
 

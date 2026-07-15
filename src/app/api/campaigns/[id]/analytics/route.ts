@@ -72,11 +72,11 @@ export async function GET(
     })
 
     // 2. KPI: Total Shares
-    const totalShares = await prisma.campaignShare.count({
+    const totalShares = await prisma.share.count({
       where: { campaignId: campaign.id },
     })
 
-    const previousShares = await prisma.campaignShare.count({
+    const previousShares = await prisma.share.count({
       where: {
         campaignId: campaign.id,
         createdAt: {
@@ -86,11 +86,11 @@ export async function GET(
     })
 
     // 3. KPI: Brand Contacts
-    const brandContacts = await prisma.brandOutreach.count({
+    const brandContacts = await prisma.outreachQueue.count({
       where: { campaignId: campaign.id },
     })
 
-    const previousContacts = await prisma.brandOutreach.count({
+    const previousContacts = await prisma.outreachQueue.count({
       where: {
         campaignId: campaign.id,
         createdAt: {
@@ -144,7 +144,7 @@ export async function GET(
     }))
 
     // 6. Top referral sources
-    const shares = await prisma.campaignShare.findMany({
+    const shares = await prisma.share.findMany({
       where: {
         campaignId: campaign.id,
         createdAt: {
@@ -152,13 +152,13 @@ export async function GET(
         },
       },
       select: {
-        source: true,
+        platform: true,
       },
     })
 
     const sourceMap = new Map<string, number>()
     for (const share of shares) {
-      const source = share.source || 'direct'
+      const source = share.platform || 'direct'
       sourceMap.set(source, (sourceMap.get(source) || 0) + 1)
     }
 

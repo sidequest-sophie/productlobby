@@ -67,11 +67,12 @@ const EXPORT_FORMATS: { type: ExportType; label: string; icon: React.ReactNode }
 export const CampaignExportCentre: React.FC<CampaignExportCentreProps> = ({
   campaignId,
 }) => {
-  const { toast } = useToast()
+  const { addToast } = useToast()
   const [exports, setExports] = useState<ExportJob[]>([])
   const [loading, setLoading] = useState(true)
   const [creating, setCreating] = useState(false)
   const [selectedDataSet, setSelectedDataSet] = useState<DataSet>('supporters')
+  const [notAvailable, setNotAvailable] = useState(false)
 
   useEffect(() => {
     fetchExports()
@@ -83,15 +84,18 @@ export const CampaignExportCentre: React.FC<CampaignExportCentreProps> = ({
       const response = await fetch(
         `/api/campaigns/${campaignId}/campaign-exports`
       )
+      if (response.status === 404) {
+        setNotAvailable(true)
+        return
+      }
       if (!response.ok) throw new Error('Failed to fetch exports')
       const data = await response.json()
       setExports(data)
     } catch (err) {
-      toast({
-        title: 'Error',
-        description: err instanceof Error ? err.message : 'Failed to fetch exports',
-        variant: 'destructive',
-      })
+      addToast(
+        err instanceof Error ? err.message : 'Failed to fetch exports',
+        'error'
+      )
     } finally {
       setLoading(false)
     }
@@ -111,18 +115,14 @@ export const CampaignExportCentre: React.FC<CampaignExportCentreProps> = ({
 
       if (!response.ok) throw new Error('Failed to create export')
 
-      toast({
-        title: 'Export Created',
-        description: 'Your export has been queued for processing',
-      })
+      addToast('Your export has been queued for processing', 'success')
 
       await fetchExports()
     } catch (err) {
-      toast({
-        title: 'Error',
-        description: err instanceof Error ? err.message : 'Failed to create export',
-        variant: 'destructive',
-      })
+      addToast(
+        err instanceof Error ? err.message : 'Failed to create export',
+        'error'
+      )
     } finally {
       setCreating(false)
     }
@@ -133,6 +133,10 @@ export const CampaignExportCentre: React.FC<CampaignExportCentreProps> = ({
     if (bytes < 1024) return `${bytes}B`
     if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)}KB`
     return `${(bytes / (1024 * 1024)).toFixed(1)}MB`
+  }
+
+  if (notAvailable) {
+    return null
   }
 
   if (loading) {

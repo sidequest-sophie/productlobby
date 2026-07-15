@@ -10,7 +10,7 @@ interface TimelineEvent {
   user?: {
     id: string
     displayName: string
-    avatar?: string
+    avatar?: string | null
   }
   createdAt: Date
   metadata?: Record<string, any>

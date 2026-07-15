@@ -78,7 +78,7 @@ export async function GET(
       },
       select: {
         id: true,
-        creatorId: true
+        creatorUserId: true
       }
     })
 
@@ -90,7 +90,7 @@ export async function GET(
     }
 
     // Verify creator authorization
-    if (campaign.creatorId !== currentUser.id) {
+    if (campaign.creatorUserId !== currentUser.id) {
       return NextResponse.json(
         { success: false, error: 'Forbidden' },
         { status: 403 }

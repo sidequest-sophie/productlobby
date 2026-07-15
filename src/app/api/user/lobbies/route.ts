@@ -39,7 +39,7 @@ export async function GET(request: NextRequest) {
         },
         preferences: {
           include: {
-            field: {
+            preferenceField: {
               select: {
                 id: true,
                 fieldName: true,
@@ -48,7 +48,7 @@ export async function GET(request: NextRequest) {
             },
           },
         },
-        wishlist: {
+        wishlists: {
           select: {
             id: true,
             text: true,

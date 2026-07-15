@@ -1,11 +1,15 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/db'
 import { getCurrentUser } from '@/lib/auth'
+import { isFeatureEnabled } from '@/lib/feature-flags'
 
 export const dynamic = 'force-dynamic'
 
 // GET /api/user/collections - List user's collections
 export async function GET(request: NextRequest) {
+  if (!isFeatureEnabled('user-collections')) {
+    return NextResponse.json({ error: 'This feature is not yet available' }, { status: 404 })
+  }
   try {
     const user = await getCurrentUser()
     if (!user) {
@@ -48,6 +52,9 @@ export async function GET(request: NextRequest) {
 
 // POST /api/user/collections - Create a new collection
 export async function POST(request: NextRequest) {
+  if (!isFeatureEnabled('user-collections')) {
+    return NextResponse.json({ error: 'This feature is not yet available' }, { status: 404 })
+  }
   try {
     const user = await getCurrentUser()
     if (!user) {

@@ -136,14 +136,20 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
       where: {
         campaignId,
         eventType: 'SOCIAL_SHARE',
-        metadata: {
-          path: ['action'],
-          equals: 'page_view',
-        },
-        metadata: {
-          path: ['ip'],
-          equals: clientIp,
-        },
+        AND: [
+          {
+            metadata: {
+              path: ['action'],
+              equals: 'page_view',
+            },
+          },
+          {
+            metadata: {
+              path: ['ip'],
+              equals: clientIp,
+            },
+          },
+        ],
         createdAt: {
           gte: oneHourAgo,
         },

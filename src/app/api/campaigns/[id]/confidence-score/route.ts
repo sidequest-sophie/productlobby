@@ -95,20 +95,26 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
 
     // Support both UUID and slug
     const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(campaignId)
-    const campaign = await prisma.campaign[isUuid ? 'findUnique' : 'findFirst']({
-      where: isUuid ? { id: campaignId } : { slug: campaignId },
-      select: {
-        id: true,
-        createdAt: true,
-        completenessScore: true,
-        _count: {
-          select: {
-            updates: true,
-            brandResponses: true,
-          },
+    const campaignSelect = {
+      id: true,
+      createdAt: true,
+      completenessScore: true,
+      _count: {
+        select: {
+          updates: true,
+          brandResponses: true,
         },
       },
-    })
+    } as const
+    const campaign = isUuid
+      ? await prisma.campaign.findUnique({
+          where: { id: campaignId },
+          select: campaignSelect,
+        })
+      : await prisma.campaign.findFirst({
+          where: { slug: campaignId },
+          select: campaignSelect,
+        })
 
     if (!campaign) {
       return NextResponse.json(

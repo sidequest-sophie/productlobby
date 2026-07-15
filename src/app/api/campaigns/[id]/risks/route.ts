@@ -28,10 +28,15 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
       campaignId
     );
 
-    const campaign = await prisma.campaign[isUuid ? 'findUnique' : 'findFirst']({
-      where: isUuid ? { id: campaignId } : { slug: campaignId },
-      select: { id: true },
-    });
+    const campaign = isUuid
+      ? await prisma.campaign.findUnique({
+          where: { id: campaignId },
+          select: { id: true },
+        })
+      : await prisma.campaign.findFirst({
+          where: { slug: campaignId },
+          select: { id: true },
+        });
 
     if (!campaign) {
       return NextResponse.json(
@@ -53,7 +58,7 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
         user: {
           select: {
             id: true,
-            name: true,
+            displayName: true,
             email: true,
           },
         },
@@ -134,13 +139,21 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
       campaignId
     );
 
-    const campaign = await prisma.campaign[isUuid ? 'findUnique' : 'findFirst']({
-      where: isUuid ? { id: campaignId } : { slug: campaignId },
-      select: {
-        id: true,
-        userId: true,
-      },
-    });
+    const campaign = isUuid
+      ? await prisma.campaign.findUnique({
+          where: { id: campaignId },
+          select: {
+            id: true,
+            creatorUserId: true,
+          },
+        })
+      : await prisma.campaign.findFirst({
+          where: { slug: campaignId },
+          select: {
+            id: true,
+            creatorUserId: true,
+          },
+        });
 
     if (!campaign) {
       return NextResponse.json(
@@ -149,7 +162,7 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
       );
     }
 
-    if (campaign.userId !== user.id) {
+    if (campaign.creatorUserId !== user.id) {
       return NextResponse.json(
         { success: false, error: 'Only the campaign creator can add risks' },
         { status: 403 }
@@ -209,6 +222,7 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
         campaignId: campaign.id,
         userId: user.id,
         eventType: 'SOCIAL_SHARE',
+        points: 5,
         metadata: {
           action: 'risk_assessment',
           title: body.title,
@@ -226,7 +240,7 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
         user: {
           select: {
             id: true,
-            name: true,
+            displayName: true,
             email: true,
           },
         },
@@ -287,13 +301,21 @@ export async function DELETE(request: NextRequest, { params }: RouteParams) {
       campaignId
     );
 
-    const campaign = await prisma.campaign[isUuid ? 'findUnique' : 'findFirst']({
-      where: isUuid ? { id: campaignId } : { slug: campaignId },
-      select: {
-        id: true,
-        userId: true,
-      },
-    });
+    const campaign = isUuid
+      ? await prisma.campaign.findUnique({
+          where: { id: campaignId },
+          select: {
+            id: true,
+            creatorUserId: true,
+          },
+        })
+      : await prisma.campaign.findFirst({
+          where: { slug: campaignId },
+          select: {
+            id: true,
+            creatorUserId: true,
+          },
+        });
 
     if (!campaign) {
       return NextResponse.json(
@@ -302,7 +324,7 @@ export async function DELETE(request: NextRequest, { params }: RouteParams) {
       );
     }
 
-    if (campaign.userId !== user.id) {
+    if (campaign.creatorUserId !== user.id) {
       return NextResponse.json(
         { success: false, error: 'Only the campaign creator can delete risks' },
         { status: 403 }

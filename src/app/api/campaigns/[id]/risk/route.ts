@@ -182,13 +182,12 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
       campaignId
     );
 
-    const campaign = await prisma.campaign[isUuid ? 'findUnique' : 'findFirst']({
+    const campaign = await prisma.campaign.findFirst({
       where: isUuid ? { id: campaignId } : { slug: campaignId },
       select: {
         id: true,
         title: true,
         description: true,
-        links: true,
         createdAt: true,
         completenessScore: true,
         _count: {
@@ -236,7 +235,7 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
     const { factors, riskScore, riskLevel } = analyzeRiskFactors({
       title: campaign.title,
       description: campaign.description || '',
-      links: campaign.links || [],
+      links: [],
       createdAt: campaign.createdAt,
       totalSupporters,
       supportersLastDay,

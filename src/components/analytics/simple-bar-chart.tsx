@@ -140,6 +140,7 @@ export function SimplePieChart({
       ...item,
       startAngle,
       endAngle,
+      sliceAngle,
       percentage: Math.round((item.value / total) * 100),
     }
   })

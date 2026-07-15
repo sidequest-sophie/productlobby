@@ -95,6 +95,7 @@ export function MomentumTracker({ campaignId }: MomentumTrackerProps) {
   const [data, setData] = useState<MomentumData | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
+  const [notAvailable, setNotAvailable] = useState(false)
 
   useEffect(() => {
     const fetchMomentum = async () => {
@@ -103,6 +104,10 @@ export function MomentumTracker({ campaignId }: MomentumTrackerProps) {
         const response = await fetch(
           `/api/campaigns/${campaignId}/momentum`
         )
+        if (response.status === 404) {
+          setNotAvailable(true)
+          return
+        }
         if (!response.ok) {
           throw new Error('Failed to fetch momentum data')
         }
@@ -121,6 +126,10 @@ export function MomentumTracker({ campaignId }: MomentumTrackerProps) {
 
     fetchMomentum()
   }, [campaignId])
+
+  if (notAvailable) {
+    return null
+  }
 
   if (loading) {
     return <MomentumSkeleton />

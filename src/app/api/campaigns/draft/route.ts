@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { Prisma } from '@prisma/client'
 import { getCurrentUser } from '@/lib/auth'
 import { prisma } from '@/lib/db'
 
@@ -59,16 +60,17 @@ export async function POST(request: NextRequest) {
     }
 
     const body: DraftData = await request.json()
+    const formData = body as unknown as Prisma.InputJsonValue
 
     const draft = await prisma.campaignDraft.upsert({
       where: { userId: user.id },
       update: {
-        formData: body,
+        formData,
         savedAt: new Date(),
       },
       create: {
         userId: user.id,
-        formData: body,
+        formData,
         savedAt: new Date(),
       },
     })

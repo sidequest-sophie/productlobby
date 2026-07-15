@@ -3,6 +3,7 @@ export const dynamic = 'force-dynamic'
 import { prisma } from '@/lib/db'
 import { getCurrentUser } from '@/lib/auth'
 import { NextRequest, NextResponse } from 'next/server'
+import { Prisma } from '@prisma/client'
 
 interface OutreachMetadata {
   action: 'partner_outreach'
@@ -88,7 +89,7 @@ export async function GET(
 
     // Parse outreach items from events
     const outreachItems = outreachEvents.map((event) => {
-      const metadata = event.metadata as OutreachMetadata
+      const metadata = event.metadata as unknown as OutreachMetadata
 
       return {
         id: event.id,
@@ -200,7 +201,8 @@ export async function POST(
         campaignId: campaign.id,
         userId: user.id,
         eventType: 'SOCIAL_SHARE',
-        metadata: metadata,
+        points: 1,
+        metadata: metadata as unknown as Prisma.InputJsonValue,
       },
     })
 

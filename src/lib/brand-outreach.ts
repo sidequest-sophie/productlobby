@@ -87,7 +87,7 @@ export async function identifyRelevantBrands(
             { team: { some: {} } },
           ],
         },
-        { id: { not: campaign.targetedBrandId } },
+        { id: { not: campaign.targetedBrandId ?? undefined } },
       ],
     },
     include: {
@@ -570,7 +570,7 @@ export async function getOutreachCampaigns(): Promise<OutreachOpportunity[]> {
         select: { lobbies: true },
       },
     },
-    orderBy: { _count: { lobbies: 'desc' } },
+    orderBy: { lobbies: { _count: 'desc' } },
   })
 
   const opportunities: OutreachOpportunity[] = []

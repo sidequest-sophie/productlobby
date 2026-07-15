@@ -70,54 +70,24 @@ export async function POST(request: NextRequest) {
     // Get current user (optional)
     const user = await getCurrentUser()
 
-    // Check if Feedback model exists - if it does, save the feedback
-    // If not, we'll just log it (since we can't modify schema)
-    let feedback: any = null
-
-    try {
-      // Try to create feedback record
-      feedback = await prisma.feedback?.create({
-        data: {
-          type,
-          title,
-          description,
-          urgency: urgency || 'medium',
-          userId: user?.id || null,
-          userEmail: email || user?.email || null,
-          pageUrl: url,
-          ipAddress: request.headers.get('x-forwarded-for') || 'unknown',
-          userAgent: request.headers.get('user-agent') || undefined,
-          status: 'new',
-        },
-      })
-    } catch (e: any) {
-      // If Feedback model doesn't exist, just log it
-      if (e.code === 'P3009' || e.message?.includes('does not exist')) {
-        console.log('[FEEDBACK]', {
-          type,
-          title,
-          description,
-          urgency,
-          user: user?.id,
-          email: email || user?.email,
-          url,
-          timestamp: new Date().toISOString(),
-        })
-      } else {
-        throw e
-      }
-    }
+    // There is no dedicated Feedback model in the schema, so we log
+    // submissions instead of persisting them.
+    console.log('[FEEDBACK]', {
+      type,
+      title,
+      description,
+      urgency,
+      user: user?.id,
+      email: email || user?.email,
+      url,
+      timestamp: new Date().toISOString(),
+    })
 
     return NextResponse.json(
       {
         success: true,
         message: 'Thank you for your feedback! We appreciate your input.',
-        data: feedback
-          ? {
-              id: feedback.id,
-              createdAt: feedback.createdAt,
-            }
-          : null,
+        data: null,
       },
       { status: 201 }
     )
@@ -172,80 +142,25 @@ export async function GET(request: NextRequest) {
 
     // Get query parameters
     const { searchParams } = new URL(request.url)
-    const type = searchParams.get('type')
-    const status = searchParams.get('status')
     const limit = parseInt(searchParams.get('limit') || '50')
     const offset = parseInt(searchParams.get('offset') || '0')
 
-    // Build where clause
-    const where: any = {}
-    if (type) where.type = type
-    if (status) where.status = status
-
-    try {
-      // Try to fetch feedback from database
-      const [feedback, total] = await Promise.all([
-        prisma.feedback?.findMany({
-          where,
-          orderBy: { createdAt: 'desc' },
-          take: limit,
-          skip: offset,
-          select: {
-            id: true,
-            type: true,
-            title: true,
-            description: true,
-            urgency: true,
-            status: true,
-            userEmail: true,
-            pageUrl: true,
-            user: {
-              select: {
-                id: true,
-                displayName: true,
-                email: true,
-              },
-            },
-            createdAt: true,
-            updatedAt: true,
-          },
-        }) || [],
-        prisma.feedback?.count({ where }) || 0,
-      ])
-
-      return NextResponse.json(
-        {
-          success: true,
-          data: feedback,
-          pagination: {
-            total,
-            limit,
-            offset,
-            hasMore: offset + limit < total,
-          },
+    // There is no dedicated Feedback model in the schema, so submissions
+    // are only logged (see POST above) and nothing is available to list here.
+    return NextResponse.json(
+      {
+        success: true,
+        data: [],
+        pagination: {
+          total: 0,
+          limit,
+          offset,
+          hasMore: false,
         },
-        { status: 200 }
-      )
-    } catch (e: any) {
-      // If Feedback model doesn't exist
-      if (e.code === 'P3009' || e.message?.includes('does not exist')) {
-        return NextResponse.json(
-          {
-            success: true,
-            data: [],
-            pagination: {
-              total: 0,
-              limit,
-              offset,
-              hasMore: false,
-            },
-            message: 'Feedback model not yet configured in database',
-          },
-          { status: 200 }
-        )
-      }
-      throw e
-    }
+        message: 'Feedback model not yet configured in database',
+      },
+      { status: 200 }
+    )
   } catch (error) {
     console.error('Feedback list error:', error)
     return NextResponse.json(

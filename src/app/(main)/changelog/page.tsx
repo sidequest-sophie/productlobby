@@ -3,7 +3,7 @@ import { CalendarDays, Rocket, Bug, Zap, Star } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 
 export const metadata: Metadata = {
-  title: 'Platform Changelog | ProductLobby',
+  title: 'Platform Changelog',
   description: 'Track all platform updates, features, improvements, and bug fixes.',
 }
 

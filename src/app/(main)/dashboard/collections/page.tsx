@@ -6,7 +6,14 @@ import { PageHeader } from '@/components/shared/page-header'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
-import { Modal } from '@/components/ui/modal'
+import {
+  Modal,
+  ModalContent,
+  ModalClose,
+  ModalHeader,
+  ModalTitle,
+  ModalBody,
+} from '@/components/ui/modal'
 import { Plus, Folder, Trash2, Edit2, Loader2 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 
@@ -206,75 +213,84 @@ export default function CollectionsPage() {
         )}
 
         <Modal
-          isOpen={showCreateModal}
-          onClose={() => {
-            setShowCreateModal(false)
-            setForm({ name: '', description: '' })
+          open={showCreateModal}
+          onOpenChange={(open) => {
+            setShowCreateModal(open)
+            if (!open) {
+              setForm({ name: '', description: '' })
+            }
           }}
-          title="Create New Collection"
         >
-          <form onSubmit={handleCreateCollection} className="space-y-4">
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
-                Collection Name *
-              </label>
-              <Input
-                type="text"
-                placeholder="e.g., Tech Gadgets, Home Improvement"
-                value={form.name}
-                onChange={(e) =>
-                  setForm((prev) => ({ ...prev, name: e.target.value }))
-                }
-                maxLength={100}
-                required
-              />
-              <p className="text-xs text-gray-500 mt-1">
-                {form.name.length}/100 characters
-              </p>
-            </div>
+          <ModalContent>
+            <ModalClose />
+            <ModalHeader>
+              <ModalTitle>Create New Collection</ModalTitle>
+            </ModalHeader>
+            <ModalBody>
+              <form onSubmit={handleCreateCollection} className="space-y-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Collection Name *
+                  </label>
+                  <Input
+                    type="text"
+                    placeholder="e.g., Tech Gadgets, Home Improvement"
+                    value={form.name}
+                    onChange={(e) =>
+                      setForm((prev) => ({ ...prev, name: e.target.value }))
+                    }
+                    maxLength={100}
+                    required
+                  />
+                  <p className="text-xs text-gray-500 mt-1">
+                    {form.name.length}/100 characters
+                  </p>
+                </div>
 
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
-                Description (Optional)
-              </label>
-              <textarea
-                placeholder="Add a description for this collection..."
-                value={form.description}
-                onChange={(e) =>
-                  setForm((prev) => ({ ...prev, description: e.target.value }))
-                }
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-violet-500 focus:border-violet-500"
-                rows={3}
-              />
-            </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Description (Optional)
+                  </label>
+                  <textarea
+                    placeholder="Add a description for this collection..."
+                    value={form.description}
+                    onChange={(e) =>
+                      setForm((prev) => ({ ...prev, description: e.target.value }))
+                    }
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-violet-500 focus:border-violet-500"
+                    rows={3}
+                  />
+                </div>
 
-            <div className="flex gap-3 pt-4">
-              <Button
-                type="submit"
-                disabled={creatingCollection || !form.name.trim()}
-                className="flex-1"
-              >
-                {creatingCollection ? (
-                  <>
-                    <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                    Creating...
-                  </>
-                ) : (
-                  'Create Collection'
-                )}
-              </Button>
-              <Button
-                type="button"
-                variant="outline"
-                onClick={() => {
-                  setShowCreateModal(false)
-                  setForm({ name: '', description: '' })
-                }}
-              >
-                Cancel
-              </Button>
-            </div>
-          </form>
+                <div className="flex gap-3 pt-4">
+                  <Button
+                    type="submit"
+                    disabled={creatingCollection || !form.name.trim()}
+                    className="flex-1"
+                  >
+                    {creatingCollection ? (
+                      <>
+                        <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                        Creating...
+                      </>
+                    ) : (
+                      'Create Collection'
+                    )}
+                  </Button>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    onClick={() => {
+                      setShowCreateModal(false)
+                      setForm({ name: '', description: '' })
+                    }}
+                  >
+                    Cancel
+                  </Button>
+                </div>
+              </form>
+            </ModalBody>
+          </ModalContent>
         </Modal>
       </div>
     </DashboardLayout>

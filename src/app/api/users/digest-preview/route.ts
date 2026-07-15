@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { requireAuth } from '@/lib/auth'
 import { db } from '@/lib/db'
 import { subDays } from 'date-fns'
+import { isFeatureEnabled } from '@/lib/feature-flags'
 
 export const dynamic = 'force-dynamic'
 
@@ -42,6 +43,9 @@ interface DigestPreviewData {
 }
 
 export async function GET(request: NextRequest) {
+  if (!isFeatureEnabled('digest-preview')) {
+    return NextResponse.json({ error: 'This feature is not yet available' }, { status: 404 })
+  }
   try {
     const user = await requireAuth()
     const sevenDaysAgo = subDays(new Date(), 7)
@@ -69,7 +73,7 @@ export async function GET(request: NextRequest) {
         campaignId: true,
         campaign: { select: { title: true, slug: true } },
         title: true,
-        excerpt: true,
+        content: true,
         createdAt: true,
       },
       orderBy: { createdAt: 'desc' },
@@ -79,7 +83,7 @@ export async function GET(request: NextRequest) {
     // Get lobbies on user's campaigns
     const userCampaigns = await db.campaign.findMany({
       where: {
-        createdBy: user.id,
+        creatorUserId: user.id,
       },
       select: {
         id: true,
@@ -99,14 +103,25 @@ export async function GET(request: NextRequest) {
       _count: {
         id: true,
       },
+    })
+
+    const newPledgesData = await db.pledge.groupBy({
+      by: ['campaignId'],
+      where: {
+        campaignId: { in: userCampaignIds },
+        createdAt: { gte: sevenDaysAgo },
+      },
       _sum: {
-        pledgeAmount: true,
+        priceCeiling: true,
       },
     })
 
     const newLobbiesOnUserCampaigns = newLobbiesData
       .map((item) => {
         const campaign = userCampaigns.find((c) => c.id === item.campaignId)
+        const pledgeSum = newPledgesData.find(
+          (p) => p.campaignId === item.campaignId
+        )
         return campaign
           ? {
               id: campaign.id,
@@ -114,7 +129,7 @@ export async function GET(request: NextRequest) {
               campaignTitle: campaign.title,
               campaignSlug: campaign.slug,
               lobbyCount: item._count.id,
-              totalPledgeAmount: item._sum.pledgeAmount ?? 0,
+              totalPledgeAmount: Number(pledgeSum?._sum.priceCeiling ?? 0),
             }
           : null
       })
@@ -131,7 +146,7 @@ export async function GET(request: NextRequest) {
     const commentReplies = await db.comment.findMany({
       where: {
         campaign: {
-          createdBy: user.id,
+          creatorUserId: user.id,
         },
         parent: {
           isNot: null,
@@ -142,7 +157,7 @@ export async function GET(request: NextRequest) {
         id: true,
         campaignId: true,
         campaign: { select: { title: true, slug: true } },
-        text: true,
+        content: true,
         user: { select: { displayName: true, avatar: true } },
         createdAt: true,
       },
@@ -155,7 +170,7 @@ export async function GET(request: NextRequest) {
       campaignId: reply.campaignId,
       campaignTitle: reply.campaign.title,
       campaignSlug: reply.campaign.slug,
-      commentText: reply.text.substring(0, 100),
+      commentText: reply.content.substring(0, 100),
       replierName: reply.user.displayName,
       replierAvatar: reply.user.avatar,
       createdAt: reply.createdAt.toISOString(),
@@ -184,7 +199,7 @@ export async function GET(request: NextRequest) {
         campaignTitle: update.campaign.title,
         campaignSlug: update.campaign.slug,
         title: update.title,
-        excerpt: update.excerpt,
+        excerpt: update.content.substring(0, 200),
         createdAt: update.createdAt.toISOString(),
       })),
       newLobbiesOnUserCampaigns,

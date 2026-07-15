@@ -38,7 +38,7 @@ export async function DELETE(
     // Verify campaign exists and user is creator
     const campaign = await prisma.campaign.findUnique({
       where: { id: campaignId },
-      select: { id: true, creatorId: true },
+      select: { id: true, creatorUserId: true },
     })
 
     if (!campaign) {
@@ -48,7 +48,7 @@ export async function DELETE(
       )
     }
 
-    if (campaign.creatorId !== user.id) {
+    if (campaign.creatorUserId !== user.id) {
       return NextResponse.json(
         {
           success: false,

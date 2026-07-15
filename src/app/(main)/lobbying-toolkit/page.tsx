@@ -74,7 +74,7 @@ export default function LobbyingToolkitPage() {
         <section className="bg-white border-b border-gray-200 py-16 sm:py-24">
           <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 text-center">
             <div className="mb-4 inline-block">
-              <Badge variant="secondary" className="bg-violet-100 text-violet-800 text-lg px-4 py-2">
+              <Badge variant="default" className="bg-violet-100 text-violet-800 text-lg px-4 py-2">
                 Coming Soon
               </Badge>
             </div>

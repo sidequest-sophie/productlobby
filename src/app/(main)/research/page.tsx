@@ -12,7 +12,7 @@ import {
 } from 'lucide-react';
 
 export const metadata: Metadata = {
-  title: 'Research & White Papers | ProductLobby',
+  title: 'Research & White Papers',
   description: 'Explore our collection of research papers, white papers, and industry reports on product management, innovation, and market trends.',
 };
 

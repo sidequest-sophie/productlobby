@@ -10,6 +10,7 @@ interface TrendingCampaign {
   rank: number
   title: string
   slug: string
+  description: string
   image?: string
   lobbyCount: number
   followCount: number

@@ -349,7 +349,7 @@ export async function getTopCampaigns(
     },
     orderBy:
       sortBy === 'lobbies'
-        ? { _count: { lobbies: 'desc' } }
+        ? { lobbies: { _count: 'desc' } }
         : sortBy === 'growth'
           ? { createdAt: 'desc' }
           : { signalScore: 'desc' },

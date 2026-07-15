@@ -3,6 +3,7 @@ import { createMagicLink } from '@/lib/auth'
 import { sendMagicLinkEmail } from '@/lib/email'
 import { MagicLinkSchema } from '@/types'
 import { rateLimit, getClientIP } from '@/lib/rate-limit'
+import { buildVerifyUrl } from '@/lib/utils'
 
 const APP_URL = process.env.NEXT_PUBLIC_APP_URL || 'https://productlobby.vercel.app'
 
@@ -32,7 +33,7 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    const { email } = result.data
+    const { email, redirect } = result.data
 
     // Rate limit per email: 3 requests per 10 minutes
     const emailLimit = rateLimit(`magic-link:email:${email}`, {
@@ -51,7 +52,7 @@ export async function POST(request: NextRequest) {
 
     // If Resend is configured, send the email normally
     if (process.env.RESEND_API_KEY) {
-      const emailResult = await sendMagicLinkEmail(email, token)
+      const emailResult = await sendMagicLinkEmail(email, token, redirect)
 
       if (!emailResult.success) {
         return NextResponse.json(
@@ -66,9 +67,28 @@ export async function POST(request: NextRequest) {
       })
     }
 
-    // No email provider configured — return the magic link directly
-    // so the user can still sign in
-    const magicLink = `${APP_URL}/verify?token=${token}`
+    // No email provider configured. Direct mode (returning the sign-in link
+    // in the API response) would let anyone sign in as any email address, so
+    // it is only ever allowed outside production, or via an explicit
+    // operator-controlled opt-in escape hatch.
+    const directModeAllowed =
+      process.env.NODE_ENV !== 'production' ||
+      process.env.ALLOW_DIRECT_MAGIC_LINK === 'true'
+
+    if (!directModeAllowed) {
+      console.error(
+        'Magic link requested but RESEND_API_KEY is not configured in production. Refusing to return the link directly.'
+      )
+      return NextResponse.json(
+        {
+          success: false,
+          error: 'Email delivery is not configured. Please contact support.',
+        },
+        { status: 503 }
+      )
+    }
+
+    const magicLink = buildVerifyUrl(APP_URL, token, redirect)
     return NextResponse.json({
       success: true,
       mode: 'direct',

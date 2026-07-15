@@ -38,6 +38,7 @@ export function DonationTracker({ campaignId }: DonationTrackerProps) {
   const [message, setMessage] = useState('')
   const [isAnonymous, setIsAnonymous] = useState(false)
   const [isSubmitting, setIsSubmitting] = useState(false)
+  const [notAvailable, setNotAvailable] = useState(false)
 
   useEffect(() => {
     fetchDonationData()
@@ -47,6 +48,10 @@ export function DonationTracker({ campaignId }: DonationTrackerProps) {
     try {
       setLoading(true)
       const response = await fetch(`/api/campaigns/${campaignId}/donations`)
+      if (response.status === 404) {
+        setNotAvailable(true)
+        return
+      }
       if (!response.ok) throw new Error('Failed to fetch donation data')
       const data = await response.json()
       setStats(data)
@@ -92,6 +97,10 @@ export function DonationTracker({ campaignId }: DonationTrackerProps) {
     } finally {
       setIsSubmitting(false)
     }
+  }
+
+  if (notAvailable) {
+    return null
   }
 
   if (loading) {

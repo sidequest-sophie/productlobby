@@ -54,11 +54,7 @@ export function PriorityVote({ campaignId }: PriorityVoteProps) {
       setUserVote(data.userVote)
     } catch (error) {
       console.error('Error fetching votes:', error)
-      addToast({
-        title: 'Error',
-        description: 'Failed to load priority votes',
-        type: 'error',
-      })
+      addToast('Failed to load priority votes', 'error')
     } finally {
       setLoading(false)
     }
@@ -86,18 +82,13 @@ export function PriorityVote({ campaignId }: PriorityVoteProps) {
       // Refresh votes
       await fetchVotes()
 
-      addToast({
-        title: 'Success',
-        description: result.isUpdate ? 'Your vote has been updated' : 'Your vote has been recorded',
-        type: 'success',
-      })
+      addToast(
+        result.isUpdate ? 'Your vote has been updated' : 'Your vote has been recorded',
+        'success'
+      )
     } catch (error) {
       console.error('Error voting:', error)
-      addToast({
-        title: 'Error',
-        description: error instanceof Error ? error.message : 'Failed to record vote',
-        type: 'error',
-      })
+      addToast(error instanceof Error ? error.message : 'Failed to record vote', 'error')
     } finally {
       setVoting(false)
     }

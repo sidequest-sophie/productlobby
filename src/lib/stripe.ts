@@ -102,7 +102,7 @@ export async function handlePaymentSuccess(paymentIntentId: string): Promise<voi
       userId,
       payments: {
         some: {
-          providerPaymentIntentId: paymentIntentId,
+          stripePaymentIntentId: paymentIntentId,
         },
       },
     },
@@ -136,7 +136,7 @@ export async function handlePaymentSuccess(paymentIntentId: string): Promise<voi
       data: {
         orderId: order.id,
         provider: 'stripe',
-        providerPaymentIntentId: paymentIntentId,
+        stripePaymentIntentId: paymentIntentId,
         status: 'SUCCEEDED',
         amount: offer.price,
         currency: offer.currency,
@@ -171,7 +171,7 @@ export async function refundOrder(orderId: string): Promise<void> {
 
   // Create refund in Stripe
   await getStripeClient().refunds.create({
-    payment_intent: payment.providerPaymentIntentId,
+    payment_intent: payment.stripePaymentIntentId!,
   })
 
   // Update records

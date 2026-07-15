@@ -128,7 +128,7 @@ export default function AnalyticsCampaigns() {
               {(['signal', 'lobbies', 'growth'] as SortBy[]).map((sort) => (
                 <Button
                   key={sort}
-                  variant={sortBy === sort ? 'default' : 'outline'}
+                  variant={sortBy === sort ? 'primary' : 'outline'}
                   size="sm"
                   onClick={() => setSortBy(sort)}
                   className={sortBy === sort ? 'bg-violet-600 hover:bg-violet-700' : ''}

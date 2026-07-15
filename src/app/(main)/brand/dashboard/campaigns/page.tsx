@@ -63,13 +63,13 @@ const BrandDashboardCampaignsPage: React.FC = () => {
     })
 
   const getStatusBadge = (status: string) => {
-    const statusMap: Record<string, { variant: 'lime' | 'green' | 'yellow' | 'red'; text: string }> = {
-      DRAFT: { variant: 'yellow', text: 'Draft' },
-      LIVE: { variant: 'lime', text: 'Live' },
-      PAUSED: { variant: 'red', text: 'Paused' },
-      COMPLETED: { variant: 'green', text: 'Completed' },
+    const statusMap: Record<string, { variant: 'success' | 'warning' | 'error'; text: string }> = {
+      DRAFT: { variant: 'warning', text: 'Draft' },
+      LIVE: { variant: 'success', text: 'Live' },
+      PAUSED: { variant: 'error', text: 'Paused' },
+      COMPLETED: { variant: 'success', text: 'Completed' },
     }
-    const config = statusMap[status] || { variant: 'yellow' as const, text: status }
+    const config = statusMap[status] || { variant: 'warning' as const, text: status }
     return { ...config }
   }
 
@@ -144,7 +144,7 @@ const BrandDashboardCampaignsPage: React.FC = () => {
               const trend = getTrendIndicator(campaign.lobbyCount)
 
               return (
-                <Card key={campaign.id} hover>
+                <Card key={campaign.id} variant="interactive">
                   <CardContent className="pt-6">
                     <div className="space-y-4">
                       {/* Header */}
@@ -157,7 +157,7 @@ const BrandDashboardCampaignsPage: React.FC = () => {
                             {campaign.brandName} • {new Date(campaign.createdAt).toLocaleDateString()}
                           </p>
                         </div>
-                        <Badge variant={statusConfig.variant} size="md">
+                        <Badge variant={statusConfig.variant} size="default">
                           {statusConfig.text}
                         </Badge>
                       </div>
@@ -208,7 +208,6 @@ const BrandDashboardCampaignsPage: React.FC = () => {
                         <Progress
                           value={(campaign.signalScore / 1000) * 100}
                           max={100}
-                          variant="violet"
                           showPercentage={false}
                         />
                       </div>

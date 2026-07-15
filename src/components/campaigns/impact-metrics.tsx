@@ -219,7 +219,7 @@ export const ImpactMetrics: React.FC<ImpactMetricsProps> = ({ campaignId }) => {
         {(['7d', '30d', '90d', 'all'] as const).map((period) => (
           <Button
             key={period}
-            variant={selectedPeriod === period ? 'default' : 'outline'}
+            variant={selectedPeriod === period ? 'primary' : 'outline'}
             onClick={() => setSelectedPeriod(period)}
             className={cn(
               selectedPeriod === period && 'bg-violet-600 text-white border-violet-600'

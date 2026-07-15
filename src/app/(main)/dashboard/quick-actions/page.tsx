@@ -87,11 +87,13 @@ export default function QuickActionsPage() {
   return (
     <DashboardLayout role="supporter">
       {/* Page Header */}
-      <PageHeader
-        title="Quick Actions"
-        description="Common actions to get started"
-        icon={<Zap className="w-8 h-8" />}
-      />
+      <div className="flex items-center gap-3 mb-8">
+        <Zap className="w-8 h-8 text-violet-600" />
+        <PageHeader
+          title="Quick Actions"
+          description="Common actions to get started"
+        />
+      </div>
 
       {/* Quick Actions Grid */}
       <div className="mt-8">

@@ -70,7 +70,7 @@ export const UpdateScheduler: React.FC<UpdateSchedulerProps> = ({ campaignId, cl
   const [formData, setFormData] = useState({
     title: '',
     content: '',
-    updateType: 'ANNOUNCEMENT' as const,
+    updateType: 'ANNOUNCEMENT' as ScheduledUpdate['updateType'],
     scheduledFor: '',
     scheduledTime: '09:00',
   })
@@ -185,7 +185,7 @@ export const UpdateScheduler: React.FC<UpdateSchedulerProps> = ({ campaignId, cl
     const updateDate = new Date(update.scheduledFor)
     return (
       updateDate >= weekDays[0] &&
-      updateDate < new Date(weekDays[6]).setDate(weekDays[6].getDate() + 1)
+      updateDate < new Date(new Date(weekDays[6]).setDate(weekDays[6].getDate() + 1))
     )
   })
 

@@ -30,7 +30,7 @@ const baloo2 = Baloo_2({
 export const metadata: Metadata = {
   title: {
     default: 'ProductLobby — Your Ideas, Their Products',
-    template: '%s | ProductLobby',
+    template: '%s',
   },
   description: 'Lobby for the products and features you want. Aggregate demand, influence brands, and turn your ideas into reality on ProductLobby.',
   keywords: ['product requests', 'demand aggregation', 'crowdfunding', 'brand engagement', 'product lobby', 'feature requests'],

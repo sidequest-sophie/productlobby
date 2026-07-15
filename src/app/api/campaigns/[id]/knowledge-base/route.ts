@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/db'
 import { getCurrentUser } from '@/lib/auth'
+import { Prisma } from '@prisma/client'
 
 export const dynamic = 'force-dynamic'
 
@@ -27,7 +28,7 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
     // Verify campaign exists
     const campaign = await prisma.campaign.findUnique({
       where: { id: campaignId },
-      select: { id: true, createdById: true },
+      select: { id: true, creatorUserId: true },
     })
 
     if (!campaign) {
@@ -118,7 +119,7 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
     // Verify campaign exists and user is creator
     const campaign = await prisma.campaign.findUnique({
       where: { id: campaignId },
-      select: { id: true, createdById: true },
+      select: { id: true, creatorUserId: true },
     })
 
     if (!campaign) {
@@ -128,7 +129,7 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
       )
     }
 
-    if (campaign.createdById !== currentUser.id) {
+    if (campaign.creatorUserId !== currentUser.id) {
       return NextResponse.json(
         { success: false, error: 'Only campaign creator can add articles' },
         { status: 403 }
@@ -170,7 +171,8 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
         campaignId,
         userId: currentUser.id,
         eventType: 'SOCIAL_SHARE',
-        metadata: metadata as any,
+        points: 1,
+        metadata: metadata as unknown as Prisma.InputJsonValue,
       },
     })
 
@@ -223,7 +225,7 @@ export async function DELETE(request: NextRequest, { params }: RouteParams) {
     // Verify campaign exists and user is creator
     const campaign = await prisma.campaign.findUnique({
       where: { id: campaignId },
-      select: { id: true, createdById: true },
+      select: { id: true, creatorUserId: true },
     })
 
     if (!campaign) {
@@ -233,7 +235,7 @@ export async function DELETE(request: NextRequest, { params }: RouteParams) {
       )
     }
 
-    if (campaign.createdById !== currentUser.id) {
+    if (campaign.creatorUserId !== currentUser.id) {
       return NextResponse.json(
         { success: false, error: 'Only campaign creator can delete articles' },
         { status: 403 }
@@ -344,7 +346,7 @@ export async function PATCH(request: NextRequest, { params }: RouteParams) {
 
       await prisma.contributionEvent.update({
         where: { id: articleId },
-        data: { metadata: updatedMeta as any },
+        data: { metadata: updatedMeta as unknown as Prisma.InputJsonValue },
       })
 
       return NextResponse.json({

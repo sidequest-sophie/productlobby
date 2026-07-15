@@ -47,12 +47,14 @@ export async function GET(request: NextRequest) {
     // Count followers (users who follow campaigns created by this creator)
     const followers = await prisma.follow.findMany({
       where: {
-        followingId: user.id,
+        campaign: {
+          creatorUserId: user.id,
+        },
       },
       select: {
-        followerId: true,
+        userId: true,
       },
-      distinct: ['followerId'],
+      distinct: ['userId'],
     })
     const totalFollowers = followers.length
 

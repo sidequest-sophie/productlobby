@@ -3,7 +3,7 @@ import { CheckCircle, AlertTriangle, XCircle, Clock, Server, Globe, Database, Za
 import { Button } from '@/components/ui/button'
 
 export const metadata = {
-  title: 'System Status | ProductLobby',
+  title: 'System Status',
   description: 'Real-time system status and uptime information for ProductLobby services.',
 }
 

@@ -309,8 +309,8 @@ export function CampaignUpdatesFeed({ campaignId, campaignCreatorId }: CampaignU
               currentUser={user ? {
                 id: user.id,
                 displayName: user.displayName,
-                avatar: user.avatar,
-                handle: user.handle,
+                avatar: user.avatar ?? undefined,
+                handle: user.handle ?? undefined,
               } : undefined}
             />
           )}

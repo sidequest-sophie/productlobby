@@ -116,7 +116,7 @@ export default function ScorePage() {
               <CardContent className="py-12">
                 <div className="text-center">
                   <div className="text-6xl font-bold font-display text-gray-300 mb-3">0</div>
-                  <Badge variant="secondary" size="md">
+                  <Badge variant="default" size="default">
                     No activity yet
                   </Badge>
                   <p className="text-gray-600 mt-4">Join a campaign to start earning contribution points</p>
@@ -137,7 +137,7 @@ export default function ScorePage() {
                 <div className="text-center">
                   <p className="text-gray-600 mb-4">You're contributing to</p>
                   <div className="text-4xl font-bold font-display text-violet-600 mb-3">{lobbies.length}</div>
-                  <Badge variant="default" size="md">
+                  <Badge variant="default" size="default">
                     Active {lobbies.length === 1 ? 'Campaign' : 'Campaigns'}
                   </Badge>
                 </div>
@@ -160,12 +160,12 @@ export default function ScorePage() {
                             {lobby.campaign.title}
                           </Link>
                           <div className="flex gap-2 mt-2 flex-wrap">
-                            <Badge variant="secondary" size="sm">{lobby.campaign.targetedBrand.name}</Badge>
+                            <Badge variant="default" size="sm">{lobby.campaign.targetedBrand.name}</Badge>
                             {lobby.preferences.length > 0 && (
-                              <Badge variant="lime" size="sm">{lobby.preferences.length} preferences</Badge>
+                              <Badge variant="success" size="sm">{lobby.preferences.length} preferences</Badge>
                             )}
                             {lobby.wishlist.length > 0 && (
-                              <Badge variant="green" size="sm">{lobby.wishlist.length} wishes</Badge>
+                              <Badge variant="success" size="sm">{lobby.wishlist.length} wishes</Badge>
                             )}
                           </div>
                         </div>

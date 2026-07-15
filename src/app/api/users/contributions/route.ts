@@ -61,7 +61,7 @@ export async function GET(request: NextRequest): Promise<NextResponse<Contributi
         campaign: {
           select: {
             id: true,
-            name: true,
+            title: true,
             slug: true,
           },
         },
@@ -79,7 +79,7 @@ export async function GET(request: NextRequest): Promise<NextResponse<Contributi
       eventType: contrib.eventType,
       description: getEventDescription(contrib.eventType),
       campaignId: contrib.campaign.id,
-      campaignName: contrib.campaign.name,
+      campaignName: contrib.campaign.title,
       campaignSlug: contrib.campaign.slug,
       points: contrib.points,
       createdAt: contrib.createdAt.toISOString(),

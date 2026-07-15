@@ -94,7 +94,7 @@ const calculateDaysRemaining = (deadline: string): number => {
 const formatDate = (dateString: string): string => {
   const date = new Date(dateString)
   return date.toLocaleDateString('en-GB', {
-    day: 'short',
+    day: 'numeric',
     month: 'short',
     year: 'numeric',
   })

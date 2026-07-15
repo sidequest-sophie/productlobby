@@ -108,7 +108,7 @@ export function CategoryNavigator({
           )}
 
           <Button
-            variant={isSelected ? 'default' : 'ghost'}
+            variant={isSelected ? 'primary' : 'ghost'}
             className={cn(
               'flex-1 justify-start h-9 px-3',
               isSelected && 'bg-blue-600 hover:bg-blue-700 text-white'

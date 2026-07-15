@@ -187,6 +187,13 @@ export async function POST(
       },
     })
 
+    if (!updatedPoll) {
+      return NextResponse.json(
+        { error: 'Poll not found' },
+        { status: 404 }
+      )
+    }
+
     const totalVotes = new Set(
       updatedPoll.votes.flatMap((v) => v.userId)
     ).size

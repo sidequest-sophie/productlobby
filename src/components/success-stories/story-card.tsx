@@ -145,7 +145,7 @@ export const StoryCard: React.FC<StoryCardProps> = ({ story }) => {
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-2">
               <Avatar
-                src={story.creator.avatar}
+                src={story.creator.avatar ?? undefined}
                 alt={story.creator.displayName}
                 initials={story.creator.displayName?.charAt(0).toUpperCase() || '?'}
                 size="sm"

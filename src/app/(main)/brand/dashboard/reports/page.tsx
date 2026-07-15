@@ -182,7 +182,7 @@ const BrandDashboardReportsPage: React.FC = () => {
         {reports.length > 0 ? (
           <div className="space-y-4">
             {reports.map((report) => (
-              <Card key={report.campaignId} hover>
+              <Card key={report.campaignId} variant="interactive">
                 <CardContent className="pt-6">
                   <div className="space-y-4">
                     {/* Header */}

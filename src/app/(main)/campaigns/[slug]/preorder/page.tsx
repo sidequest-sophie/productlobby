@@ -202,13 +202,13 @@ export default function PreorderPage({ params }: PreorderPageProps) {
 
                   {/* Milestone Badges */}
                   <div className="flex gap-3 flex-wrap">
-                    <Badge variant="secondary" className="bg-green-100 text-green-800">
+                    <Badge variant="default" className="bg-green-100 text-green-800">
                       ✓ First 100 reached
                     </Badge>
-                    <Badge variant="secondary" className="bg-green-100 text-green-800">
+                    <Badge variant="default" className="bg-green-100 text-green-800">
                       ✓ 250 milestone
                     </Badge>
-                    <Badge variant="secondary" className="bg-violet-100 text-violet-800">
+                    <Badge variant="default" className="bg-violet-100 text-violet-800">
                       ↗ Next: 500
                     </Badge>
                   </div>

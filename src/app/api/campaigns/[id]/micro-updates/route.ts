@@ -4,6 +4,10 @@ import { prisma } from '@/lib/db'
 
 export const dynamic = 'force-dynamic'
 
+function isRecord(v: unknown): v is Record<string, unknown> {
+  return typeof v === 'object' && v !== null && !Array.isArray(v)
+}
+
 // ============================================================================
 // GET /api/campaigns/[id]/micro-updates
 // ============================================================================
@@ -21,7 +25,7 @@ export async function GET(
     // Verify campaign exists
     const campaign = await prisma.campaign.findUnique({
       where: { id: campaignId },
-      select: { id: true, creatorId: true },
+      select: { id: true, creatorUserId: true },
     })
 
     if (!campaign) {
@@ -59,10 +63,11 @@ export async function GET(
     })
 
     const formatted = microUpdates.map((update) => {
-      const metadata = update.metadata as any
+      const metadata = update.metadata
+      const content = isRecord(metadata) && typeof metadata.content === 'string' ? metadata.content : ''
       return {
         id: update.id,
-        content: metadata?.content || '',
+        content,
         createdAt: update.createdAt.toISOString(),
         creator: {
           id: update.user.id,
@@ -109,7 +114,7 @@ export async function POST(
     // Verify campaign exists and user is the creator
     const campaign = await prisma.campaign.findUnique({
       where: { id: campaignId },
-      select: { id: true, creatorId: true },
+      select: { id: true, creatorUserId: true },
     })
 
     if (!campaign) {
@@ -119,7 +124,7 @@ export async function POST(
       )
     }
 
-    if (campaign.creatorId !== user.id) {
+    if (campaign.creatorUserId !== user.id) {
       return NextResponse.json(
         { error: 'Only the campaign creator can post micro-updates' },
         { status: 403 }

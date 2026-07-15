@@ -105,34 +105,29 @@ export async function POST(request: NextRequest): Promise<NextResponse<ContactFo
       )
     }
 
-    // Create a ContributionEvent record to store the contact submission
-    const submission = await prisma.contributionEvent.create({
-      data: {
-        type: 'CONTACT_FORM',
-        description: `Contact: ${subject}`,
-        metadata: {
-          name: name.trim(),
-          email: email.trim(),
-          subject: subject.trim(),
-          message: message.trim(),
-        } as any,
-        // These campaigns and users don't need to exist, as we're just storing the contact data
-        campaignId: '', // Empty string since this isn't tied to a campaign
-        userId: '', // Empty string since this isn't tied to a user
-      },
+    // There is no dedicated contact-submission model, and ContributionEvent
+    // requires a real campaignId/userId (no "unowned" contact form fits that
+    // shape), so we log the submission instead of persisting it.
+    const submissionId = crypto.randomUUID()
+    console.log('[CONTACT FORM]', {
+      submissionId,
+      name: name.trim(),
+      email: email.trim(),
+      subject: subject.trim(),
+      message: message.trim(),
+      timestamp: new Date().toISOString(),
     })
 
     // Here you might want to:
     // 1. Send an email to support@productlobby.com with the contact form data
-    // 2. Log the submission for later review
-    // 3. Send a confirmation email to the user
+    // 2. Send a confirmation email to the user
 
     // For now, we just return success
     return NextResponse.json(
       {
         success: true,
         message: 'Thank you for contacting us. We will get back to you soon.',
-        submissionId: submission.id,
+        submissionId,
       },
       { status: 201 }
     )

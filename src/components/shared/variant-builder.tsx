@@ -275,7 +275,7 @@ export function VariantBuilder({ campaignId, isCreator }: VariantBuilderProps) {
                     <div className="flex-1">
                       <div className="flex items-center gap-2 mb-2">
                         <h3 className="font-semibold text-base">{variant.name}</h3>
-                        <Badge variant="secondary" className="text-xs">
+                        <Badge variant="default" className="text-xs">
                           {FIELD_TYPES.find((ft) => ft.value === variant.fieldType)?.label ||
                             variant.fieldType}
                         </Badge>

@@ -54,7 +54,7 @@ export async function GET(
       creator: announcement.creator,
       isPinned: announcement.isPinned,
       createdAt: announcement.createdAt,
-      updatedAt: announcement.updatedAt,
+      updatedAt: announcement.createdAt,
     }))
 
     return NextResponse.json({
@@ -160,7 +160,7 @@ export async function POST(
         creator: announcement.creator,
         isPinned: announcement.isPinned,
         createdAt: announcement.createdAt,
-        updatedAt: announcement.updatedAt,
+        updatedAt: announcement.createdAt,
       },
       message: 'Announcement posted successfully',
     })

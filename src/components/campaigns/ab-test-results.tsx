@@ -237,7 +237,7 @@ export const ABTestResults: React.FC<ABTestResultsProps> = ({
         {isCreator && (
           <Button
             onClick={() => setShowCreateForm(!showCreateForm)}
-            variant="default"
+            variant="primary"
             size="sm"
             className="gap-2"
           >

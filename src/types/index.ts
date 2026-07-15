@@ -6,6 +6,10 @@ import { z } from 'zod'
 
 export const MagicLinkSchema = z.object({
   email: z.string().email('Please enter a valid email address'),
+  // Where to send the user after they verify. Validated as a same-origin
+  // relative path at the point of use, not here, so that a bad value falls
+  // back to the default instead of failing the whole sign-in request.
+  redirect: z.string().optional(),
 })
 
 export const PhoneVerificationSchema = z.object({

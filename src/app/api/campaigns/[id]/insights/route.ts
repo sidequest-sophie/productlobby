@@ -238,7 +238,7 @@ export async function GET(
             id: true,
           },
         },
-        ContributionEvent: {
+        contributionEvents: {
           select: {
             eventType: true,
             createdAt: true,
@@ -264,7 +264,7 @@ export async function GET(
 
     // Count events by type
     const eventCounts: Record<string, number> = {}
-    campaign.ContributionEvent.forEach((event: any) => {
+    campaign.contributionEvents.forEach((event) => {
       eventCounts[event.eventType] = (eventCounts[event.eventType] || 0) + 1
     })
 

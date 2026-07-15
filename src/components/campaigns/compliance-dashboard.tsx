@@ -52,11 +52,19 @@ export function ComplianceDashboard({ campaignId }: ComplianceDashboardProps) {
   const [loading, setLoading] = useState(true)
   const [showForm, setShowForm] = useState(false)
   const [editingId, setEditingId] = useState<string | null>(null)
-  const [formData, setFormData] = useState({
+  const [formData, setFormData] = useState<{
+    title: string
+    description: string
+    category: ComplianceItem['category']
+    status: ComplianceItem['status']
+    dueDate: string
+    notes: string
+    evidence: string
+  }>({
     title: '',
     description: '',
-    category: 'regulatory' as const,
-    status: 'pending' as const,
+    category: 'regulatory',
+    status: 'pending',
     dueDate: '',
     notes: '',
     evidence: '',

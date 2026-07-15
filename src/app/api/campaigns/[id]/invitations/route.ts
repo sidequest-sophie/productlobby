@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/db'
 import { getCurrentUser } from '@/lib/auth'
+import { Prisma } from '@prisma/client'
 
 export const dynamic = 'force-dynamic'
 
@@ -54,10 +55,10 @@ export async function GET(request: NextRequest, { params }: InvitationParams) {
     // Transform to response format
     const formattedInvitations = invitations.map((inv) => ({
       id: inv.id,
-      email: (inv.metadata as InvitationMetadata)?.email || '',
-      status: (inv.metadata as InvitationMetadata)?.status || 'pending',
+      email: (inv.metadata as unknown as InvitationMetadata)?.email || '',
+      status: (inv.metadata as unknown as InvitationMetadata)?.status || 'pending',
       createdAt: inv.createdAt.toISOString(),
-      respondedAt: (inv.metadata as InvitationMetadata)?.status !== 'pending' 
+      respondedAt: (inv.metadata as unknown as InvitationMetadata)?.status !== 'pending'
         ? inv.createdAt.toISOString() 
         : undefined,
     }))
@@ -117,7 +118,7 @@ export async function POST(request: NextRequest, { params }: InvitationParams) {
       where: isUuid ? { id } : { slug: id },
       select: {
         id: true,
-        creatorId: true,
+        creatorUserId: true,
       },
     })
 
@@ -129,7 +130,7 @@ export async function POST(request: NextRequest, { params }: InvitationParams) {
     }
 
     // Check if user is the campaign creator
-    if (campaign.creatorId !== user.id) {
+    if (campaign.creatorUserId !== user.id) {
       return NextResponse.json(
         { success: false, error: 'Only campaign creators can send invitations' },
         { status: 403 }
@@ -149,7 +150,7 @@ export async function POST(request: NextRequest, { params }: InvitationParams) {
               action: 'invitation',
               email,
               status: 'pending',
-            } as Record<string, unknown>,
+            } as Prisma.InputJsonValue,
           },
         })
       )

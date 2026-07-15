@@ -4,6 +4,15 @@ import { getCurrentUser } from '@/lib/auth'
 
 export async function POST(request: NextRequest) {
   try {
+    // This endpoint seeds (and can wipe) the database. It must never be
+    // reachable in production, regardless of admin-email configuration.
+    if (process.env.NODE_ENV === 'production') {
+      return NextResponse.json(
+        { error: 'Forbidden - this endpoint is disabled in production' },
+        { status: 403 }
+      )
+    }
+
     const user = await getCurrentUser()
     if (!user) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
@@ -17,12 +26,22 @@ export async function POST(request: NextRequest) {
 
     // Get request body to check for options
     const body = await request.json().catch(() => ({}))
-    const { clear = false } = body
+    const { clear = false, confirm } = body
 
     console.log('Starting seed operation with clear:', clear)
 
     // Clear data if requested
     if (clear) {
+      if (confirm !== 'WIPE_DATABASE') {
+        return NextResponse.json(
+          {
+            error:
+              'Clearing data requires the request body to include confirm: "WIPE_DATABASE"',
+          },
+          { status: 400 }
+        )
+      }
+
       console.log('Clearing existing data...')
       await Promise.all([
         prisma.comment.deleteMany({}),

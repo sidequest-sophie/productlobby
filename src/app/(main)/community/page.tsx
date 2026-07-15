@@ -14,7 +14,7 @@ import {
 } from 'lucide-react';
 
 export const metadata: Metadata = {
-  title: 'Community | ProductLobby',
+  title: 'Community',
   description:
     'Join the ProductLobby community of 10,000+ members. Discuss features, share ideas, and vote on product improvements.',
 };

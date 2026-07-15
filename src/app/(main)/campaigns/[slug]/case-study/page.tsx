@@ -126,7 +126,7 @@ export default function CaseStudyPage({ params }: CaseStudyPageProps) {
         <section className="bg-white border-b border-gray-200 py-12">
           <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 text-center">
             <div className="mb-4 inline-block">
-              <Badge variant="secondary" className="bg-violet-100 text-violet-800">
+              <Badge variant="default" className="bg-violet-100 text-violet-800">
                 Case Study
               </Badge>
             </div>
@@ -150,7 +150,7 @@ export default function CaseStudyPage({ params }: CaseStudyPageProps) {
                   <h2 className="text-2xl font-display font-bold text-gray-900 mb-2">
                     It Started with an Idea
                   </h2>
-                  <Badge variant="secondary" className="bg-gray-100 text-gray-800 mb-4">
+                  <Badge variant="default" className="bg-gray-100 text-gray-800 mb-4">
                     {formatDate(CASE_STUDY.campaignDate)}
                   </Badge>
                 </div>
@@ -272,7 +272,7 @@ export default function CaseStudyPage({ params }: CaseStudyPageProps) {
                     className="flex items-center justify-between p-3 bg-white rounded-lg border border-blue-200"
                   >
                     <span className="font-medium text-gray-900">{item.theme}</span>
-                    <Badge variant="secondary" className="bg-blue-100 text-blue-800">
+                    <Badge variant="default" className="bg-blue-100 text-blue-800">
                       {formatNumber(item.count)} votes
                     </Badge>
                   </div>
@@ -302,7 +302,7 @@ export default function CaseStudyPage({ params }: CaseStudyPageProps) {
                       <p className="font-semibold text-gray-900">{contributor.name}</p>
                       <p className="text-sm text-gray-600">{contributor.highlight}</p>
                     </div>
-                    <Badge variant="secondary" className="bg-green-100 text-green-800">
+                    <Badge variant="default" className="bg-green-100 text-green-800">
                       {formatNumber(contributor.score)} impact score
                     </Badge>
                   </div>
@@ -406,7 +406,7 @@ export default function CaseStudyPage({ params }: CaseStudyPageProps) {
                 <div className="border-l-4 border-violet-600 pl-4">
                   <p className="font-semibold text-gray-900 mb-2">Shipping Timeline</p>
                   <p className="text-gray-700">{CASE_STUDY.shipping.details}</p>
-                  <Badge variant="secondary" className="bg-violet-100 text-violet-800 mt-2">
+                  <Badge variant="default" className="bg-violet-100 text-violet-800 mt-2">
                     ETA: {CASE_STUDY.shipping.eta}
                   </Badge>
                 </div>

@@ -3,6 +3,7 @@ export const dynamic = 'force-dynamic'
 import { prisma } from '@/lib/db'
 import { NextRequest, NextResponse } from 'next/server'
 import { getCurrentUser } from '@/lib/auth'
+import { isFeatureEnabled } from '@/lib/feature-flags'
 
 interface PressAsset {
   id: string
@@ -37,6 +38,9 @@ export async function GET(
   request: NextRequest,
   { params }: { params: { id: string } }
 ): Promise<NextResponse<PressKitResponse>> {
+  if (!isFeatureEnabled('press-kit')) {
+    return NextResponse.json({ success: false, error: 'This feature is not yet available' }, { status: 404 })
+  }
   try {
     const user = await getCurrentUser()
 

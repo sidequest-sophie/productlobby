@@ -3,7 +3,7 @@ import { Shield, Lock, Eye, Server, CheckCircle, AlertTriangle, Key, FileCheck }
 import { Button } from '@/components/ui/button'
 
 export const metadata = {
-  title: 'Security | ProductLobby',
+  title: 'Security',
   description:
     'Learn about ProductLobby security practices, data protection, and compliance standards.',
 }

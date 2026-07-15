@@ -33,7 +33,7 @@ export function QuickPoll({ campaignId, className, pollId }: QuickPollProps) {
   const [loading, setLoading] = useState(true)
   const [voting, setVoting] = useState(false)
   const [hasVoted, setHasVoted] = useState(false)
-  const { toast } = useToast()
+  const { addToast } = useToast()
 
   useEffect(() => {
     const fetchPoll = async () => {
@@ -51,18 +51,14 @@ export function QuickPoll({ campaignId, className, pollId }: QuickPollProps) {
         setHasVoted(!!data.userVoteOptionId)
       } catch (error) {
         console.error('Error fetching poll:', error)
-        toast({
-          title: 'Error',
-          description: 'Failed to load poll',
-          variant: 'destructive',
-        })
+        addToast('Failed to load poll', 'error')
       } finally {
         setLoading(false)
       }
     }
 
     fetchPoll()
-  }, [campaignId, toast])
+  }, [campaignId, addToast])
 
   const handleVote = async (optionId: string) => {
     if (!poll) return
@@ -110,17 +106,10 @@ export function QuickPoll({ campaignId, className, pollId }: QuickPollProps) {
         }
       })
       setHasVoted(true)
-      toast({
-        title: 'Vote recorded',
-        description: 'Thanks for participating in the poll!',
-      })
+      addToast('Thanks for participating in the poll!', 'success')
     } catch (error) {
       console.error('Error voting:', error)
-      toast({
-        title: 'Error',
-        description: error instanceof Error ? error.message : 'Failed to vote',
-        variant: 'destructive',
-      })
+      addToast(error instanceof Error ? error.message : 'Failed to vote', 'error')
     } finally {
       setVoting(false)
     }
@@ -195,13 +184,13 @@ export function QuickPoll({ campaignId, className, pollId }: QuickPollProps) {
         })}
       </div>
 
-      {!isVoted && (
+      {!hasVoted && (
         <p className="text-xs text-gray-500 text-center">
           Click an option to vote. You can only vote once.
         </p>
       )}
 
-      {isVoted && (
+      {hasVoted && (
         <p className="text-xs text-green-600 text-center">
           ✓ You have voted on this poll
         </p>

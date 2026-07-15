@@ -124,7 +124,7 @@ export async function GET(
     // Get poll votes data
     const pollVotes = await prisma.pollVote.findMany({
       where: {
-        pollOption: {
+        option: {
           poll: {
             campaignId: campaign.id,
           },
@@ -190,10 +190,8 @@ export async function GET(
     // Get reactions data
     const reactions = await prisma.updateReaction.findMany({
       where: {
-        updateMedia: {
-          update: {
-            campaignId: campaign.id,
-          },
+        update: {
+          campaignId: campaign.id,
         },
       },
       include: {
@@ -336,6 +334,7 @@ export async function GET(
 
     // Process shares
     shares.forEach(share => {
+      if (!share.userId || !share.user) return
       const key = share.userId
       if (!supporterEngagement.has(key)) {
         supporterEngagement.set(key, {

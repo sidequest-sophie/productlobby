@@ -5,10 +5,16 @@ interface JsonLdProps {
 }
 
 export function JsonLd({ data }: JsonLdProps) {
+  // JSON.stringify does not escape "<", so a value like "</script><script>..."
+  // embedded in user-controlled fields (campaign title/description/etc.) could
+  // break out of this script tag and execute as HTML/JS. Escape "<" to its
+  // unicode escape so the JSON payload can never contain a literal "<".
+  const safeJson = JSON.stringify(data).replace(/</g, '\\u003c')
+
   return (
     <script
       type="application/ld+json"
-      dangerouslySetInnerHTML={{ __html: JSON.stringify(data) }}
+      dangerouslySetInnerHTML={{ __html: safeJson }}
     />
   )
 }

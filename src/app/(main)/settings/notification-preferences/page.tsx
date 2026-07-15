@@ -18,6 +18,32 @@ interface GranularPreferences {
   system: Record<PreferenceChannel, boolean>
 }
 
+const Heart = ({ className }: { className: string }) => (
+  <svg
+    className={className}
+    fill="currentColor"
+    viewBox="0 0 24 24"
+  >
+    <path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z" />
+  </svg>
+)
+
+const Users = ({ className }: { className: string }) => (
+  <svg
+    className={className}
+    fill="none"
+    stroke="currentColor"
+    viewBox="0 0 24 24"
+  >
+    <path
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      strokeWidth={2}
+      d="M12 4.354a4 4 0 110 8.048M9 19H3v-2a6 6 0 0112 0v2h-6zm12 0h-6v-2a6 6 0 0112 0v2z"
+    />
+  </svg>
+)
+
 const CATEGORIES: {
   key: PreferenceCategory
   label: string
@@ -75,32 +101,6 @@ const CHANNELS: {
     description: 'In-app notifications',
   },
 ]
-
-const Heart = ({ className }: { className: string }) => (
-  <svg
-    className={className}
-    fill="currentColor"
-    viewBox="0 0 24 24"
-  >
-    <path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z" />
-  </svg>
-)
-
-const Users = ({ className }: { className: string }) => (
-  <svg
-    className={className}
-    fill="none"
-    stroke="currentColor"
-    viewBox="0 0 24 24"
-  >
-    <path
-      strokeLinecap="round"
-      strokeLinejoin="round"
-      strokeWidth={2}
-      d="M12 4.354a4 4 0 110 8.048M9 19H3v-2a6 6 0 0112 0v2h-6zm12 0h-6v-2a6 6 0 0112 0v2z"
-    />
-  </svg>
-)
 
 export default function NotificationPreferencesPage() {
   const [preferences, setPreferences] = useState<GranularPreferences | null>(

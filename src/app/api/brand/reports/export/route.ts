@@ -48,7 +48,7 @@ export async function GET(request: NextRequest) {
       select: { targetedBrandId: true, title: true },
     })
 
-    if (!campaign || !brandIds.includes(campaign.targetedBrandId)) {
+    if (!campaign || !campaign.targetedBrandId || !brandIds.includes(campaign.targetedBrandId)) {
       return NextResponse.json(
         { success: false, error: 'Campaign not found or access denied' },
         { status: 403 }

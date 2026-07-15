@@ -34,16 +34,16 @@ export interface ResponsiveCampaignCardProps {
   createdAt: string
 }
 
-const getStatusColor = (status: string) => {
+const getStatusColor = (status: string): 'default' | 'success' | 'warning' | 'error' | 'outline' => {
   switch (status) {
     case 'active':
-      return 'lime'
+      return 'success'
     case 'completed':
-      return 'green'
+      return 'default'
     case 'paused':
-      return 'yellow'
+      return 'warning'
     case 'draft':
-      return 'gray'
+      return 'outline'
     default:
       return 'default'
   }
@@ -309,7 +309,7 @@ export const ResponsiveCampaignCard: React.FC<ResponsiveCampaignCardProps> = ({
             {/* CTA Button - Touch friendly on mobile (min 44px height) */}
             <Button
               variant="primary"
-              size="md"
+              size="default"
               className="w-full mt-auto min-h-10 sm:min-h-auto text-sm sm:text-base"
               onClick={(e) => {
                 e.preventDefault()

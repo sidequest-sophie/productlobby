@@ -13,7 +13,7 @@ import {
 import { Button } from '@/components/ui/button';
 
 export const metadata: Metadata = {
-  title: 'Compliance & Regulations | ProductLobby',
+  title: 'Compliance & Regulations',
   description:
     'Learn about ProductLobby security, data protection, and regulatory compliance. GDPR, CCPA, SOC 2, ISO 27001 certified.',
   keywords:

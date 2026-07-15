@@ -166,7 +166,7 @@ export async function GET(
       by: ['userId'],
       where: {
         userId: { in: userIds },
-        eventType: 'CAMPAIGN_SHARED',
+        eventType: 'SOCIAL_SHARE',
       },
       _count: {
         id: true,

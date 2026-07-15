@@ -448,7 +448,7 @@ function SurveyPreview({ survey, onBack }: SurveyPreviewProps) {
                 <div className="flex gap-2">
                   {Array.from({ length: (q.maxScale || 5) - (q.minScale || 1) + 1 }, (_, i) => (
                     <button key={i} disabled className="px-3 py-2 border rounded hover:bg-violet-50">
-                      {q.minScale + i || i + 1}
+                      {(q.minScale ?? 1) + i}
                     </button>
                   ))}
                 </div>

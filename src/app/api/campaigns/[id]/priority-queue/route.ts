@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/db'
 import { getCurrentUser } from '@/lib/auth'
+import { Prisma } from '@prisma/client'
 
 export const dynamic = 'force-dynamic'
 
@@ -39,7 +40,7 @@ export async function GET(
           status: data.status || 'new',
           order: data.order || index + 1,
           createdAt: event.createdAt.toISOString(),
-          updatedAt: event.updatedAt.toISOString(),
+          updatedAt: event.createdAt.toISOString(),
         }
       })
       .sort((a, b) => a.order - b.order)
@@ -119,7 +120,7 @@ export async function POST(
       where: { id: campaignId },
       select: {
         id: true,
-        creatorId: true,
+        creatorUserId: true,
       },
     })
 
@@ -131,7 +132,7 @@ export async function POST(
     }
 
     // Check authorization - only creator can add items
-    if (campaign.creatorId !== user.id) {
+    if (campaign.creatorUserId !== user.id) {
       return NextResponse.json(
         { error: 'Only the campaign creator can add items to the priority queue' },
         { status: 403 }
@@ -163,6 +164,7 @@ export async function POST(
         campaignId,
         userId: user.id,
         eventType: 'SOCIAL_SHARE',
+        points: 1,
         metadata: {
           action: 'priority_queue_item',
           title: title.trim(),
@@ -170,7 +172,7 @@ export async function POST(
           priority,
           status,
           order: nextOrder,
-        },
+        } as Prisma.InputJsonValue,
       },
     })
 
@@ -182,7 +184,7 @@ export async function POST(
       status,
       order: nextOrder,
       createdAt: event.createdAt.toISOString(),
-      updatedAt: event.updatedAt.toISOString(),
+      updatedAt: event.createdAt.toISOString(),
     }
 
     return NextResponse.json({ item }, { status: 201 })
@@ -226,7 +228,7 @@ export async function PATCH(
       where: { id: campaignId },
       select: {
         id: true,
-        creatorId: true,
+        creatorUserId: true,
       },
     })
 
@@ -237,7 +239,7 @@ export async function PATCH(
       )
     }
 
-    if (campaign.creatorId !== user.id) {
+    if (campaign.creatorUserId !== user.id) {
       return NextResponse.json(
         { error: 'Only the campaign creator can reorder items' },
         { status: 403 }
@@ -262,7 +264,7 @@ export async function PATCH(
         metadata: {
           ...(event.metadata as Record<string, any>),
           order: newOrder,
-        },
+        } as Prisma.InputJsonValue,
       },
     })
 
@@ -274,7 +276,7 @@ export async function PATCH(
       status: ((updatedEvent.metadata as Record<string, any>)?.status) || 'new',
       order: newOrder,
       createdAt: updatedEvent.createdAt.toISOString(),
-      updatedAt: updatedEvent.updatedAt.toISOString(),
+      updatedAt: updatedEvent.createdAt.toISOString(),
     }
 
     return NextResponse.json({ item })
@@ -317,7 +319,7 @@ export async function DELETE(
       where: { id: campaignId },
       select: {
         id: true,
-        creatorId: true,
+        creatorUserId: true,
       },
     })
 
@@ -328,7 +330,7 @@ export async function DELETE(
       )
     }
 
-    if (campaign.creatorId !== user.id) {
+    if (campaign.creatorUserId !== user.id) {
       return NextResponse.json(
         { error: 'Only the campaign creator can delete items' },
         { status: 403 }

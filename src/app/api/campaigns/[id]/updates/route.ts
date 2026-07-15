@@ -234,7 +234,7 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
       await notifySubscribers(campaignId, update.id, {
         campaignTitle: campaign.title,
         brandName: campaign.targetedBrand?.name || 'Brand',
-        brandLogo: campaign.targetedBrand?.logo,
+        brandLogo: campaign.targetedBrand?.logo ?? undefined,
         updateTitle: title,
         updateType,
         content,

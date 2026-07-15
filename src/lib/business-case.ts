@@ -241,7 +241,9 @@ function calculateConfidence(
   let score = 0
 
   // Total signals (higher = more reliable)
-  const totalSignals = data.totalDemandSignals || 0
+  const totalSignals =
+    data.neatIdeaCount + data.probablyBuyCount + data.takeMyMoneyCount +
+    data.supportCount + data.intentCount
   if (totalSignals > 200) score += 30
   else if (totalSignals > 100) score += 20
   else if (totalSignals > 50) score += 10

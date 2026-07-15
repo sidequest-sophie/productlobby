@@ -3,6 +3,7 @@ export const dynamic = 'force-dynamic'
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/db'
 import { getCurrentUser } from '@/lib/auth'
+import { Prisma } from '@prisma/client'
 
 interface ContentLibraryItem {
   id: string
@@ -23,6 +24,27 @@ interface ContentLibraryRequest {
   fileSize?: number
 }
 
+// There is no dedicated CampaignMetadata/content-library model in the schema,
+// so content library items are persisted as ContributionEvent records
+// (eventType SOCIAL_SHARE) with the item data in `metadata`, following this
+// codebase's convention for ad-hoc features without dedicated schema support.
+interface ContentLibraryMetadata {
+  action: 'content_library_item'
+  title: string
+  type: ContentLibraryItem['type']
+  description?: string | null
+  url?: string | null
+  fileSize?: number
+}
+
+function isRecord(v: unknown): v is Record<string, unknown> {
+  return typeof v === 'object' && v !== null && !Array.isArray(v)
+}
+
+function parseContentLibraryMetadata(metadata: unknown): ContentLibraryMetadata | null {
+  return isRecord(metadata) ? (metadata as unknown as ContentLibraryMetadata) : null
+}
+
 // GET /api/campaigns/[id]/content-library
 // Retrieve all content library items for a campaign
 export async function GET(
@@ -40,7 +62,7 @@ export async function GET(
     // Verify user has access to this campaign
     const campaign = await prisma.campaign.findUnique({
       where: { id: campaignId },
-      select: { creatorId: true, id: true },
+      select: { creatorUserId: true, id: true },
     })
 
     if (!campaign) {
@@ -50,29 +72,31 @@ export async function GET(
       )
     }
 
-    // Fetch content library items from metadata
-    const contentLibraryItems = await prisma.campaignMetadata.findMany({
+    // Fetch content library items (stored via ContributionEvent metadata)
+    const contentLibraryItems = await prisma.contributionEvent.findMany({
       where: {
         campaignId: campaignId,
-        metaKey: 'CONTENT_LIBRARY_ITEM',
+        eventType: 'SOCIAL_SHARE',
+        metadata: {
+          path: ['action'],
+          equals: 'content_library_item',
+        },
       },
       orderBy: { createdAt: 'desc' },
     })
 
     const items: ContentLibraryItem[] = contentLibraryItems.map((item) => {
-      const data = typeof item.metaValue === 'string'
-        ? JSON.parse(item.metaValue)
-        : item.metaValue
+      const data = parseContentLibraryMetadata(item.metadata)
 
       return {
         id: item.id,
-        title: data.title || 'Untitled',
-        type: data.type || 'Link',
-        description: data.description,
-        url: data.url,
-        fileSize: data.fileSize,
+        title: data?.title || 'Untitled',
+        type: data?.type || 'Link',
+        description: data?.description ?? undefined,
+        url: data?.url ?? undefined,
+        fileSize: data?.fileSize,
         createdAt: item.createdAt.toISOString(),
-        updatedAt: item.updatedAt.toISOString(),
+        updatedAt: item.createdAt.toISOString(),
       }
     })
 
@@ -138,7 +162,7 @@ export async function POST(
     // Verify user has access to this campaign
     const campaign = await prisma.campaign.findUnique({
       where: { id: campaignId },
-      select: { creatorId: true, id: true },
+      select: { creatorUserId: true, id: true },
     })
 
     if (!campaign) {
@@ -148,61 +172,44 @@ export async function POST(
       )
     }
 
-    if (campaign.creatorId !== user.id) {
+    if (campaign.creatorUserId !== user.id) {
       return NextResponse.json(
         { error: 'You do not have permission to modify this campaign' },
         { status: 403 }
       )
     }
 
-    // Create content item in metadata
-    const contentItem = await prisma.campaignMetadata.create({
-      data: {
-        campaignId: campaignId,
-        metaKey: 'CONTENT_LIBRARY_ITEM',
-        metaValue: {
-          title: body.title,
-          type: body.type,
-          description: body.description || null,
-          url: body.url || null,
-          fileSize: body.fileSize || 0,
-          createdAt: new Date().toISOString(),
-        },
-      },
-    })
-
-    // Log contribution event
-    await prisma.contributionEvent.create({
+    // Create content item (stored via ContributionEvent metadata) and log
+    // the contribution in a single event
+    const contentItem = await prisma.contributionEvent.create({
       data: {
         userId: user.id,
         campaignId: campaignId,
         eventType: 'SOCIAL_SHARE',
         points: 5,
         metadata: {
-          action: 'add_content_library_item',
-          contentType: body.type,
+          action: 'content_library_item',
           title: body.title,
-          timestamp: new Date().toISOString(),
-        },
+          type: body.type,
+          description: body.description || null,
+          url: body.url || null,
+          fileSize: body.fileSize || 0,
+        } as Prisma.InputJsonValue,
       },
-    }).catch(() => {
-      // Silently fail if event logging fails
     })
 
-    const itemData = typeof contentItem.metaValue === 'string'
-      ? JSON.parse(contentItem.metaValue)
-      : contentItem.metaValue
+    const itemData = parseContentLibraryMetadata(contentItem.metadata)
 
     return NextResponse.json(
       {
         id: contentItem.id,
-        title: itemData.title,
-        type: itemData.type,
-        description: itemData.description,
-        url: itemData.url,
-        fileSize: itemData.fileSize,
+        title: itemData?.title,
+        type: itemData?.type,
+        description: itemData?.description,
+        url: itemData?.url,
+        fileSize: itemData?.fileSize,
         createdAt: contentItem.createdAt.toISOString(),
-        updatedAt: contentItem.updatedAt.toISOString(),
+        updatedAt: contentItem.createdAt.toISOString(),
       },
       { status: 201 }
     )

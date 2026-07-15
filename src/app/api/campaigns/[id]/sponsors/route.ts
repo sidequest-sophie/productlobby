@@ -4,6 +4,55 @@ import { prisma } from '@/lib/db'
 
 export const dynamic = 'force-dynamic'
 
+// NOTE: There is no dedicated SponsorSpotlight table in the Prisma schema, so
+// (like several other ad-hoc campaign features in this codebase) sponsor
+// spotlight entries are persisted as ContributionEvent rows with a
+// distinguishing `action` marker in `metadata`.
+
+interface Sponsor {
+  id: string
+  campaignId: string
+  name: string
+  logoUrl: string | null
+  tier: 'GOLD' | 'SILVER' | 'BRONZE'
+  website: string | null
+  createdAt: string
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null && !Array.isArray(value)
+}
+
+function extractSponsor(event: {
+  id: string
+  campaignId: string
+  createdAt: Date
+  metadata: unknown
+}): Sponsor | null {
+  const metadata = event.metadata
+  if (!isRecord(metadata) || metadata.action !== 'sponsor_spotlight') {
+    return null
+  }
+
+  const { name, logoUrl, tier, website } = metadata
+
+  if (typeof name !== 'string' || (tier !== 'GOLD' && tier !== 'SILVER' && tier !== 'BRONZE')) {
+    return null
+  }
+
+  return {
+    id: event.id,
+    campaignId: event.campaignId,
+    name,
+    logoUrl: typeof logoUrl === 'string' ? logoUrl : null,
+    tier,
+    website: typeof website === 'string' ? website : null,
+    createdAt: event.createdAt.toISOString(),
+  }
+}
+
+const TIER_ORDER: Record<Sponsor['tier'], number> = { GOLD: 0, SILVER: 1, BRONZE: 2 }
+
 export async function GET(
   request: NextRequest,
   { params }: { params: { id: string } }
@@ -23,13 +72,22 @@ export async function GET(
     }
 
     // Get all sponsor entries for this campaign
-    const sponsors = await prisma.sponsorSpotlight.findMany({
-      where: { campaignId: params.id },
-      orderBy: [
-        { tier: 'asc' },
-        { createdAt: 'desc' },
-      ],
+    const events = await prisma.contributionEvent.findMany({
+      where: {
+        campaignId: params.id,
+        eventType: 'SOCIAL_SHARE',
+        metadata: {
+          path: ['action'],
+          equals: 'sponsor_spotlight',
+        },
+      },
+      orderBy: { createdAt: 'desc' },
     })
+
+    const sponsors = events
+      .map(extractSponsor)
+      .filter((sponsor): sponsor is Sponsor => sponsor !== null)
+      .sort((a, b) => TIER_ORDER[a.tier] - TIER_ORDER[b.tier])
 
     return NextResponse.json(sponsors)
   } catch (error) {
@@ -57,7 +115,7 @@ export async function POST(
     // Verify campaign exists and user is creator
     const campaign = await prisma.campaign.findUnique({
       where: { id: params.id },
-      select: { id: true, creatorId: true },
+      select: { id: true, creatorUserId: true },
     })
 
     if (!campaign) {
@@ -67,7 +125,7 @@ export async function POST(
       )
     }
 
-    if (campaign.creatorId !== user.id) {
+    if (campaign.creatorUserId !== user.id) {
       return NextResponse.json(
         { error: 'Only the campaign creator can add sponsors' },
         { status: 403 }
@@ -91,19 +149,10 @@ export async function POST(
       )
     }
 
-    // Create sponsor entry
-    const sponsor = await prisma.sponsorSpotlight.create({
-      data: {
-        campaignId: params.id,
-        name,
-        logoUrl: logoUrl || null,
-        tier: tier.toUpperCase() as 'GOLD' | 'SILVER' | 'BRONZE',
-        website: website || null,
-      },
-    })
+    const sponsorTier = tier.toUpperCase() as Sponsor['tier']
 
-    // Create contribution event for the action
-    await prisma.contributionEvent.create({
+    // Create sponsor entry as a ContributionEvent
+    const event = await prisma.contributionEvent.create({
       data: {
         userId: user.id,
         campaignId: params.id,
@@ -111,11 +160,23 @@ export async function POST(
         points: 25,
         metadata: {
           action: 'sponsor_spotlight',
-          sponsorId: sponsor.id,
-          tier: sponsor.tier,
+          name,
+          logoUrl: logoUrl || null,
+          tier: sponsorTier,
+          website: website || null,
         },
       },
     })
+
+    const sponsor: Sponsor = {
+      id: event.id,
+      campaignId: params.id,
+      name,
+      logoUrl: logoUrl || null,
+      tier: sponsorTier,
+      website: website || null,
+      createdAt: event.createdAt.toISOString(),
+    }
 
     return NextResponse.json(sponsor, { status: 201 })
   } catch (error) {

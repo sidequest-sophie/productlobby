@@ -38,6 +38,7 @@ export function PressKit({ campaignId }: PressKitProps) {
   const [loading, setLoading] = useState(true)
   const [data, setData] = useState<PressKit | null>(null)
   const [error, setError] = useState<string | null>(null)
+  const [notAvailable, setNotAvailable] = useState(false)
 
   useEffect(() => {
     fetchPressKit()
@@ -51,6 +52,11 @@ export function PressKit({ campaignId }: PressKitProps) {
         method: 'GET',
         headers: { 'Content-Type': 'application/json' },
       })
+
+      if (response.status === 404) {
+        setNotAvailable(true)
+        return
+      }
 
       if (!response.ok) {
         throw new Error('Failed to fetch press kit')
@@ -99,6 +105,10 @@ export function PressKit({ campaignId }: PressKitProps) {
       default:
         return '🔗'
     }
+  }
+
+  if (notAvailable) {
+    return null
   }
 
   if (loading) {

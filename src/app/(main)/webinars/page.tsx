@@ -12,11 +12,11 @@ import {
 } from 'lucide-react';
 
 export const metadata: Metadata = {
-  title: 'Webinars & Events | ProductLobby',
+  title: 'Webinars & Events',
   description:
     'Join our upcoming webinars and events featuring industry experts. Learn about product management, engineering best practices, and community insights.',
   openGraph: {
-    title: 'Webinars & Events | ProductLobby',
+    title: 'Webinars & Events',
     description:
       'Join our upcoming webinars and events featuring industry experts.',
     type: 'website',

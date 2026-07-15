@@ -105,7 +105,7 @@ const BrandRow = ({ brand, mostResponsiveNames }: { brand: BrandScore; mostRespo
             </Badge>
           )}
           {brand.status === 'unresponsive' && (
-            <Badge variant="destructive" className="bg-red-600 hover:bg-red-700">
+            <Badge variant="error" className="bg-red-600 hover:bg-red-700">
               Unresponsive
             </Badge>
           )}

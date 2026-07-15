@@ -129,7 +129,7 @@ export function CampaignGrowthChart({ campaignId }: { campaignId: string }) {
         {PERIODS.map((p) => (
           <Button
             key={p.value}
-            variant={period === p.value ? 'default' : 'outline'}
+            variant={period === p.value ? 'primary' : 'outline'}
             size="sm"
             onClick={() => setPeriod(p.value)}
             className={cn(

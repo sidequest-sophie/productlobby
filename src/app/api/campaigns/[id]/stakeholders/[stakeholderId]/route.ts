@@ -19,10 +19,10 @@ export async function DELETE(
     // Verify campaign exists and user is creator
     const campaign = await prisma.campaign.findUnique({
       where: { id: campaignId },
-      select: { creatorId: true },
+      select: { creatorUserId: true },
     });
 
-    if (!campaign || campaign.creatorId !== user.id) {
+    if (!campaign || campaign.creatorUserId !== user.id) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 403 });
     }
 

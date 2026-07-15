@@ -1,6 +1,7 @@
 import { getCurrentUser } from '@/lib/auth'
 import { prisma } from '@/lib/db'
 import { NextRequest, NextResponse } from 'next/server'
+import { MediaKind } from '@prisma/client'
 
 export const dynamic = 'force-dynamic'
 
@@ -41,6 +42,7 @@ export async function GET(
             userId: user.id,
             campaignId: id,
             eventType: 'SOCIAL_SHARE',
+            points: 1,
             metadata: {
               action: 'media_view',
               mediaCount: campaign.media.length,
@@ -55,7 +57,7 @@ export async function GET(
     }
 
     // Format media with title, url, type, and uploadedAt
-    const formattedMedia = campaign.media.map((m: any) => ({
+    const formattedMedia = campaign.media.map((m) => ({
       id: m.id,
       url: m.url,
       type: m.kind,
@@ -147,7 +149,7 @@ export async function POST(
     const media = await prisma.campaignMedia.create({
       data: {
         campaignId: id,
-        kind: type as any,
+        kind: type as MediaKind,
         url,
         altText: title,
         order: newOrder,
@@ -161,6 +163,7 @@ export async function POST(
           userId: user.id,
           campaignId: id,
           eventType: 'SOCIAL_SHARE',
+          points: 5,
           metadata: {
             action: 'media_upload',
             mediaType: type,

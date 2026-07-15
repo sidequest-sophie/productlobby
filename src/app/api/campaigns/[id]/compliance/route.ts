@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/db'
 import { getCurrentUser } from '@/lib/auth'
+import { Prisma } from '@prisma/client'
 
 export const dynamic = 'force-dynamic'
 
@@ -64,7 +65,7 @@ export async function GET(
         notes: meta.notes,
         evidence: meta.evidence,
         timestamp: meta.timestamp || event.createdAt.toISOString(),
-        createdBy: event.createdBy,
+        createdBy: event.userId,
       }
     })
 
@@ -114,7 +115,7 @@ export async function POST(
     const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id)
     const campaign = await prisma.campaign.findUnique({
       where: isUuid ? { id } : { slug: id },
-      select: { id: true, creatorId: true },
+      select: { id: true, creatorUserId: true },
     })
 
     if (!campaign) {
@@ -125,7 +126,7 @@ export async function POST(
     }
 
     // Only campaign creator can add compliance items
-    if (campaign.creatorId !== user.id) {
+    if (campaign.creatorUserId !== user.id) {
       return NextResponse.json(
         { error: 'Forbidden' },
         { status: 403 }
@@ -168,16 +169,17 @@ export async function POST(
       // Update existing compliance item
       result = await prisma.contributionEvent.update({
         where: { id: itemId },
-        data: { metadata },
+        data: { metadata: metadata as Prisma.InputJsonValue },
       })
     } else {
       // Create new compliance item
       result = await prisma.contributionEvent.create({
         data: {
           campaignId: campaign.id,
-          createdBy: user.id,
+          userId: user.id,
           eventType: 'SOCIAL_SHARE',
-          metadata,
+          points: 1,
+          metadata: metadata as Prisma.InputJsonValue,
         },
       })
     }
@@ -193,7 +195,7 @@ export async function POST(
       notes: meta.notes,
       evidence: meta.evidence,
       timestamp: meta.timestamp,
-      createdBy: result.createdBy,
+      createdBy: result.userId,
     }
 
     return NextResponse.json(item, { status: itemId ? 200 : 201 })
@@ -234,7 +236,7 @@ export async function DELETE(
     const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id)
     const campaign = await prisma.campaign.findUnique({
       where: isUuid ? { id } : { slug: id },
-      select: { id: true, creatorId: true },
+      select: { id: true, creatorUserId: true },
     })
 
     if (!campaign) {
@@ -245,7 +247,7 @@ export async function DELETE(
     }
 
     // Only campaign creator can delete compliance items
-    if (campaign.creatorId !== user.id) {
+    if (campaign.creatorUserId !== user.id) {
       return NextResponse.json(
         { error: 'Forbidden' },
         { status: 403 }

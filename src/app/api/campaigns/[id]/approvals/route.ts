@@ -5,6 +5,7 @@
  */
 
 import { NextRequest, NextResponse } from 'next/server'
+import { Prisma } from '@prisma/client'
 import { getCurrentUser } from '@/lib/auth'
 import { prisma } from '@/lib/db'
 
@@ -31,6 +32,14 @@ interface ApprovalItemMetadata {
   }>
 }
 
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null && !Array.isArray(value)
+}
+
+function isApprovalItemMetadata(value: unknown): value is ApprovalItemMetadata {
+  return isRecord(value) && value.action === 'approval_item'
+}
+
 // ============================================================================
 // GET: Fetch approval items from ContributionEvent records
 // ============================================================================
@@ -46,7 +55,7 @@ export async function GET(
     // Verify campaign exists
     const campaign = await prisma.campaign.findUnique({
       where: { id: campaignId },
-      select: { id: true, creatorId: true },
+      select: { id: true, creatorUserId: true },
     })
 
     if (!campaign) {
@@ -78,12 +87,9 @@ export async function GET(
 
     // Filter and transform approval items
     const items = approvalEvents
-      .filter((event) => {
-        const meta = event.metadata as any
-        return meta && meta.action === 'approval_item'
-      })
+      .filter((event) => isApprovalItemMetadata(event.metadata))
       .map((event) => {
-        const meta = event.metadata as ApprovalItemMetadata
+        const meta = event.metadata as unknown as ApprovalItemMetadata
         return {
           id: event.id,
           title: meta.title,
@@ -146,7 +152,7 @@ export async function POST(
     // Verify campaign exists
     const campaign = await prisma.campaign.findUnique({
       where: { id: campaignId },
-      select: { id: true, creatorId: true },
+      select: { id: true, creatorUserId: true },
     })
 
     if (!campaign) {
@@ -177,13 +183,13 @@ export async function POST(
       )
     }
 
-    const meta = approvalEvent.metadata as any
-    if (!meta || meta.action !== 'approval_item') {
+    if (!isApprovalItemMetadata(approvalEvent.metadata)) {
       return NextResponse.json(
         { success: false, error: 'Invalid approval item' },
         { status: 400 }
       )
     }
+    const meta: ApprovalItemMetadata = approvalEvent.metadata as unknown as ApprovalItemMetadata
 
     // Update approval history
     const approvalHistory = meta.approvalHistory || []
@@ -210,7 +216,7 @@ export async function POST(
     const updated = await prisma.contributionEvent.update({
       where: { id: itemId },
       data: {
-        metadata: updatedMeta,
+        metadata: updatedMeta as unknown as Prisma.InputJsonValue,
       },
     })
 
@@ -241,10 +247,10 @@ export async function POST(
 function determineNextStage(
   currentStage: 'Draft' | 'Review' | 'Approved' | 'Published'
 ): 'Draft' | 'Review' | 'Approved' | 'Published' {
-  const stages = ['Draft', 'Review', 'Approved', 'Published']
+  const stages = ['Draft', 'Review', 'Approved', 'Published'] as const
   const currentIndex = stages.indexOf(currentStage)
   if (currentIndex < stages.length - 1) {
-    return stages[currentIndex + 1] as any
+    return stages[currentIndex + 1]
   }
   return currentStage
 }

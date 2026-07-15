@@ -1,8 +1,26 @@
 export const dynamic = 'force-dynamic';
 
 import { NextRequest, NextResponse } from 'next/server';
+import { Prisma } from '@prisma/client';
 import { prisma } from '@/lib/db';
 import { getCurrentUser } from '@/lib/auth';
+
+interface StakeholderMetadata {
+  action: string;
+  name?: string;
+  role?: string;
+  organization?: string;
+  category?: string;
+  influence?: number;
+  interest?: number;
+  engagement?: string;
+  notes?: string;
+  timestamp?: string;
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null && !Array.isArray(value);
+}
 
 export async function GET(request: NextRequest, { params }: { params: { id: string } }) {
   try {
@@ -29,17 +47,22 @@ export async function GET(request: NextRequest, { params }: { params: { id: stri
     });
 
     // Transform events to stakeholder objects
-    const stakeholders = stakeholderEvents.map((event) => ({
-      id: event.id,
-      name: event.metadata?.name || 'Unknown',
-      role: event.metadata?.role || '',
-      organization: event.metadata?.organization || '',
-      category: event.metadata?.category || 'external',
-      influence: event.metadata?.influence || 3,
-      interest: event.metadata?.interest || 3,
-      engagement: event.metadata?.engagement || 'unknown',
-      notes: event.metadata?.notes || '',
-    }));
+    const stakeholders = stakeholderEvents.map((event) => {
+      const metadata = isRecord(event.metadata)
+        ? (event.metadata as unknown as StakeholderMetadata)
+        : ({} as StakeholderMetadata);
+      return {
+        id: event.id,
+        name: metadata.name || 'Unknown',
+        role: metadata.role || '',
+        organization: metadata.organization || '',
+        category: metadata.category || 'external',
+        influence: metadata.influence || 3,
+        interest: metadata.interest || 3,
+        engagement: metadata.engagement || 'unknown',
+        notes: metadata.notes || '',
+      };
+    });
 
     return NextResponse.json(stakeholders);
   } catch (error) {
@@ -61,31 +84,34 @@ export async function POST(request: NextRequest, { params }: { params: { id: str
     // Verify campaign exists and user is creator
     const campaign = await prisma.campaign.findUnique({
       where: { id: campaignId },
-      select: { creatorId: true },
+      select: { creatorUserId: true },
     });
 
-    if (!campaign || campaign.creatorId !== user.id) {
+    if (!campaign || campaign.creatorUserId !== user.id) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 403 });
     }
 
     // Create stakeholder event
+    const metadata: StakeholderMetadata = {
+      action: 'stakeholder',
+      name: body.name,
+      role: body.role,
+      organization: body.organization,
+      category: body.category,
+      influence: body.influence,
+      interest: body.interest,
+      engagement: body.engagement,
+      notes: body.notes,
+      timestamp: new Date().toISOString(),
+    };
+
     const event = await prisma.contributionEvent.create({
       data: {
         campaignId,
         userId: user.id,
         eventType: 'SOCIAL_SHARE',
-        metadata: {
-          action: 'stakeholder',
-          name: body.name,
-          role: body.role,
-          organization: body.organization,
-          category: body.category,
-          influence: body.influence,
-          interest: body.interest,
-          engagement: body.engagement,
-          notes: body.notes,
-          timestamp: new Date().toISOString(),
-        },
+        points: 1,
+        metadata: metadata as unknown as Prisma.InputJsonValue,
       },
     });
 

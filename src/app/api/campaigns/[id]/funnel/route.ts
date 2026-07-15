@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { Prisma } from '@prisma/client'
 import { prisma } from '@/lib/db'
 import { getCurrentUser } from '@/lib/auth'
 
@@ -18,6 +19,24 @@ interface FunnelData {
   overallConversionRate: number
   createdAt?: string
   updatedAt?: string
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null && !Array.isArray(value)
+}
+
+// Campaign has no generic metadata column, so funnel data is persisted as a
+// ContributionEvent (same convention used elsewhere in this codebase, e.g.
+// reward tiers / reactions) with a distinguishing `action` marker.
+function extractFunnelData(metadata: unknown): FunnelData | null {
+  if (!isRecord(metadata) || metadata.action !== 'funnel_builder_update') {
+    return null
+  }
+  const funnel = metadata.funnel
+  if (!isRecord(funnel) || !Array.isArray(funnel.stages)) {
+    return null
+  }
+  return funnel as unknown as FunnelData
 }
 
 /**
@@ -44,8 +63,7 @@ export async function GET(
       where: { id },
       select: {
         id: true,
-        creatorId: true,
-        metadata: true,
+        creatorUserId: true,
       },
     })
 
@@ -57,27 +75,38 @@ export async function GET(
     }
 
     // Check if user is the creator
-    if (campaign.creatorId !== user.id) {
+    if (campaign.creatorUserId !== user.id) {
       return NextResponse.json(
         { error: 'Forbidden' },
         { status: 403 }
       )
     }
 
-    // Extract funnel data from metadata or return default
-    const metadata = campaign.metadata as any || {}
-    let funnelData: FunnelData = metadata.funnel || {
-      stages: [
-        { id: '1', name: 'Awareness', count: 1000, order: 0 },
-        { id: '2', name: 'Interest', count: 750, order: 1 },
-        { id: '3', name: 'Consideration', count: 500, order: 2 },
-        { id: '4', name: 'Action', count: 250, order: 3 },
-        { id: '5', name: 'Advocacy', count: 100, order: 4 },
-      ],
-      overallConversionRate: 10,
-      createdAt: new Date().toISOString(),
-      updatedAt: new Date().toISOString(),
-    }
+    // Extract funnel data from the most recent funnel-builder contribution
+    // event, or return default seed data
+    const latestFunnelEvent = await prisma.contributionEvent.findFirst({
+      where: {
+        campaignId: id,
+        eventType: 'SOCIAL_SHARE',
+        metadata: { path: ['action'], equals: 'funnel_builder_update' },
+      },
+      orderBy: { createdAt: 'desc' },
+      select: { metadata: true },
+    })
+
+    const funnelData: FunnelData =
+      (latestFunnelEvent && extractFunnelData(latestFunnelEvent.metadata)) || {
+        stages: [
+          { id: '1', name: 'Awareness', count: 1000, order: 0 },
+          { id: '2', name: 'Interest', count: 750, order: 1 },
+          { id: '3', name: 'Consideration', count: 500, order: 2 },
+          { id: '4', name: 'Action', count: 250, order: 3 },
+          { id: '5', name: 'Advocacy', count: 100, order: 4 },
+        ],
+        overallConversionRate: 10,
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+      }
 
     return NextResponse.json(funnelData)
   } catch (error) {
@@ -155,8 +184,7 @@ export async function POST(
       where: { id },
       select: {
         id: true,
-        creatorId: true,
-        metadata: true,
+        creatorUserId: true,
       },
     })
 
@@ -168,29 +196,31 @@ export async function POST(
     }
 
     // Check if user is the creator
-    if (campaign.creatorId !== user.id) {
+    if (campaign.creatorUserId !== user.id) {
       return NextResponse.json(
         { error: 'Forbidden' },
         { status: 403 }
       )
     }
 
-    // Add timestamps
-    funnelData.createdAt = campaign.metadata?.funnel?.createdAt || new Date().toISOString()
+    // Preserve the original createdAt from the previous funnel snapshot, if any
+    const previousFunnelEvent = await prisma.contributionEvent.findFirst({
+      where: {
+        campaignId: id,
+        eventType: 'SOCIAL_SHARE',
+        metadata: { path: ['action'], equals: 'funnel_builder_update' },
+      },
+      orderBy: { createdAt: 'desc' },
+      select: { metadata: true },
+    })
+    const previousFunnelData =
+      previousFunnelEvent && extractFunnelData(previousFunnelEvent.metadata)
+
+    funnelData.createdAt = previousFunnelData?.createdAt || new Date().toISOString()
     funnelData.updatedAt = new Date().toISOString()
 
-    // Update campaign metadata with funnel data
-    const metadata = campaign.metadata as any || {}
-    metadata.funnel = funnelData
-
-    const updatedCampaign = await prisma.campaign.update({
-      where: { id },
-      data: {
-        metadata,
-      },
-    })
-
-    // Log the contribution event
+    // Persist the funnel snapshot as a contribution event (Campaign has no
+    // generic metadata column) and log the contribution in one step
     await prisma.contributionEvent.create({
       data: {
         userId: user.id,
@@ -199,6 +229,7 @@ export async function POST(
         points: 10,
         metadata: {
           action: 'funnel_builder_update',
+          funnel: funnelData as unknown as Prisma.InputJsonValue,
           stageCount: funnelData.stages.length,
           overallConversionRate: funnelData.overallConversionRate,
         },

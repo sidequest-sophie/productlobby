@@ -198,7 +198,7 @@ export function AutoReplyConfig({ campaignId, isCreator = false }: AutoReplyConf
         <p className="text-sm font-medium text-blue-900">Template Variables</p>
         <div className="mt-2 flex flex-wrap gap-2">
           {TEMPLATE_VARIABLES.map((variable) => (
-            <Badge key={variable.key} variant="secondary" className="font-mono">
+            <Badge key={variable.key} variant="default" className="font-mono">
               {variable.key}
               <span className="ml-2 text-xs font-normal text-muted-foreground">
                 ({variable.description})
@@ -219,7 +219,7 @@ export function AutoReplyConfig({ campaignId, isCreator = false }: AutoReplyConf
                 </div>
                 <Button
                   size="sm"
-                  variant={config[key].enabled ? 'default' : 'outline'}
+                  variant={config[key].enabled ? 'primary' : 'outline'}
                   onClick={() => toggleMessage(key)}
                   className="shrink-0"
                 >

@@ -135,7 +135,7 @@ export const QRCodeCard: React.FC<QRCodeCardProps> = ({
         <Button
           onClick={handleDownload}
           variant="primary"
-          size="md"
+          size="default"
           className="w-full"
           disabled={isLoading || !!error}
         >
@@ -157,8 +157,8 @@ export const QRCodeCard: React.FC<QRCodeCardProps> = ({
 
         <Button
           onClick={handleCopyLink}
-          variant={copied ? 'success' : 'outline'}
-          size="md"
+          variant={copied ? 'accent' : 'outline'}
+          size="default"
           className="w-full"
         >
           <svg

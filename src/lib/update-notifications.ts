@@ -1,5 +1,6 @@
 import { prisma } from '@/lib/db'
 import { sendEmail } from '@/lib/email'
+import { campaignUpdateTemplate } from '@/lib/email-templates'
 
 export type NotificationType = 'UPDATE_POSTED' | 'UPDATE_SCHEDULED'
 
@@ -78,21 +79,17 @@ export async function notifySubscribers(
       const emailUsers = users.filter((u) => emailUserIds.includes(u.id))
 
       for (const user of emailUsers) {
+        const html = campaignUpdateTemplate({
+          campaignTitle: payload.campaignTitle,
+          updateTitle: payload.updateTitle,
+          updateExcerpt: payload.content.substring(0, 300),
+          campaignUrl: `${process.env.NEXT_PUBLIC_BASE_URL}/campaigns/${campaignId}/updates`,
+        })
+
         await sendEmail({
           to: user.email,
           subject: `${payload.brandName} shared an update: ${payload.updateTitle}`,
-          template: 'campaign_update',
-          data: {
-            userDisplayName: user.displayName || 'there',
-            brandName: payload.brandName,
-            brandLogo: payload.brandLogo,
-            updateTitle: payload.updateTitle,
-            updateType: payload.updateType,
-            content: payload.content,
-            campaignTitle: payload.campaignTitle,
-            campaignUrl: `${process.env.NEXT_PUBLIC_BASE_URL}/campaigns/${campaignId}`,
-            updateUrl: `${process.env.NEXT_PUBLIC_BASE_URL}/campaigns/${campaignId}/updates`,
-          },
+          html,
         }).catch((error) => {
           console.error(`Failed to send email to ${user.email}:`, error)
         })

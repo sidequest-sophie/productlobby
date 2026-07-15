@@ -5,11 +5,13 @@ import { useRouter, useSearchParams } from 'next/navigation'
 import Link from 'next/link'
 import { Loader2, CheckCircle, XCircle } from 'lucide-react'
 import { Button } from '@/components/ui/button'
+import { safeRedirectPath } from '@/lib/utils'
 
 function VerifyContent() {
   const router = useRouter()
   const searchParams = useSearchParams()
   const token = searchParams.get('token')
+  const redirectTo = safeRedirectPath(searchParams.get('redirect'))
 
   const [status, setStatus] = useState<'loading' | 'success' | 'error'>('loading')
   const [error, setError] = useState('')
@@ -40,7 +42,7 @@ function VerifyContent() {
 
         // Redirect after short delay
         setTimeout(() => {
-          router.push('/campaigns')
+          router.push(redirectTo)
         }, 2000)
       } catch (err) {
         setStatus('error')
@@ -49,7 +51,7 @@ function VerifyContent() {
     }
 
     verify()
-  }, [token, router])
+  }, [token, router, redirectTo])
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-background p-4">
@@ -69,7 +71,7 @@ function VerifyContent() {
             </div>
             <h1 className="text-2xl font-bold font-display text-foreground mb-2">You're in!</h1>
             <p className="text-gray-600 mb-6">Redirecting you to the app...</p>
-            <Link href="/campaigns">
+            <Link href={redirectTo}>
               <Button variant="secondary" className="w-full">
                 Click here if not redirected
               </Button>

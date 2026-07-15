@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/db'
 import { getCurrentUser } from '@/lib/auth'
+import { Prisma } from '@prisma/client'
 
 export const dynamic = 'force-dynamic'
 
@@ -41,34 +42,46 @@ export async function POST(
     // Parse request body
     const { bookmarked } = await request.json()
 
+    // Resources are not backed by a dedicated Prisma model, so per-user
+    // resource bookmarks are tracked via ContributionEvent metadata
+    // (see project convention for ad-hoc feature data).
+    const existingBookmarkEvent = await prisma.contributionEvent.findFirst({
+      where: {
+        campaignId,
+        userId: user.id,
+        eventType: 'SOCIAL_SHARE',
+        AND: [
+          { metadata: { path: ['action'], equals: 'resource_bookmark' } },
+          { metadata: { path: ['resourceId'], equals: resourceId } },
+        ],
+      },
+    })
+
     if (bookmarked) {
-      // Create bookmark
-      await prisma.bookmark.upsert({
-        where: {
-          userId_itemId_itemType: {
+      // Create bookmark if it doesn't already exist
+      if (!existingBookmarkEvent) {
+        await prisma.contributionEvent.create({
+          data: {
             userId: user.id,
-            itemId: resourceId,
-            itemType: 'RESOURCE',
+            campaignId,
+            eventType: 'SOCIAL_SHARE',
+            points: 1,
+            metadata: {
+              action: 'resource_bookmark',
+              resourceId,
+            } as Prisma.InputJsonValue,
           },
-        },
-        update: {},
-        create: {
-          userId: user.id,
-          itemId: resourceId,
-          itemType: 'RESOURCE',
-        },
-      })
+        })
+      }
 
       return NextResponse.json({ bookmarked: true })
     } else {
       // Remove bookmark
-      await prisma.bookmark.deleteMany({
-        where: {
-          userId: user.id,
-          itemId: resourceId,
-          itemType: 'RESOURCE',
-        },
-      })
+      if (existingBookmarkEvent) {
+        await prisma.contributionEvent.delete({
+          where: { id: existingBookmarkEvent.id },
+        })
+      }
 
       return NextResponse.json({ bookmarked: false })
     }

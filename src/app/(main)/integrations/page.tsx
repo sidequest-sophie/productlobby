@@ -3,10 +3,10 @@ import { Zap, Link2, Shield, CheckCircle, ArrowRight } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 
 export const metadata: Metadata = {
-  title: 'Integrations | ProductLobby',
+  title: 'Integrations',
   description: 'Connect ProductLobby with your favorite tools and services. Explore 500+ integrations to automate your workflow.',
   openGraph: {
-    title: 'Integrations | ProductLobby',
+    title: 'Integrations',
     description: 'Connect ProductLobby with your favorite tools and services. Explore 500+ integrations to automate your workflow.',
   },
 }

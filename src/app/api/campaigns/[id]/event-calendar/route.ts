@@ -182,6 +182,7 @@ export async function POST(
           campaignId,
           userId: user.id,
           eventType: 'SOCIAL_SHARE',
+          points: 1,
           metadata: {
             action: 'campaign_event',
             title: eventData.title,

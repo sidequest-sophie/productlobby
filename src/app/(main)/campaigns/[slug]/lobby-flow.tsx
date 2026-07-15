@@ -1,7 +1,6 @@
 'use client'
 
-import React, { useState } from 'react'
-import { ChevronRight } from 'lucide-react'
+import React, { useEffect, useMemo, useState } from 'react'
 import {
   Modal,
   ModalContent,
@@ -12,33 +11,50 @@ import {
   ModalFooter,
 } from '@/components/ui/modal'
 import { Button } from '@/components/ui/button'
-import { Badge } from '@/components/ui/badge'
 import { Textarea } from '@/components/ui/textarea'
+import { Input } from '@/components/ui/input'
 import { ChipSelector, type ChipOption } from '@/components/ui/chip-selector'
 import { cn } from '@/lib/utils'
+
+export interface CampaignPreferenceFieldDTO {
+  id: string
+  fieldName: string
+  fieldType: string // 'TEXT' | 'SELECT' | 'MULTI_SELECT' | 'NUMBER' | 'RANGE'
+  options?: string[] | null
+  placeholder?: string | null
+  required: boolean
+  order: number
+}
 
 interface LobbyFlowProps {
   isOpen: boolean
   onClose: () => void
   campaignTitle: string
   campaignId: string
+  /** Needed to build the /login?redirect=/campaigns/<slug> link and to key session storage. */
+  campaignSlug: string
+  /** Targeted brand's display name, if the campaign has one. */
+  brandName?: string | null
+  /** The campaign's real preference field definitions (CampaignPreferenceField rows). */
+  preferenceFields?: CampaignPreferenceFieldDTO[]
+  /** Whether the current visitor already has a session. Drives pending-lobby restore. */
+  isAuthenticated?: boolean
+  /** Called when a pending lobby saved before an auth redirect has been restored. */
+  onResumePending?: () => void
 }
 
 type IntensityLevel = 'low' | 'medium' | 'high' | null
 
 type SubmitState = 'idle' | 'submitting' | 'success' | 'error' | 'duplicate' | 'auth_required'
 
+type PreferenceValue = string | string[]
+
+type StepKey = 'intensity' | 'preferences' | 'wishlist' | 'reason' | 'save'
+
 const INTENSITY_MAP: Record<string, string> = {
   low: 'NEAT_IDEA',
   medium: 'PROBABLY_BUY',
   high: 'TAKE_MY_MONEY',
-}
-
-interface Preferences {
-  size: string[]
-  colours: string[]
-  priceRange: string[]
-  width: string[]
 }
 
 const INTENSITY_OPTIONS = [
@@ -74,68 +90,70 @@ const INTENSITY_OPTIONS = [
   },
 ]
 
-const SIZE_OPTIONS: ChipOption[] = [
-  { id: '6', label: 'UK 6' },
-  { id: '7', label: 'UK 7' },
-  { id: '8', label: 'UK 8' },
-  { id: '9', label: 'UK 9' },
-  { id: '10', label: 'UK 10' },
-  { id: '11', label: 'UK 11' },
-  { id: '12', label: 'UK 12' },
-]
-
-const COLOUR_OPTIONS: ChipOption[] = [
-  { id: 'black', label: 'Black' },
-  { id: 'white', label: 'White' },
-  { id: 'red', label: 'Red' },
-  { id: 'blue', label: 'Blue' },
-  { id: 'pink', label: 'Pink' },
-  { id: 'green', label: 'Green' },
-  { id: 'purple', label: 'Purple' },
-  { id: 'other', label: 'Other' },
-]
-
-const PRICE_OPTIONS: ChipOption[] = [
-  { id: 'under50', label: 'Under £50' },
-  { id: '50-80', label: '£50-80' },
-  { id: '80-120', label: '£80-120' },
-  { id: '120-150', label: '£120-150' },
-  { id: '150+', label: '£150+' },
-]
-
-const WIDTH_OPTIONS: ChipOption[] = [
-  { id: 'standard', label: 'Standard' },
-  { id: 'wide', label: 'Wide' },
-  { id: 'extra-wide', label: 'Extra Wide' },
-]
+function pendingLobbyStorageKey(campaignId: string) {
+  return `productlobby:pending-lobby:${campaignId}`
+}
 
 export function LobbyFlow({
   isOpen,
   onClose,
   campaignTitle,
   campaignId,
+  campaignSlug,
+  brandName,
+  preferenceFields = [],
+  isAuthenticated = false,
+  onResumePending,
 }: LobbyFlowProps) {
-  const [currentStep, setCurrentStep] = useState(1)
+  // Step 2 (preferences) only exists when the campaign actually defines preference
+  // fields — campaigns with none skip straight from intensity to the wishlist step.
+  const steps = useMemo<StepKey[]>(() => {
+    const s: StepKey[] = ['intensity']
+    if (preferenceFields.length > 0) s.push('preferences')
+    s.push('wishlist', 'reason', 'save')
+    return s
+  }, [preferenceFields.length])
+
+  const [currentStepIndex, setCurrentStepIndex] = useState(0)
   const [intensity, setIntensity] = useState<IntensityLevel>(null)
-  const [preferences, setPreferences] = useState<Preferences>({
-    size: [],
-    colours: [],
-    priceRange: [],
-    width: [],
-  })
+  const [preferenceValues, setPreferenceValues] = useState<Record<string, PreferenceValue>>({})
   const [wishlistText, setWishlistText] = useState('')
   const [reasonText, setReasonText] = useState('')
-  const [email, setEmail] = useState('')
   const [submitState, setSubmitState] = useState<SubmitState>('idle')
   const [errorMessage, setErrorMessage] = useState('')
 
+  const currentStep = steps[currentStepIndex] ?? 'intensity'
+
+  // If the user was bounced to /login mid-flow, restore whatever they'd filled in
+  // once they're back and authenticated, and jump straight to the save step.
+  useEffect(() => {
+    if (!isAuthenticated || !campaignId) return
+
+    try {
+      const raw = sessionStorage.getItem(pendingLobbyStorageKey(campaignId))
+      if (!raw) return
+
+      const saved = JSON.parse(raw)
+      setIntensity(saved.intensity ?? null)
+      setPreferenceValues(saved.preferenceValues ?? {})
+      setWishlistText(saved.wishlistText ?? '')
+      setReasonText(saved.reasonText ?? '')
+      setCurrentStepIndex(Math.max(steps.length - 1, 0))
+      onResumePending?.()
+    } catch {
+      // Corrupt or unavailable storage — fall back to a fresh flow.
+    }
+    // Only re-check when auth state resolves or the campaign changes; `steps` and
+    // `onResumePending` intentionally aren't dependencies here.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isAuthenticated, campaignId])
+
   const handleReset = () => {
-    setCurrentStep(1)
+    setCurrentStepIndex(0)
     setIntensity(null)
-    setPreferences({ size: [], colours: [], priceRange: [], width: [] })
+    setPreferenceValues({})
     setWishlistText('')
     setReasonText('')
-    setEmail('')
     setSubmitState('idle')
     setErrorMessage('')
   }
@@ -146,11 +164,56 @@ export function LobbyFlow({
   }
 
   const handleNext = () => {
-    setCurrentStep((prev) => Math.min(prev + 1, 5))
+    setCurrentStepIndex((prev) => Math.min(prev + 1, steps.length - 1))
   }
 
   const handlePrevious = () => {
-    setCurrentStep((prev) => Math.max(prev - 1, 1))
+    setCurrentStepIndex((prev) => Math.max(prev - 1, 0))
+  }
+
+  const buildPreferencesPayload = () =>
+    Object.entries(preferenceValues).reduce<Array<{ fieldId: string; value: string }>>(
+      (acc, [fieldId, value]) => {
+        const stringValue = Array.isArray(value) ? value.join(', ') : value
+        if (stringValue && stringValue.trim()) {
+          acc.push({ fieldId, value: stringValue.trim() })
+        }
+        return acc
+      },
+      []
+    )
+
+  const filledPreferenceCount = useMemo(
+    () =>
+      Object.values(preferenceValues).filter((v) =>
+        Array.isArray(v) ? v.length > 0 : !!(v && v.trim())
+      ).length,
+    [preferenceValues]
+  )
+
+  const persistPendingLobby = () => {
+    try {
+      sessionStorage.setItem(
+        pendingLobbyStorageKey(campaignId),
+        JSON.stringify({ intensity, preferenceValues, wishlistText, reasonText })
+      )
+    } catch {
+      // sessionStorage unavailable (e.g. private browsing) — best effort only.
+    }
+  }
+
+  const clearPendingLobby = () => {
+    try {
+      sessionStorage.removeItem(pendingLobbyStorageKey(campaignId))
+    } catch {
+      // ignore
+    }
+  }
+
+  const handleSignIn = () => {
+    persistPendingLobby()
+    const redirectTarget = `/campaigns/${campaignSlug}`
+    window.location.href = `/login?redirect=${encodeURIComponent(redirectTarget)}`
   }
 
   const handleSave = async () => {
@@ -160,11 +223,14 @@ export function LobbyFlow({
     setErrorMessage('')
 
     try {
+      const preferencesPayload = buildPreferencesPayload()
+
       const response = await fetch(`/api/campaigns/${campaignId}/lobby`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           intensity: INTENSITY_MAP[intensity],
+          preferences: preferencesPayload.length > 0 ? preferencesPayload : undefined,
           wishlist: wishlistText.trim() || undefined,
           reason: reasonText.trim() || undefined,
         }),
@@ -177,6 +243,7 @@ export function LobbyFlow({
 
       if (response.status === 409) {
         setSubmitState('duplicate')
+        clearPendingLobby()
         return
       }
 
@@ -185,6 +252,7 @@ export function LobbyFlow({
         throw new Error(data.error || 'Failed to save your lobby')
       }
 
+      clearPendingLobby()
       setSubmitState('success')
       // Auto-close after success
       setTimeout(() => {
@@ -210,6 +278,75 @@ export function LobbyFlow({
     return option?.emoji || ''
   }
 
+  const brandLabel = brandName?.trim() || 'the brand'
+
+  const renderPreferenceField = (field: CampaignPreferenceFieldDTO) => {
+    const options: ChipOption[] = (field.options || []).map((opt) => ({ id: opt, label: opt }))
+    const rawValue = preferenceValues[field.id]
+
+    switch (field.fieldType) {
+      case 'MULTI_SELECT':
+        return (
+          <ChipSelector
+            options={options}
+            selected={Array.isArray(rawValue) ? rawValue : []}
+            onChange={(selected) =>
+              setPreferenceValues((prev) => ({ ...prev, [field.id]: selected.map(String) }))
+            }
+            multiple
+          />
+        )
+      case 'SELECT':
+        return (
+          <ChipSelector
+            options={options}
+            selected={typeof rawValue === 'string' && rawValue ? [rawValue] : []}
+            onChange={(selected) =>
+              setPreferenceValues((prev) => ({
+                ...prev,
+                [field.id]: selected.length > 0 ? String(selected[0]) : '',
+              }))
+            }
+            multiple={false}
+          />
+        )
+      case 'NUMBER':
+        return (
+          <Input
+            type="number"
+            placeholder={field.placeholder || undefined}
+            value={typeof rawValue === 'string' ? rawValue : ''}
+            onChange={(e) =>
+              setPreferenceValues((prev) => ({ ...prev, [field.id]: e.target.value }))
+            }
+          />
+        )
+      case 'RANGE':
+        return (
+          <Input
+            type="text"
+            placeholder={field.placeholder || 'e.g. 10-20'}
+            value={typeof rawValue === 'string' ? rawValue : ''}
+            onChange={(e) =>
+              setPreferenceValues((prev) => ({ ...prev, [field.id]: e.target.value }))
+            }
+          />
+        )
+      case 'TEXT':
+      default:
+        return (
+          <Input
+            type="text"
+            placeholder={field.placeholder || undefined}
+            value={typeof rawValue === 'string' ? rawValue : ''}
+            onChange={(e) =>
+              setPreferenceValues((prev) => ({ ...prev, [field.id]: e.target.value }))
+            }
+          />
+        )
+    }
+  }
+
   return (
     <Modal open={isOpen} onOpenChange={handleClose}>
       <ModalContent className="max-w-2xl">
@@ -218,15 +355,15 @@ export function LobbyFlow({
         {/* Progress Indicator */}
         <div className="px-6 pt-6">
           <div className="flex justify-center gap-2">
-            {[1, 2, 3, 4, 5].map((step) => (
+            {steps.map((step, idx) => (
               <button
                 key={step}
-                onClick={() => currentStep >= step && setCurrentStep(step)}
+                onClick={() => currentStepIndex >= idx && setCurrentStepIndex(idx)}
                 className={cn(
                   'w-3 h-3 rounded-full transition-all duration-200',
-                  currentStep === step
+                  currentStepIndex === idx
                     ? 'bg-violet-600 w-8'
-                    : currentStep > step
+                    : currentStepIndex > idx
                       ? 'bg-lime-500'
                       : 'bg-gray-300'
                 )}
@@ -235,13 +372,13 @@ export function LobbyFlow({
           </div>
         </div>
 
-        {/* Step 1: Intensity Level */}
-        {currentStep === 1 && (
+        {/* Step: Intensity Level */}
+        {currentStep === 'intensity' && (
           <>
             <ModalHeader>
               <ModalTitle className="text-2xl">How much do you want this?</ModalTitle>
             </ModalHeader>
-            <ModalBody>
+            <ModalBody className="max-h-[60vh] overflow-y-auto">
               <p className="text-gray-600 mb-6">
                 Your answer helps us understand how passionate your community is.
               </p>
@@ -282,7 +419,7 @@ export function LobbyFlow({
                 ))}
               </div>
             </ModalBody>
-            <ModalFooter>
+            <ModalFooter className="sticky bottom-0 z-10">
               <Button
                 variant="ghost"
                 onClick={handleClose}
@@ -300,83 +437,31 @@ export function LobbyFlow({
           </>
         )}
 
-        {/* Step 2: Preferences */}
-        {currentStep === 2 && (
+        {/* Step: Preferences (only present when the campaign defines preference fields) */}
+        {currentStep === 'preferences' && (
           <>
             <ModalHeader>
               <ModalTitle className="text-2xl">Help shape this product</ModalTitle>
               <p className="text-sm text-gray-600 mt-2">
-                Your preferences help Nike build exactly what you want
+                Your preferences help {brandLabel} build exactly what you want
               </p>
             </ModalHeader>
-            <ModalBody className="max-h-96 overflow-y-auto">
+            <ModalBody className="max-h-[60vh] overflow-y-auto">
               <div className="space-y-6">
-                {/* Size */}
-                <div>
-                  <label className="block text-sm font-medium text-foreground mb-3">
-                    Shoe Size
-                  </label>
-                  <ChipSelector
-                    options={SIZE_OPTIONS}
-                    selected={preferences.size.map((s) => s)}
-                    onChange={(selected) =>
-                      setPreferences({ ...preferences, size: selected.map((s) => String(s)) })
-                    }
-                    multiple={true}
-                  />
-                </div>
-
-                {/* Colours */}
-                <div>
-                  <label className="block text-sm font-medium text-foreground mb-3">
-                    Preferred Colours
-                  </label>
-                  <ChipSelector
-                    options={COLOUR_OPTIONS}
-                    selected={preferences.colours.map((c) => c)}
-                    onChange={(selected) =>
-                      setPreferences({ ...preferences, colours: selected.map((c) => String(c)) })
-                    }
-                    multiple={true}
-                  />
-                </div>
-
-                {/* Price Range */}
-                <div>
-                  <label className="block text-sm font-medium text-foreground mb-3">
-                    Price Range
-                  </label>
-                  <ChipSelector
-                    options={PRICE_OPTIONS}
-                    selected={preferences.priceRange.map((p) => p)}
-                    onChange={(selected) =>
-                      setPreferences({ ...preferences, priceRange: selected.map((p) => String(p)) })
-                    }
-                    multiple={true}
-                  />
-                </div>
-
-                {/* Width */}
-                <div>
-                  <label className="block text-sm font-medium text-foreground mb-3">
-                    Width Preference
-                  </label>
-                  <ChipSelector
-                    options={WIDTH_OPTIONS}
-                    selected={preferences.width.map((w) => w)}
-                    onChange={(selected) =>
-                      setPreferences({ ...preferences, width: selected.map((w) => String(w)) })
-                    }
-                    multiple={false}
-                  />
-                </div>
-
-                <p className="text-xs text-gray-600 border-t border-gray-200 pt-4">
-                  2,847 people have shared their preferences
-                </p>
+                {[...preferenceFields]
+                  .sort((a, b) => a.order - b.order)
+                  .map((field) => (
+                    <div key={field.id}>
+                      <label className="block text-sm font-medium text-foreground mb-3">
+                        {field.fieldName}
+                        {field.required && <span className="text-red-500"> *</span>}
+                      </label>
+                      {renderPreferenceField(field)}
+                    </div>
+                  ))}
               </div>
             </ModalBody>
-            <ModalFooter>
+            <ModalFooter className="sticky bottom-0 z-10">
               <Button variant="ghost" onClick={handlePrevious}>
                 Back
               </Button>
@@ -394,8 +479,8 @@ export function LobbyFlow({
           </>
         )}
 
-        {/* Step 3: Wishlist */}
-        {currentStep === 3 && (
+        {/* Step: Wishlist */}
+        {currentStep === 'wishlist' && (
           <>
             <ModalHeader>
               <ModalTitle className="text-2xl">This would be cooler if...</ModalTitle>
@@ -403,17 +488,17 @@ export function LobbyFlow({
                 Share your ideas to help shape the final product
               </p>
             </ModalHeader>
-            <ModalBody>
+            <ModalBody className="max-h-[60vh] overflow-y-auto">
               <div className="space-y-4">
                 <div>
                   <Textarea
-                    placeholder="e.g., came in a vegan leather option, had better arch support, was available in half sizes..."
+                    placeholder="e.g., came in different materials, had more sizing options, included a feature you're missing..."
                     value={wishlistText}
                     onChange={(e) => setWishlistText(e.target.value)}
                     className="min-h-32"
                   />
                   <div className="flex justify-between items-center mt-2">
-                    <p className="text-xs text-gray-600">Popular ideas: wider toe box, arch support options, vegan materials</p>
+                    <p className="text-xs text-gray-600">e.g. materials, sizing, colours, features</p>
                     <span className="text-xs text-gray-600">
                       {wishlistText.length}/500
                     </span>
@@ -421,7 +506,7 @@ export function LobbyFlow({
                 </div>
               </div>
             </ModalBody>
-            <ModalFooter>
+            <ModalFooter className="sticky bottom-0 z-10">
               <Button variant="ghost" onClick={handlePrevious}>
                 Back
               </Button>
@@ -439,8 +524,8 @@ export function LobbyFlow({
           </>
         )}
 
-        {/* Step 4: Why this product matters (Reason) */}
-        {currentStep === 4 && (
+        {/* Step: Why this product matters (Reason) */}
+        {currentStep === 'reason' && (
           <>
             <ModalHeader>
               <ModalTitle className="text-2xl">Why do you want this product?</ModalTitle>
@@ -448,7 +533,7 @@ export function LobbyFlow({
                 Share why this product matters to you (optional)
               </p>
             </ModalHeader>
-            <ModalBody>
+            <ModalBody className="max-h-[60vh] overflow-y-auto">
               <div className="space-y-4">
                 <div>
                   <Textarea
@@ -466,7 +551,7 @@ export function LobbyFlow({
                 </div>
               </div>
             </ModalBody>
-            <ModalFooter>
+            <ModalFooter className="sticky bottom-0 z-10">
               <Button variant="ghost" onClick={handlePrevious}>
                 Back
               </Button>
@@ -484,8 +569,8 @@ export function LobbyFlow({
           </>
         )}
 
-        {/* Step 5: Save & Sign Up */}
-        {currentStep === 5 && (
+        {/* Step: Save & Sign Up */}
+        {currentStep === 'save' && (
           <>
             <ModalHeader>
               <ModalTitle className="text-2xl">
@@ -503,7 +588,7 @@ export function LobbyFlow({
                 </p>
               )}
             </ModalHeader>
-            <ModalBody className="space-y-6">
+            <ModalBody className="max-h-[60vh] overflow-y-auto space-y-6">
               {/* Success State */}
               {submitState === 'success' && (
                 <div className="text-center py-8">
@@ -527,12 +612,10 @@ export function LobbyFlow({
                 <div className="text-center py-8">
                   <div className="text-6xl mb-4">🔐</div>
                   <p className="text-lg font-medium text-foreground mb-2">You need to sign in first</p>
-                  <p className="text-sm text-gray-600 mb-6">Create an account or sign in to save your lobby.</p>
-                  <a href="/login">
-                    <Button variant="primary" size="lg">
-                      Sign in / Sign up
-                    </Button>
-                  </a>
+                  <p className="text-sm text-gray-600 mb-6">Create an account or sign in to save your lobby — we'll keep everything you've entered.</p>
+                  <Button variant="primary" size="lg" onClick={handleSignIn}>
+                    Sign in / Sign up
+                  </Button>
                 </div>
               )}
 
@@ -569,20 +652,14 @@ export function LobbyFlow({
                     </div>
 
                     {/* Preferences Count */}
-                    {(preferences.size.length > 0 ||
-                      preferences.colours.length > 0 ||
-                      preferences.priceRange.length > 0 ||
-                      preferences.width.length > 0) && (
-                        <div className="text-sm text-gray-600">
-                          <p className="font-medium text-foreground mb-1">Preferences</p>
-                          <p className="text-xs">
-                            {preferences.size.length} size
-                            {preferences.colours.length > 0 && ` · ${preferences.colours.length} colours`}
-                            {preferences.priceRange.length > 0 && ` · Price range`}
-                            {preferences.width.length > 0 && ` · ${preferences.width.length} width`}
-                          </p>
-                        </div>
-                      )}
+                    {filledPreferenceCount > 0 && (
+                      <div className="text-sm text-gray-600">
+                        <p className="font-medium text-foreground mb-1">Preferences</p>
+                        <p className="text-xs">
+                          {filledPreferenceCount} preference{filledPreferenceCount !== 1 ? 's' : ''} shared
+                        </p>
+                      </div>
+                    )}
 
                     {/* Wishlist Preview */}
                     {wishlistText.trim() && (
@@ -613,7 +690,7 @@ export function LobbyFlow({
                 </>
               )}
             </ModalBody>
-            <ModalFooter>
+            <ModalFooter className="sticky bottom-0 z-10">
               {(submitState === 'idle' || submitState === 'submitting') && (
                 <>
                   <Button variant="ghost" onClick={handlePrevious} disabled={submitState === 'submitting'}>

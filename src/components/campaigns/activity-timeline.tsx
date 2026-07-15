@@ -213,7 +213,7 @@ export function ActivityTimeline({ campaignId }: ActivityTimelineProps) {
                               .join('')
                               .toUpperCase()
                               .slice(0, 2)}
-                            size="xs"
+                            size="sm"
                           />
                           <div className="min-w-0">
                             <p className="text-sm font-medium text-foreground truncate">

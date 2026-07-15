@@ -212,12 +212,12 @@ const BrandSettings: React.FC = () => {
   }
 
   const getRoleBadge = (role: string) => {
-    const roleConfig: Record<string, { text: string; variant: 'default' | 'lime' | 'gray' }> = {
+    const roleConfig: Record<string, { text: string; variant: 'default' | 'success' | 'outline' }> = {
       OWNER: { text: 'Owner', variant: 'default' },
-      ADMIN: { text: 'Admin', variant: 'lime' },
-      MEMBER: { text: 'Member', variant: 'gray' },
+      ADMIN: { text: 'Admin', variant: 'success' },
+      MEMBER: { text: 'Member', variant: 'outline' },
     }
-    return roleConfig[role] || { text: role, variant: 'gray' as const }
+    return roleConfig[role] || { text: role, variant: 'outline' as const }
   }
 
   const isAdmin = currentUserRole === 'OWNER' || currentUserRole === 'ADMIN'
@@ -438,7 +438,7 @@ const BrandSettings: React.FC = () => {
                       className="flex items-center justify-between p-4 border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors"
                     >
                       <div className="flex items-center gap-3 min-w-0">
-                        <Avatar size="md" initials={initials} />
+                        <Avatar size="default" initials={initials} />
                         <div className="min-w-0">
                           <p className="font-medium text-foreground truncate">
                             {member.displayName}
@@ -447,7 +447,7 @@ const BrandSettings: React.FC = () => {
                         </div>
                       </div>
                       <div className="flex items-center gap-2 flex-shrink-0 ml-3">
-                        <Badge variant={roleBadge.variant} size="md">
+                        <Badge variant={roleBadge.variant} size="default">
                           {roleBadge.text}
                         </Badge>
                         {/* Only OWNER can remove members, and cannot remove the last OWNER */}

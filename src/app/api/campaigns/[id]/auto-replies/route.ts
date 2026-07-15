@@ -68,7 +68,13 @@ export async function GET(
       select: { metadata: true },
     })
 
-    const config = existingEvent?.metadata?.config || defaultConfig
+    const existingMetadata = existingEvent?.metadata
+    const config =
+      (typeof existingMetadata === 'object' &&
+      existingMetadata !== null &&
+      !Array.isArray(existingMetadata)
+        ? (existingMetadata as Record<string, unknown>).config
+        : undefined) || defaultConfig
 
     return NextResponse.json({
       config,

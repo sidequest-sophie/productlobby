@@ -262,25 +262,52 @@ export async function failPayoutRequest(payoutId: string, reason?: string): Prom
   })
 }
 
-export async function getCreatorPayoutRequest(payoutId: string): Promise<PayoutData | null> {
+export type PayoutLookupResult =
+  | { status: 'not_found' }
+  | { status: 'forbidden' }
+  | { status: 'ok'; data: PayoutData }
+
+/**
+ * Look up a payout request by id, enforcing that it belongs to the
+ * requesting user's own CreatorRevenue record (prevents IDOR access to
+ * another creator's bank details).
+ */
+export async function getCreatorPayoutRequest(
+  payoutId: string,
+  requesterId: string
+): Promise<PayoutLookupResult> {
   const payout = await prisma.payoutRequest.findUnique({
     where: { id: payoutId },
+    include: {
+      creatorRevenue: {
+        select: { creatorUserId: true },
+      },
+    },
   })
 
-  if (!payout) return null
+  if (!payout) {
+    return { status: 'not_found' }
+  }
+
+  if (payout.creatorRevenue.creatorUserId !== requesterId) {
+    return { status: 'forbidden' }
+  }
 
   return {
-    id: payout.id,
-    amount: payout.amount,
-    status: payout.status,
-    currency: payout.currency,
-    bankName: payout.bankName || undefined,
-    accountHolder: payout.accountHolder || undefined,
-    sortCode: payout.sortCode || undefined,
-    ibanCode: payout.ibanCode || undefined,
-    requestedAt: payout.requestedAt,
-    processedAt: payout.processedAt || undefined,
-    completedAt: payout.completedAt || undefined,
+    status: 'ok',
+    data: {
+      id: payout.id,
+      amount: payout.amount,
+      status: payout.status,
+      currency: payout.currency,
+      bankName: payout.bankName || undefined,
+      accountHolder: payout.accountHolder || undefined,
+      sortCode: payout.sortCode || undefined,
+      ibanCode: payout.ibanCode || undefined,
+      requestedAt: payout.requestedAt,
+      processedAt: payout.processedAt || undefined,
+      completedAt: payout.completedAt || undefined,
+    },
   }
 }
 

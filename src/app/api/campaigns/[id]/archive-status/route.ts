@@ -136,9 +136,10 @@ export async function POST(
       data: {
         userId: user.id,
         campaignId,
-        eventType: 'CAMPAIGN_ACTIVITY_EXTENDED',
+        eventType: 'SOCIAL_SHARE',
         points: 0,
         metadata: {
+          action: 'campaign_activity_extended',
           reason: 'Manual activity extension to prevent auto-archive',
           extendedAt: new Date().toISOString(),
         },

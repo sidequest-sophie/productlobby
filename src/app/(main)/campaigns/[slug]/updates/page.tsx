@@ -30,7 +30,7 @@ interface UpdateData {
     url: string
     altText?: string
   }>
-  createdAt: string
+  createdAt: Date
   likeCount?: number
   commentCount?: number
   userReaction?: 'thumbsUp' | 'heart' | 'celebrate'

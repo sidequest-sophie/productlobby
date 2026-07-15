@@ -4,7 +4,7 @@ import { Button } from '@/components/ui/button';
 import Link from 'next/link';
 
 export const metadata: Metadata = {
-  title: 'Brand Directory | ProductLobby',
+  title: 'Brand Directory',
   description: 'Explore brands on ProductLobby',
 };
 

@@ -52,6 +52,7 @@ export default function AutomationRules({ campaignId }: AutomationRulesProps) {
     conditions: '',
   })
   const [creating, setCreating] = useState(false)
+  const [notAvailable, setNotAvailable] = useState(false)
 
   useEffect(() => {
     fetchRules()
@@ -61,6 +62,10 @@ export default function AutomationRules({ campaignId }: AutomationRulesProps) {
     try {
       setLoading(true)
       const response = await fetch(`/api/campaigns/${campaignId}/automation-rules`)
+      if (response.status === 404) {
+        setNotAvailable(true)
+        return
+      }
       const data = await response.json()
       if (data.success) {
         setRules(data.data || [])
@@ -125,6 +130,10 @@ export default function AutomationRules({ campaignId }: AutomationRulesProps) {
     } finally {
       setCreating(false)
     }
+  }
+
+  if (notAvailable) {
+    return null
   }
 
   return (

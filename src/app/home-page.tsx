@@ -26,6 +26,16 @@ const CountUpNumber = ({ target, duration = 2000 }: { target: number; duration?:
   const [count, setCount] = useState(0)
 
   useEffect(() => {
+    // Hidden tabs never fire requestAnimationFrame, and reduced-motion users
+    // shouldn't get a count-up — in both cases show the final value directly.
+    if (
+      document.visibilityState === 'hidden' ||
+      window.matchMedia('(prefers-reduced-motion: reduce)').matches
+    ) {
+      setCount(target)
+      return
+    }
+
     let startTime: number
     let animationFrameId: number
 
@@ -64,6 +74,29 @@ export default function HomePage() {
   const [trendingCampaigns, setTrendingCampaigns] = useState<CampaignCardProps[]>([])
   const [isLoading, setIsLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
+  const [platformStats, setPlatformStats] = useState<{
+    totalCampaigns: number
+    totalUsers: number
+    totalBrands: number
+  } | null>(null)
+
+  useEffect(() => {
+    const fetchPlatformStats = async () => {
+      try {
+        const res = await fetch('/api/platform/stats')
+        if (!res.ok) return
+        const stats = await res.json()
+        setPlatformStats({
+          totalCampaigns: stats.totalCampaigns ?? 0,
+          totalUsers: stats.totalUsers ?? 0,
+          totalBrands: stats.totalBrands ?? 0,
+        })
+      } catch {
+        // stats bar simply keeps the fallback values
+      }
+    }
+    fetchPlatformStats()
+  }, [])
 
   useEffect(() => {
     const fetchTrendingCampaigns = async () => {
@@ -78,16 +111,17 @@ export default function HomePage() {
 
         const data = await res.json()
 
-        // Map the API response to CampaignCardProps format
-        const campaigns = data.data || data.campaigns || []
+        // Map the API response to CampaignCardProps format.
+        // The trending API returns { success, data: { campaigns: [...] } }.
+        const campaigns = data.data?.campaigns || data.campaigns || []
         const mapped: CampaignCardProps[] = campaigns.map((campaign: any) => ({
           id: campaign.id,
           title: campaign.title,
           slug: campaign.slug,
           description: campaign.description,
           category: campaign.category,
-          image: campaign.firstMediaImage?.url || undefined,
-          lobbyCount: campaign.verifiedLobbiesCount || 0,
+          image: campaign.image || campaign.media?.[0]?.url || undefined,
+          lobbyCount: campaign.lobbyCount || 0,
           intensityDistribution: {
             low: campaign.lobbyStats?.intensityDistribution?.NEAT_IDEA || 0,
             medium: campaign.lobbyStats?.intensityDistribution?.PROBABLY_BUY || 0,
@@ -164,19 +198,19 @@ export default function HomePage() {
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-6 sm:gap-8 lg:gap-12">
             <div className="text-center">
               <div className="text-4xl lg:text-5xl font-bold font-display text-violet-600 mb-2">
-                <CountUpNumber target={trendingCampaigns.length || 500} />+
+                <CountUpNumber target={platformStats?.totalCampaigns ?? 0} />+
               </div>
               <p className="text-gray-700 font-medium">Campaigns Created</p>
             </div>
             <div className="text-center">
               <div className="text-4xl lg:text-5xl font-bold font-display text-violet-600 mb-2">
-                <CountUpNumber target={15000} />+
+                <CountUpNumber target={platformStats?.totalUsers ?? 0} />+
               </div>
               <p className="text-gray-700 font-medium">Community Supporters</p>
             </div>
             <div className="text-center">
               <div className="text-4xl lg:text-5xl font-bold font-display text-violet-600 mb-2">
-                <CountUpNumber target={150} />+
+                <CountUpNumber target={platformStats?.totalBrands ?? 0} />+
               </div>
               <p className="text-gray-700 font-medium">Brands Engaged</p>
             </div>

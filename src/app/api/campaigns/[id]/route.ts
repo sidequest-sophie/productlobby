@@ -13,9 +13,7 @@ export async function GET(
 
     // Support both UUID and slug-based lookup
     const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id)
-    const campaign = await prisma.campaign[isUuid ? 'findUnique' : 'findFirst']({
-      where: isUuid ? { id } : { slug: id },
-      include: {
+    const campaignInclude = {
         creator: {
           select: {
             id: true,
@@ -73,9 +71,18 @@ export async function GET(
             },
           },
         },
-      },
-      // milestones is a JSON field, no special include needed
-    })
+    } as const
+    // milestones is a JSON field, no special include needed
+
+    const campaign = isUuid
+      ? await prisma.campaign.findUnique({
+          where: { id },
+          include: campaignInclude,
+        })
+      : await prisma.campaign.findFirst({
+          where: { slug: id },
+          include: campaignInclude,
+        })
 
     if (!campaign) {
       return NextResponse.json(

@@ -31,7 +31,7 @@ export async function GET(request: NextRequest) {
           },
         },
         comments: {
-          select: { id: true },
+          select: { id: true, createdAt: true },
         },
       },
     })
