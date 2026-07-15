@@ -4,7 +4,7 @@
   "private": true,
   "scripts": {
     "dev": "next dev",
-    "build": "PRISMA_ENGINES_CHECKSUM_IGNORE_MISSING=1 prisma generate || true && PRISMA_ENGINES_CHECKSUM_IGNORE_MISSING=1 prisma db push --accept-data-loss || true && next build",
+    "build": "PRISMA_ENGINES_CHECKSUM_IGNORE_MISSING=1 prisma generate || true && next build",
     "start": "next start",
     "lint": "next lint",
     "postinstall": "PRISMA_ENGINES_CHECKSUM_IGNORE_MISSING=1 prisma generate || true",
