@@ -36,11 +36,12 @@ test.describe('Visitor — homepage', () => {
 
   test('social proof stats and the "For Brands" projection panel render', async ({ page }) => {
     await page.goto('/')
-    await expect(page.getByText('Community Supporters')).toBeVisible()
-    await expect(page.getByText('Brands Engaged')).toBeVisible()
-    // Illustrative revenue projection panel is hardcoded, not fetched data.
-    // SIMULATED DATA — see home-page.tsx: "$2.4M" / "27,000 units" are fixed
-    // literals, not driven by any campaign's real numbers.
+    await expect(page.getByText('People Lobbying')).toBeVisible()
+    await expect(page.getByText('Brands Watching')).toBeVisible()
+    // Illustrative revenue projection panel is hardcoded, not fetched data —
+    // now honestly labelled "Example dashboard". SIMULATED DATA: "$2.4M" /
+    // "27,000 units" are fixed literals, not any real campaign's numbers.
+    await expect(page.getByText('Example dashboard')).toBeVisible()
     await expect(page.getByText('$2.4M')).toBeVisible()
     await expect(page.getByText('27,000 units')).toBeVisible()
   })

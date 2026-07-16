@@ -76,43 +76,39 @@ test.describe('Supporter — signed-in journeys', () => {
     await page.goto(`/campaigns/${campaign.slug}`)
     await page.getByRole('button', { name: 'Lobby for this!' }).first().click()
 
-    // Step 1: intensity level (lobby-flow.tsx)
-    await expect(page.getByRole('heading', { name: 'How much do you want this?' })).toBeVisible()
-    await page.getByRole('button', { name: /Shut up and take my money!/ }).click()
-    await page.getByRole('button', { name: 'Continue' }).click()
+    // Step 1: intensity — one tap both records the choice AND advances (no
+    // separate "Continue" click in the reworked flow, lobby-flow.tsx).
+    await expect(page.getByRole('heading', { name: 'How badly do you want this?' })).toBeVisible()
+    await page.getByRole('button', { name: /Take my money!/ }).click()
 
     // The preferences step ("Help shape this product") only appears when the
-    // campaign defines preference fields; seeded campaigns have none, so the
-    // flow goes straight to wishlist. Skip it if present, tolerate its absence.
+    // campaign defines preference fields; seeded campaigns have none. Skip if present.
     const prefsHeading = page.getByRole('heading', { name: 'Help shape this product' })
     if (await prefsHeading.isVisible().catch(() => false)) {
       await page.getByRole('button', { name: 'Skip' }).click()
     }
 
-    // Wishlist — skip
-    await expect(page.getByRole('heading', { name: 'This would be cooler if...' })).toBeVisible()
-    await page.getByRole('button', { name: 'Skip' }).click()
-
-    // Reason — skip
-    await expect(page.getByRole('heading', { name: 'Why do you want this product?' })).toBeVisible()
+    // Wishlist + reason are now one optional "note" screen — skip it.
+    await expect(page.getByRole('heading', { name: 'Want to add anything?' })).toBeVisible()
     await page.getByRole('button', { name: 'Skip' }).click()
 
     // Save
-    await expect(page.getByRole('heading', { name: 'Save your lobby & preferences' })).toBeVisible()
-    await page.getByRole('button', { name: 'Save My Lobby' }).click()
+    await page.getByRole('button', { name: 'Count me in!' }).click()
 
-    await expect(page.getByText('Your lobby has been saved!')).toBeVisible({ timeout: 10_000 })
+    await expect(page.getByText('Lobby saved!')).toBeVisible({ timeout: 10_000 })
   })
 
   test('lobbying again on the same campaign is reported as a duplicate', async ({ page }) => {
     test.skip(!campaignSlug, 'requires the lobby test above to have run first')
     await page.goto(`/campaigns/${campaignSlug}`)
     await page.getByRole('button', { name: 'Lobby for this!' }).first().click()
-    await page.getByRole('button', { name: /Yeah — neat idea/ }).click()
-    await page.getByRole('button', { name: 'Continue' }).click()
-    await page.getByRole('button', { name: 'Skip' }).click()
-    await page.getByRole('button', { name: 'Skip' }).click()
-    await page.getByRole('button', { name: 'Save My Lobby' }).click()
+    await page.getByRole('button', { name: /Neat idea/ }).click() // one tap advances
+    const prefs = page.getByRole('heading', { name: 'Help shape this product' })
+    if (await prefs.isVisible().catch(() => false)) {
+      await page.getByRole('button', { name: 'Skip' }).click()
+    }
+    await page.getByRole('button', { name: 'Skip' }).click() // note step
+    await page.getByRole('button', { name: 'Count me in!' }).click()
 
     // POST /api/campaigns/:id/lobby returns 409 for a repeat lobby from the
     // same user (lobby-flow.tsx handleSave).
