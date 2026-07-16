@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server'
 import type { NextRequest } from 'next/server'
+import { rateLimitDurable, getClientIP } from '@/lib/rate-limit'
 
 // Routes that require authentication
 const PROTECTED_ROUTES = [
@@ -26,46 +27,24 @@ const ONBOARDING_EXEMPT_ROUTES = [
   '/logout',
 ]
 
-// Rate limiting store (in-memory)
-const rateLimitStore = new Map<string, { count: number; resetTime: number }>()
-
-const RATE_LIMIT_WINDOW_MS = 60000
+const RATE_LIMIT_WINDOW_SECONDS = 60
 const RATE_LIMIT_MAX_REQUESTS = 100
 
-function getRateLimitKey(request: NextRequest): string {
-  const forwardedFor = request.headers.get('x-forwarded-for')
-  const ip = forwardedFor ? forwardedFor.split(',')[0].trim() : 'unknown'
-  return ip
-}
-
-function checkRateLimit(key: string): boolean {
-  const now = Date.now()
-  const limit = rateLimitStore.get(key)
-
-  if (!limit || now > limit.resetTime) {
-    rateLimitStore.set(key, {
-      count: 1,
-      resetTime: now + RATE_LIMIT_WINDOW_MS,
-    })
-    return true
-  }
-
-  if (limit.count >= RATE_LIMIT_MAX_REQUESTS) {
-    return false
-  }
-
-  limit.count++
-  return true
-}
-
-export function middleware(request: NextRequest) {
+export async function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl
   const sessionToken = request.cookies.get('session_token')?.value
 
-  // Rate limiting for API routes
+  // Rate limiting for API routes. Backed by a shared KV store when
+  // configured (see src/lib/kv.ts) so the limit holds across all Vercel
+  // serverless instances; falls back to a per-instance in-memory limiter
+  // when no KV store is configured yet.
   if (pathname.startsWith('/api/')) {
-    const rateLimitKey = getRateLimitKey(request)
-    if (!checkRateLimit(rateLimitKey)) {
+    const rateLimitKey = `middleware:${getClientIP(request)}`
+    const result = await rateLimitDurable(rateLimitKey, {
+      limit: RATE_LIMIT_MAX_REQUESTS,
+      windowSeconds: RATE_LIMIT_WINDOW_SECONDS,
+    })
+    if (!result.success) {
       return NextResponse.json(
         { error: 'Too many requests. Please try again later.' },
         { status: 429 }

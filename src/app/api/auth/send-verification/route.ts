@@ -3,7 +3,7 @@ import { getCurrentUser } from '@/lib/auth'
 import { prisma } from '@/lib/db'
 import { sendEmail } from '@/lib/email'
 import { emailVerificationTemplate } from '@/lib/email-templates'
-import { rateLimit, getClientIP } from '@/lib/rate-limit'
+import { rateLimitDurable, getClientIP } from '@/lib/rate-limit'
 
 const APP_URL = process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'
 
@@ -28,7 +28,7 @@ export async function POST(request: NextRequest) {
 
     // Rate limit: max 3 sends per hour per user
     const rateLimitKey = `email-verify:${user.id}`
-    const rateLimitResult = rateLimit(rateLimitKey, {
+    const rateLimitResult = await rateLimitDurable(rateLimitKey, {
       limit: 3,
       windowSeconds: 60 * 60, // 1 hour
     })

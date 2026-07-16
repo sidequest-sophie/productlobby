@@ -92,13 +92,18 @@ export async function GET(
       return NextResponse.json({ success: false, error: 'Unauthorized' }, { status: 401 })
     }
 
-    // Verify campaign access
+    // Verify campaign access - only the creator can view their automation rules
     const campaign = await prisma.campaign.findUnique({
       where: { id: params.id },
+      select: { id: true, creatorUserId: true },
     })
 
     if (!campaign) {
       return NextResponse.json({ success: false, error: 'Campaign not found' }, { status: 404 })
+    }
+
+    if (campaign.creatorUserId !== user.id) {
+      return NextResponse.json({ success: false, error: 'Forbidden' }, { status: 403 })
     }
 
     // Return simulated automation rules
@@ -130,13 +135,18 @@ export async function POST(
 
     const { name, trigger, action, conditions } = await request.json()
 
-    // Verify campaign access
+    // Verify campaign access - only the creator can add automation rules
     const campaign = await prisma.campaign.findUnique({
       where: { id: params.id },
+      select: { id: true, creatorUserId: true },
     })
 
     if (!campaign) {
       return NextResponse.json({ success: false, error: 'Campaign not found' }, { status: 404 })
+    }
+
+    if (campaign.creatorUserId !== user.id) {
+      return NextResponse.json({ success: false, error: 'Forbidden' }, { status: 403 })
     }
 
     // Record the rule creation as a ContributionEvent
@@ -186,13 +196,18 @@ export async function PATCH(
 
     const { ruleId, enabled } = await request.json()
 
-    // Verify campaign access
+    // Verify campaign access - only the creator can toggle automation rules
     const campaign = await prisma.campaign.findUnique({
       where: { id: params.id },
+      select: { id: true, creatorUserId: true },
     })
 
     if (!campaign) {
       return NextResponse.json({ success: false, error: 'Campaign not found' }, { status: 404 })
+    }
+
+    if (campaign.creatorUserId !== user.id) {
+      return NextResponse.json({ success: false, error: 'Forbidden' }, { status: 403 })
     }
 
     // Record the rule toggle as a ContributionEvent

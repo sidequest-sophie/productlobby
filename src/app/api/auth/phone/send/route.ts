@@ -2,6 +2,15 @@ import { NextRequest, NextResponse } from 'next/server'
 import { getCurrentUser, createPhoneVerification } from '@/lib/auth'
 import { sendPhoneVerificationSMS } from '@/lib/email'
 import { PhoneVerificationSchema } from '@/types'
+import { rateLimitDurable } from '@/lib/rate-limit'
+
+// SMS sends cost real money and can be used to bomb a phone number with
+// texts, so they're rate limited per authenticated user AND per phone
+// number independently — an attacker can't bypass the per-user cap by
+// cycling accounts against one number, nor bypass the per-number cap by
+// spraying many numbers from one account.
+const SMS_SEND_LIMIT = 3
+const SMS_SEND_WINDOW_SECONDS = 15 * 60
 
 export async function POST(request: NextRequest) {
   try {
@@ -24,6 +33,28 @@ export async function POST(request: NextRequest) {
     }
 
     const { phone } = result.data
+
+    const [userLimit, phoneLimit] = await Promise.all([
+      rateLimitDurable(`phone-send:user:${user.id}`, {
+        limit: SMS_SEND_LIMIT,
+        windowSeconds: SMS_SEND_WINDOW_SECONDS,
+      }),
+      rateLimitDurable(`phone-send:phone:${phone}`, {
+        limit: SMS_SEND_LIMIT,
+        windowSeconds: SMS_SEND_WINDOW_SECONDS,
+      }),
+    ])
+
+    if (!userLimit.success || !phoneLimit.success) {
+      return NextResponse.json(
+        {
+          success: false,
+          error: 'Too many verification codes requested. Please try again later.',
+        },
+        { status: 429 }
+      )
+    }
+
     const code = await createPhoneVerification(user.id, phone)
     const smsResult = await sendPhoneVerificationSMS(phone, code)
 

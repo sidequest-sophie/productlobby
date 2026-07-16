@@ -153,6 +153,19 @@ export async function POST(
       )
     }
 
+    // Survey creation is restricted to the campaign creator or the targeted
+    // brand's team - anyone else may only submit responses (handled above).
+    const isCampaignCreator = campaign.creatorUserId === user.id
+    const isBrandMember = !!(await prisma.brandTeam.findFirst({
+      where: { brandId: campaign.targetedBrandId, userId: user.id },
+    }))
+    if (!isCampaignCreator && !isBrandMember) {
+      return NextResponse.json(
+        { error: 'Unauthorized to create a survey for this campaign' },
+        { status: 403 }
+      )
+    }
+
     if (!title || title.trim().length === 0) {
       return NextResponse.json(
         { error: 'Survey title is required' },

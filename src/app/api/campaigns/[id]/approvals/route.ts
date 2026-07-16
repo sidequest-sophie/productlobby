@@ -50,9 +50,16 @@ export async function GET(
 ) {
   try {
     const user = await getCurrentUser()
+    if (!user) {
+      return NextResponse.json(
+        { success: false, error: 'Unauthorized' },
+        { status: 401 }
+      )
+    }
+
     const campaignId = params.id
 
-    // Verify campaign exists
+    // Verify campaign exists and caller owns it - approval workflow is creator-only
     const campaign = await prisma.campaign.findUnique({
       where: { id: campaignId },
       select: { id: true, creatorUserId: true },
@@ -62,6 +69,13 @@ export async function GET(
       return NextResponse.json(
         { success: false, error: 'Campaign not found' },
         { status: 404 }
+      )
+    }
+
+    if (campaign.creatorUserId !== user.id) {
+      return NextResponse.json(
+        { success: false, error: 'Forbidden' },
+        { status: 403 }
       )
     }
 
@@ -149,7 +163,7 @@ export async function POST(
       )
     }
 
-    // Verify campaign exists
+    // Verify campaign exists and caller owns it - only the creator can approve/reject
     const campaign = await prisma.campaign.findUnique({
       where: { id: campaignId },
       select: { id: true, creatorUserId: true },
@@ -159,6 +173,13 @@ export async function POST(
       return NextResponse.json(
         { success: false, error: 'Campaign not found' },
         { status: 404 }
+      )
+    }
+
+    if (campaign.creatorUserId !== user.id) {
+      return NextResponse.json(
+        { success: false, error: 'Forbidden' },
+        { status: 403 }
       )
     }
 

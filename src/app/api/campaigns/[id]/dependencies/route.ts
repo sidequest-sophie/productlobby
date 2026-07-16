@@ -24,7 +24,35 @@ export async function GET(
   { params }: { params: { id: string } }
 ) {
   try {
+    const user = await getCurrentUser()
+    if (!user) {
+      return NextResponse.json(
+        { error: 'Unauthorized' },
+        { status: 401 }
+      )
+    }
+
     const { id: campaignId } = params
+
+    // Verify campaign exists and caller owns it - dependency planning is creator-only
+    const campaign = await prisma.campaign.findUnique({
+      where: { id: campaignId },
+      select: { id: true, creatorUserId: true },
+    })
+
+    if (!campaign) {
+      return NextResponse.json(
+        { error: 'Campaign not found' },
+        { status: 404 }
+      )
+    }
+
+    if (campaign.creatorUserId !== user.id) {
+      return NextResponse.json(
+        { error: 'Forbidden' },
+        { status: 403 }
+      )
+    }
 
     // Fetch all dependency events for this campaign
     const dependencyEvents = await prisma.contributionEvent.findMany({
@@ -123,15 +151,23 @@ export async function POST(
       )
     }
 
-    // Verify campaign exists
+    // Verify campaign exists and caller owns it
     const campaign = await prisma.campaign.findUnique({
       where: { id: campaignId },
+      select: { id: true, creatorUserId: true },
     })
 
     if (!campaign) {
       return NextResponse.json(
         { error: 'Campaign not found' },
         { status: 404 }
+      )
+    }
+
+    if (campaign.creatorUserId !== user.id) {
+      return NextResponse.json(
+        { error: 'Forbidden' },
+        { status: 403 }
       )
     }
 

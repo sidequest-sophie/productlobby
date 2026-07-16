@@ -168,15 +168,23 @@ export async function POST(
     const campaignId = params.id
     const body = await request.json()
 
-    // Verify campaign exists and user has permission
+    // Verify campaign exists and user is the creator
     const campaign = await prisma.campaign.findUnique({
       where: { id: campaignId },
+      select: { id: true, creatorUserId: true },
     })
 
     if (!campaign) {
       return NextResponse.json(
         { error: 'Campaign not found' },
         { status: 404 }
+      )
+    }
+
+    if (campaign.creatorUserId !== user.id) {
+      return NextResponse.json(
+        { error: 'Unauthorized - only campaign creator can upload media' },
+        { status: 403 }
       )
     }
 

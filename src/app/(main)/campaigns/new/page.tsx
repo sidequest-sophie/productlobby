@@ -1,8 +1,8 @@
 'use client'
 
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
-import { ArrowLeft, Loader2, ChevronLeft, ChevronRight } from 'lucide-react'
+import { ArrowLeft, Loader2, ChevronLeft, ChevronRight, Check } from 'lucide-react'
 import Link from 'next/link'
 import { WizardProvider, useWizard } from '@/components/shared/campaign-wizard/wizard-context'
 import { ProgressBar } from '@/components/shared/campaign-wizard/progress-bar'
@@ -13,16 +13,50 @@ import { StepPitch } from '@/components/shared/campaign-wizard/step-pitch'
 import { StepSuccess } from '@/components/shared/campaign-wizard/step-success'
 import { StepReview } from '@/components/shared/campaign-wizard/step-review'
 
-const STEPS = ['The Idea', 'The Detail', 'Visuals', 'The Pitch', 'Success', 'Review']
+const STEPS = ['The Idea', 'The Detail', 'Visuals', 'The Pitch', 'Goals', 'Review']
 const TOTAL_STEPS = STEPS.length
+
+// Encouraging, benefit-led framing for each step so the wizard reads as building
+// something exciting rather than filling in a form.
+const STEP_INTROS: Record<number, { eyebrow: string; hint: string }> = {
+  1: { eyebrow: "Let's get your idea down", hint: 'Specific ideas get 3x more support.' },
+  2: { eyebrow: 'Add the detail brands look for', hint: 'The what, and what you’d pay for it.' },
+  3: { eyebrow: 'Bring it to life', hint: 'Optional — campaigns with a visual convert far better.' },
+  4: { eyebrow: 'Make people care', hint: 'Your story is what turns a browser into a supporter.' },
+  5: { eyebrow: 'Define what winning looks like', hint: 'Give supporters a goal to rally behind.' },
+  6: { eyebrow: 'Last look before you launch', hint: 'You can edit any section from here.' },
+}
 
 function WizardContent() {
   const router = useRouter()
-  const { currentStep, setCurrentStep, formData, setValidationErrors, saveDraft, clearDraft } =
-    useWizard()
+  const {
+    currentStep,
+    setCurrentStep,
+    formData,
+    setFormData,
+    setValidationErrors,
+    saveDraft,
+    clearDraft,
+    isSaving,
+  } = useWizard()
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
   const [needsAuth, setNeedsAuth] = useState(false)
+
+  // Step 0 handoff: if the visitor typed a one-line idea into the homepage hook,
+  // it arrives as ?idea=… — seed the campaign title with it so they resume mid-thought
+  // rather than facing a blank field. We only prefill for a genuinely fresh start
+  // (no saved draft), so a returning creator's in-progress draft is never overwritten.
+  useEffect(() => {
+    if (typeof window === 'undefined') return
+    const idea = new URLSearchParams(window.location.search).get('idea')?.trim()
+    if (!idea) return
+    const hasDraft = !!window.localStorage.getItem('campaign_wizard_draft')
+    if (hasDraft) return
+    setFormData({ title: idea.slice(0, 100) })
+    // Run once on mount; setFormData is stable via useCallback.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
 
   const validateStep = (step: number): boolean => {
     const errors: Record<string, string> = {}
@@ -149,26 +183,62 @@ function WizardContent() {
       <ProgressBar currentStep={currentStep} totalSteps={TOTAL_STEPS} stepLabels={STEPS} />
 
       <header className="bg-white border-b">
-        <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
-          <Link href="/campaigns" className="inline-flex items-center text-gray-600 hover:text-gray-900 transition">
+        <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-4 flex items-center justify-between gap-4">
+          <Link
+            href="/campaigns"
+            className="inline-flex items-center text-gray-600 hover:text-gray-900 transition rounded focus:outline-none focus-visible:ring-2 focus-visible:ring-violet-500 focus-visible:ring-offset-2"
+          >
             <ArrowLeft className="w-4 h-4 mr-2" />
             Back to Campaigns
           </Link>
+          {/* Reassures creators their work is safe — leverages the sunk-cost that keeps
+              people completing a multi-step flow. */}
+          <span
+            className="inline-flex items-center gap-1.5 text-xs font-medium text-gray-500"
+            aria-live="polite"
+          >
+            {isSaving ? (
+              <>
+                <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                Saving…
+              </>
+            ) : (
+              <>
+                <Check className="w-3.5 h-3.5 text-lime-600" />
+                Draft saved automatically
+              </>
+            )}
+          </span>
         </div>
       </header>
 
       <main className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        <div className="bg-white rounded-2xl shadow-sm border p-8 md:p-12">
+        <div className="bg-white rounded-2xl shadow-sm border p-6 sm:p-8 md:p-12">
           {needsAuth && (
-            <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4 mb-6 text-center">
-              <p className="text-sm font-medium text-yellow-800 mb-2">You need to sign in to create a campaign</p>
-              <a href="/login" className="text-sm text-violet-600 hover:text-violet-700 font-medium underline">
-                Sign in or create an account
+            <div className="bg-violet-50 border border-violet-200 rounded-lg p-4 mb-6 text-center">
+              <p className="text-sm font-semibold text-violet-900 mb-1">You&apos;re one step from launch 🚀</p>
+              <p className="text-sm text-violet-800 mb-3">
+                Create a free account to publish your campaign — everything you&apos;ve written is saved.
+              </p>
+              <a
+                href="/login"
+                className="inline-flex items-center justify-center min-h-[44px] px-5 rounded-lg bg-violet-600 text-white text-sm font-semibold hover:bg-violet-700 transition"
+              >
+                Sign in &amp; launch
               </a>
             </div>
           )}
 
-          <div className="animate-fade-in">
+          {STEP_INTROS[currentStep] && (
+            <div className="mb-6">
+              <p className="text-sm font-semibold text-violet-600">
+                Step {currentStep} of {TOTAL_STEPS} · {STEP_INTROS[currentStep].eyebrow}
+              </p>
+              <p className="text-sm text-gray-500 mt-1">{STEP_INTROS[currentStep].hint}</p>
+            </div>
+          )}
+
+          <div key={currentStep} className="animate-fade-in">
             {renderStep()}
           </div>
 
@@ -183,7 +253,7 @@ function WizardContent() {
               type="button"
               onClick={handlePrevious}
               disabled={currentStep === 1}
-              className="inline-flex items-center gap-2 px-6 py-3 rounded-lg border border-gray-200 text-gray-900 font-semibold hover:bg-gray-50 transition disabled:opacity-50 disabled:cursor-not-allowed"
+              className="inline-flex items-center gap-2 min-h-[44px] px-6 py-3 rounded-lg border border-gray-200 text-gray-900 font-semibold hover:bg-gray-50 transition disabled:opacity-50 disabled:cursor-not-allowed focus:outline-none focus-visible:ring-2 focus-visible:ring-violet-500 focus-visible:ring-offset-2"
             >
               <ChevronLeft className="w-4 h-4" />
               Previous
@@ -193,7 +263,7 @@ function WizardContent() {
               <button
                 type="button"
                 onClick={handleNext}
-                className="inline-flex items-center gap-2 px-8 py-3 rounded-lg bg-violet-600 text-white font-semibold hover:bg-violet-700 transition"
+                className="inline-flex items-center gap-2 min-h-[44px] px-8 py-3 rounded-lg bg-violet-600 text-white font-semibold hover:bg-violet-700 transition focus:outline-none focus-visible:ring-2 focus-visible:ring-violet-500 focus-visible:ring-offset-2"
               >
                 Next
                 <ChevronRight className="w-4 h-4" />
@@ -203,17 +273,16 @@ function WizardContent() {
                 type="button"
                 onClick={handleLaunch}
                 disabled={loading}
-                className="inline-flex items-center gap-2 px-8 py-3 rounded-lg bg-lime-500 text-white font-semibold hover:bg-lime-600 transition disabled:opacity-50 disabled:cursor-not-allowed"
+                className="inline-flex items-center gap-2 min-h-[44px] px-8 py-3 rounded-lg bg-lime-500 text-gray-900 font-semibold hover:bg-lime-600 transition disabled:opacity-50 disabled:cursor-not-allowed focus:outline-none focus-visible:ring-2 focus-visible:ring-lime-600 focus-visible:ring-offset-2"
               >
                 {loading ? (
                   <>
                     <Loader2 className="w-4 h-4 animate-spin" />
-                    Launching...
+                    Launching…
                   </>
                 ) : (
                   <>
-                    Launch Campaign
-                    <ChevronRight className="w-4 h-4" />
+                    Launch Campaign 🚀
                   </>
                 )}
               </button>

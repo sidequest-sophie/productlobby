@@ -28,21 +28,15 @@ export async function GET(request: NextRequest) {
 
     const brandIds = brandMemberships.map((b) => b.brandId)
 
+    // The brand dashboard is only for users who belong to a brand's team.
+    // A signed-in supporter with no BrandTeam membership at all should not
+    // be able to load it (mirrors the redirect-on-403 pattern used by
+    // /admin and /admin/analytics for non-admins).
     if (brandIds.length === 0) {
-      return NextResponse.json({
-        success: true,
-        data: {
-          totalCampaignsMentioningBrand: 0,
-          totalLobbiesTargetingBrand: 0,
-          sentimentScore: 0,
-          campaigns: [],
-          stats: {
-            campaignCount: 0,
-            lobbyCount: 0,
-            responseCount: 0,
-          },
-        },
-      })
+      return NextResponse.json(
+        { success: false, error: 'Forbidden - not a member of any brand team' },
+        { status: 403 }
+      )
     }
 
     // Get campaigns targeting these brands

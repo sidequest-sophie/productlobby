@@ -1,4 +1,5 @@
 import crypto from 'crypto'
+import { incrWithExpiry, isKvConfigured } from './kv'
 
 interface CSRFToken {
   token: string
@@ -168,10 +169,10 @@ export function checkPasswordStrength(password: string): {
   }
 }
 
-export function rateLimitTokenBucket(
+function inMemoryTokenBucket(
   key: string,
-  maxTokens: number = RATE_LIMIT_MAX_TOKENS,
-  refillRate: number = RATE_LIMIT_WINDOW
+  maxTokens: number,
+  refillRate: number
 ): boolean {
   const now = Date.now()
   let bucket = RATE_LIMIT_BUCKETS.get(key)
@@ -196,6 +197,54 @@ export function rateLimitTokenBucket(
   }
 
   return false
+}
+
+let hasLoggedTokenBucketNoKv = false
+let hasLoggedTokenBucketKvError = false
+
+/**
+ * Token-bucket style rate limit check. Backed by a shared KV store
+ * (Upstash REST API) when configured, via a fixed-window INCR+EXPIRE
+ * approximation of the bucket (windowSeconds = refillRate), so the limit
+ * holds across all Vercel serverless instances. Falls back to an
+ * in-memory token bucket - the original algorithm - when no KV store is
+ * configured, or if the KV request fails.
+ *
+ * No existing code calls this today (see security audit #15 - it was
+ * dead code), so it is safe to make this async as part of durability
+ * hardening without breaking any caller.
+ */
+export async function rateLimitTokenBucket(
+  key: string,
+  maxTokens: number = RATE_LIMIT_MAX_TOKENS,
+  refillRate: number = RATE_LIMIT_WINDOW
+): Promise<boolean> {
+  if (isKvConfigured()) {
+    try {
+      const windowSeconds = Math.max(1, Math.round(refillRate / 1000))
+      const count = await incrWithExpiry(`tb:${key}`, windowSeconds)
+      return count <= maxTokens
+    } catch (err) {
+      if (!hasLoggedTokenBucketKvError && process.env.NODE_ENV === 'production') {
+        hasLoggedTokenBucketKvError = true
+        console.error(
+          '[security] KV token-bucket request failed, falling back to in-memory rate limiting:',
+          err instanceof Error ? err.message : err
+        )
+      }
+      return inMemoryTokenBucket(key, maxTokens, refillRate)
+    }
+  }
+
+  if (!hasLoggedTokenBucketNoKv && process.env.NODE_ENV === 'production') {
+    hasLoggedTokenBucketNoKv = true
+    console.warn(
+      '[security] No KV store configured - rateLimitTokenBucket falling back to ' +
+        'in-memory (non-durable) rate limiting.'
+    )
+  }
+
+  return inMemoryTokenBucket(key, maxTokens, refillRate)
 }
 
 export function generateCSPHeader(): string {

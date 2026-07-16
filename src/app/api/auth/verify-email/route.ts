@@ -1,12 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/db'
-import { rateLimit, getClientIP } from '@/lib/rate-limit'
+import { rateLimitDurable, getClientIP } from '@/lib/rate-limit'
 
 export async function POST(request: NextRequest) {
   try {
     // Rate limit: 10 attempts per IP per 15 minutes
     const ip = getClientIP(request)
-    const ipLimit = rateLimit(`verify-email:ip:${ip}`, {
+    const ipLimit = await rateLimitDurable(`verify-email:ip:${ip}`, {
       limit: 10,
       windowSeconds: 15 * 60,
     })

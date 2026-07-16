@@ -1,3 +1,4 @@
+import crypto from 'crypto'
 import { cookies } from 'next/headers'
 import { prisma } from '@/lib/db'
 
@@ -275,27 +276,57 @@ export async function createPhoneVerification(userId: string, phone: string): Pr
   }
 }
 
+/** Max wrong-code guesses allowed against a single verification request before it locks. */
+const MAX_PHONE_VERIFICATION_ATTEMPTS = 5
+
 /**
  * Verify a phone verification code
- * Returns true if code is valid, false otherwise
+ * Returns true if code is valid, false otherwise.
+ *
+ * Brute-force protection: looks up the most recent unverified, unexpired
+ * verification request for the user (rather than matching on the
+ * submitted code directly) so wrong guesses can be counted against that
+ * specific request. After MAX_PHONE_VERIFICATION_ATTEMPTS failed guesses,
+ * the request is locked and further attempts against it are rejected
+ * without even comparing the code (the user must request a new code,
+ * which is itself rate limited - see api/auth/phone/send).
  */
 export async function verifyPhoneCode(userId: string, code: string): Promise<boolean> {
   try {
     const verification = await prisma.phoneVerification.findFirst({
       where: {
         userId,
-        code,
+        verifiedAt: null,
         expiresAt: {
           gt: new Date(),
         },
       },
+      orderBy: { createdAt: 'desc' },
     })
 
     if (!verification) {
       return false
     }
 
-    // Mark as verified
+    if (verification.attempts >= MAX_PHONE_VERIFICATION_ATTEMPTS) {
+      return false
+    }
+
+    const submitted = Buffer.from(code)
+    const expected = Buffer.from(verification.code)
+    const isMatch =
+      submitted.length === expected.length &&
+      crypto.timingSafeEqual(submitted, expected)
+
+    if (!isMatch) {
+      await prisma.phoneVerification.update({
+        where: { id: verification.id },
+        data: { attempts: { increment: 1 } },
+      })
+      return false
+    }
+
+    // Correct code — consume the verification request.
     await prisma.phoneVerification.update({
       where: { id: verification.id },
       data: { verifiedAt: new Date() },
