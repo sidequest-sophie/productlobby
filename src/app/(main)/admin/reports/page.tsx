@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useEffect } from 'react'
+import { useRouter } from 'next/navigation'
 import { AlertCircle, CheckCircle, Clock, X } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { formatDate } from '@/lib/utils'
@@ -75,6 +76,7 @@ const REASON_LABELS: Record<string, string> = {
 }
 
 export default function AdminReportsPage() {
+  const router = useRouter()
   const [reports, setReports] = useState<Report[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
@@ -98,6 +100,10 @@ export default function AdminReportsPage() {
         params.append('limit', '20')
 
         const response = await fetch(`/api/admin/reports?${params}`)
+        if (response.status === 401 || response.status === 403) {
+          router.push('/login')
+          return
+        }
         if (!response.ok) {
           throw new Error('Failed to fetch reports')
         }

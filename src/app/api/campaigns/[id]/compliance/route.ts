@@ -24,19 +24,35 @@ export async function GET(
   { params }: { params: { id: string } }
 ) {
   try {
+    const user = await getCurrentUser()
+    if (!user) {
+      return NextResponse.json(
+        { error: 'Unauthorized' },
+        { status: 401 }
+      )
+    }
+
     const { id } = params
 
     // Support both UUID and slug-based lookup
     const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id)
     const campaign = await prisma.campaign.findUnique({
       where: isUuid ? { id } : { slug: id },
-      select: { id: true },
+      select: { id: true, creatorUserId: true },
     })
 
     if (!campaign) {
       return NextResponse.json(
         { error: 'Campaign not found' },
         { status: 404 }
+      )
+    }
+
+    // Compliance items (legal/financial/regulatory status, evidence, notes) are creator-only
+    if (campaign.creatorUserId !== user.id) {
+      return NextResponse.json(
+        { error: 'Forbidden' },
+        { status: 403 }
       )
     }
 

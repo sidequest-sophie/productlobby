@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/db'
 import { getCurrentUser } from '@/lib/auth'
-import { rateLimit, getClientIP } from '@/lib/rate-limit'
+import { rateLimitDurable, getClientIP } from '@/lib/rate-limit'
 import { notifyNewLobby } from '@/lib/notifications'
 
 // POST /api/campaigns/[id]/lobby - Create a lobby
@@ -19,7 +19,7 @@ export async function POST(
     }
 
     // Rate limit: 20 lobby actions per user per hour
-    const userLimit = rateLimit(`lobby:user:${user.id}`, {
+    const userLimit = await rateLimitDurable(`lobby:user:${user.id}`, {
       limit: 20,
       windowSeconds: 60 * 60,
     })

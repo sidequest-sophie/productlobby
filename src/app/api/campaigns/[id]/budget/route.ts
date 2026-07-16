@@ -59,12 +59,21 @@ export async function GET(
       where: {
         OR: [{ id: campaignId }, { slug: campaignId }],
       },
+      select: { id: true, creatorUserId: true },
     })
 
     if (!campaign) {
       return NextResponse.json(
         { success: false, error: 'Campaign not found' },
         { status: 404 }
+      )
+    }
+
+    // Budget/financial planning data is creator-only
+    if (campaign.creatorUserId !== user.id) {
+      return NextResponse.json(
+        { success: false, error: 'Forbidden: Only campaign creator can view the budget' },
+        { status: 403 }
       )
     }
 

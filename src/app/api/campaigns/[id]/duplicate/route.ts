@@ -38,6 +38,15 @@ export async function POST(
       )
     }
 
+    // Only the creator can duplicate their own campaign - prevents copying
+    // another user's unpublished draft content via this endpoint
+    if (originalCampaign.creatorUserId !== user.id) {
+      return NextResponse.json(
+        { error: 'Unauthorized - only campaign creator can duplicate this campaign' },
+        { status: 403 }
+      )
+    }
+
     // Create new campaign with copied data
     const newTitle = `${originalCampaign.title} (Copy)`
     const newSlug = slugify(newTitle)

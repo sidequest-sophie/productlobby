@@ -223,10 +223,11 @@ export const CampaignCard: React.FC<CampaignCardProps> = ({
             <button
               onClick={handleCompareToggle}
               className={cn(
-                'w-6 h-6 rounded border-2 flex items-center justify-center transition-all',
+                'w-8 h-8 rounded border-2 flex items-center justify-center transition-all',
+                'focus:outline-none focus-visible:ring-2 focus-visible:ring-violet-500 focus-visible:ring-offset-1',
                 isSelected
                   ? 'bg-violet-600 border-violet-600'
-                  : 'bg-white border-gray-300 hover:border-violet-400'
+                  : 'bg-white/90 border-gray-300 hover:border-violet-400'
               )}
               title={isSelected ? 'Remove from comparison' : 'Add to comparison'}
               aria-label={isSelected ? 'Remove from comparison' : 'Add to comparison'}
@@ -265,16 +266,33 @@ export const CampaignCard: React.FC<CampaignCardProps> = ({
           {/* Lobby Count & Intensity Bar */}
           <div className="mb-4">
             <div className="flex items-center justify-between mb-2">
-              <span className="text-sm font-medium text-foreground">
-                {lobbyCount} lobbies
+              <span className="text-sm font-semibold text-foreground">
+                {lobbyCount.toLocaleString()} {lobbyCount === 1 ? 'lobby' : 'lobbies'}
               </span>
-              <span className="text-xs text-gray-500">
-                {completenessScore}% complete
-              </span>
+              {/* Lead with buying intent — the signal a supporter (or a brand) actually
+                  cares about — instead of an internal completeness percentage. */}
+              {totalIntensity > 0 && highPercent > 0 ? (
+                <span className="inline-flex items-center gap-1 text-xs font-medium text-violet-700">
+                  <span aria-hidden="true">🔥</span>
+                  {Math.round(highPercent)}% would buy
+                </span>
+              ) : (
+                <span className="text-xs font-medium text-lime-700">Be the first</span>
+              )}
             </div>
 
             {/* Intensity Mini-Bar */}
-            <div className="flex h-2 rounded-full overflow-hidden bg-gray-200">
+            <div
+              className="flex h-2 rounded-full overflow-hidden bg-gray-200"
+              role="img"
+              aria-label={
+                totalIntensity > 0
+                  ? `Buying intent: ${Math.round(highPercent)}% take my money, ${Math.round(
+                      mediumPercent
+                    )}% probably buy, ${Math.round(lowPercent)}% neat idea`
+                  : 'No lobbies yet'
+              }
+            >
               {lowPercent > 0 && (
                 <div
                   className="bg-green-500 transition-all duration-300"
@@ -341,14 +359,13 @@ export const CampaignCard: React.FC<CampaignCardProps> = ({
             </div>
           )}
 
-          {/* CTA Button */}
+          {/* CTA Button — lets the click fall through to the wrapping campaign link
+              (previously it preventDefault()'d and did nothing, a visible dead end). */}
           <Button
             variant="primary"
             size="default"
             className="w-full mt-auto"
-            onClick={(e) => {
-              e.preventDefault()
-            }}
+            tabIndex={-1}
           >
             Lobby for this!
           </Button>

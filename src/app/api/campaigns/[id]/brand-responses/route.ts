@@ -30,9 +30,14 @@ export async function GET(
       return NextResponse.json({ error: 'Campaign not found' }, { status: 404 })
     }
 
-    // Check if user is brand owner
-    const isBrandOwner = user && campaign.targetedBrand?.id === user.id
-    if (!isBrandOwner) {
+    // Check if user is a member of the targeted brand's team
+    const isBrandMember =
+      !!user &&
+      !!campaign.targetedBrand &&
+      !!(await prisma.brandTeam.findFirst({
+        where: { brandId: campaign.targetedBrand.id, userId: user.id },
+      }))
+    if (!isBrandMember) {
       return NextResponse.json(
         { error: 'Unauthorized' },
         { status: 403 }
@@ -109,9 +114,14 @@ export async function POST(
       return NextResponse.json({ error: 'Campaign not found' }, { status: 404 })
     }
 
-    // Check if user is brand owner
-    const isBrandOwner = user && campaign.targetedBrand?.id === user.id
-    if (!isBrandOwner || !user) {
+    // Check if user is a member of the targeted brand's team
+    const isBrandMember =
+      !!user &&
+      !!campaign.targetedBrand &&
+      !!(await prisma.brandTeam.findFirst({
+        where: { brandId: campaign.targetedBrand.id, userId: user.id },
+      }))
+    if (!isBrandMember || !user) {
       return NextResponse.json(
         { error: 'Unauthorized' },
         { status: 403 }
@@ -173,9 +183,14 @@ export async function DELETE(
       return NextResponse.json({ error: 'Campaign not found' }, { status: 404 })
     }
 
-    // Check if user is brand owner
-    const isBrandOwner = user && campaign.targetedBrand?.id === user.id
-    if (!isBrandOwner || !user) {
+    // Check if user is a member of the targeted brand's team
+    const isBrandMember =
+      !!user &&
+      !!campaign.targetedBrand &&
+      !!(await prisma.brandTeam.findFirst({
+        where: { brandId: campaign.targetedBrand.id, userId: user.id },
+      }))
+    if (!isBrandMember || !user) {
       return NextResponse.json(
         { error: 'Unauthorized' },
         { status: 403 }

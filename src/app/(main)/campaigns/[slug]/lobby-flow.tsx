@@ -41,6 +41,8 @@ interface LobbyFlowProps {
   isAuthenticated?: boolean
   /** Called when a pending lobby saved before an auth redirect has been restored. */
   onResumePending?: () => void
+  /** Total lobbies already on this campaign — used to show live momentum in the flow. */
+  lobbyCount?: number
 }
 
 type IntensityLevel = 'low' | 'medium' | 'high' | null
@@ -49,7 +51,12 @@ type SubmitState = 'idle' | 'submitting' | 'success' | 'error' | 'duplicate' | '
 
 type PreferenceValue = string | string[]
 
-type StepKey = 'intensity' | 'preferences' | 'wishlist' | 'reason' | 'save'
+// Wishlist + reason now share one optional "note" screen so a first-time
+// supporter faces at most three taps between opening the modal and lobbying.
+type StepKey = 'intensity' | 'preferences' | 'note' | 'save'
+
+const MAX_WISHLIST = 500
+const MAX_REASON = 280
 
 const INTENSITY_MAP: Record<string, string> = {
   low: 'NEAT_IDEA',
@@ -61,31 +68,28 @@ const INTENSITY_OPTIONS = [
   {
     id: 'low',
     level: 'low',
-    title: 'Yeah — neat idea, I could be interested',
+    title: 'Neat idea',
     emoji: '💡',
-    description: 'This sounds like a good product, but I\'m not sure I\'d buy it',
-    bgColor: 'bg-green-50',
-    borderColor: 'border-green-500',
+    description: 'Cool concept — I might be interested',
+    selectedClasses: 'bg-green-50 border-green-500 ring-2 ring-green-200',
     dotColor: 'bg-green-500',
   },
   {
     id: 'medium',
     level: 'medium',
-    title: 'I\'d probably buy this',
+    title: "I'd probably buy this",
     emoji: '🛍️',
-    description: 'I\'d seriously consider buying this if it became available',
-    bgColor: 'bg-yellow-50',
-    borderColor: 'border-yellow-400',
+    description: "I'd seriously consider buying it if it shipped",
+    selectedClasses: 'bg-yellow-50 border-yellow-400 ring-2 ring-yellow-200',
     dotColor: 'bg-yellow-400',
   },
   {
     id: 'high',
     level: 'high',
-    title: 'Shut up and take my money!',
+    title: 'Take my money!',
     emoji: '🔥',
-    description: 'I absolutely want this and would buy it immediately',
-    bgColor: 'bg-violet-50',
-    borderColor: 'border-violet-500',
+    description: "I want this — I'd buy it the day it drops",
+    selectedClasses: 'bg-violet-50 border-violet-500 ring-2 ring-violet-200',
     dotColor: 'bg-violet-600',
   },
 ]
@@ -104,13 +108,14 @@ export function LobbyFlow({
   preferenceFields = [],
   isAuthenticated = false,
   onResumePending,
+  lobbyCount = 0,
 }: LobbyFlowProps) {
   // Step 2 (preferences) only exists when the campaign actually defines preference
-  // fields — campaigns with none skip straight from intensity to the wishlist step.
+  // fields — campaigns with none skip straight from intensity to the note step.
   const steps = useMemo<StepKey[]>(() => {
     const s: StepKey[] = ['intensity']
     if (preferenceFields.length > 0) s.push('preferences')
-    s.push('wishlist', 'reason', 'save')
+    s.push('note', 'save')
     return s
   }, [preferenceFields.length])
 
@@ -121,6 +126,7 @@ export function LobbyFlow({
   const [reasonText, setReasonText] = useState('')
   const [submitState, setSubmitState] = useState<SubmitState>('idle')
   const [errorMessage, setErrorMessage] = useState('')
+  const [shareCopied, setShareCopied] = useState(false)
 
   const currentStep = steps[currentStepIndex] ?? 'intensity'
 
@@ -156,11 +162,19 @@ export function LobbyFlow({
     setReasonText('')
     setSubmitState('idle')
     setErrorMessage('')
+    setShareCopied(false)
   }
 
   const handleClose = () => {
+    // A completed (or already-counted) lobby changes the live stats — refresh on the
+    // way out so the page reflects the new count, but only then, so we never yank a
+    // celebrating supporter off the screen mid-moment.
+    const shouldRefresh = submitState === 'success' || submitState === 'duplicate'
     handleReset()
     onClose()
+    if (shouldRefresh) {
+      window.location.reload()
+    }
   }
 
   const handleNext = () => {
@@ -169,6 +183,35 @@ export function LobbyFlow({
 
   const handlePrevious = () => {
     setCurrentStepIndex((prev) => Math.max(prev - 1, 0))
+  }
+
+  // The intensity choice is the whole point of the flow, so make it one tap:
+  // selecting an answer records it and advances, the way a gut reaction should feel.
+  const handleSelectIntensity = (level: IntensityLevel) => {
+    setIntensity(level)
+    window.setTimeout(() => {
+      setCurrentStepIndex((prev) => Math.min(prev + 1, steps.length - 1))
+    }, 240)
+  }
+
+  const handleShare = async () => {
+    const url =
+      typeof window !== 'undefined'
+        ? `${window.location.origin}/campaigns/${campaignSlug}`
+        : `/campaigns/${campaignSlug}`
+    try {
+      if (typeof navigator !== 'undefined' && navigator.share) {
+        await navigator.share({ title: campaignTitle, url })
+        return
+      }
+      if (typeof navigator !== 'undefined' && navigator.clipboard) {
+        await navigator.clipboard.writeText(url)
+        setShareCopied(true)
+        window.setTimeout(() => setShareCopied(false), 2000)
+      }
+    } catch {
+      // User dismissed the share sheet, or clipboard was blocked — nothing to do.
+    }
   }
 
   const buildPreferencesPayload = () =>
@@ -254,12 +297,8 @@ export function LobbyFlow({
 
       clearPendingLobby()
       setSubmitState('success')
-      // Auto-close after success
-      setTimeout(() => {
-        handleClose()
-        // Refresh the page to show updated stats
-        window.location.reload()
-      }, 2000)
+      // Deliberately no auto-close: the success screen offers a share prompt, and
+      // closing (via the button or the X) refreshes the page to show the new count.
     } catch (err: any) {
       setSubmitState('error')
       setErrorMessage(err.message || 'Something went wrong. Please try again.')
@@ -358,14 +397,19 @@ export function LobbyFlow({
             {steps.map((step, idx) => (
               <button
                 key={step}
+                type="button"
                 onClick={() => currentStepIndex >= idx && setCurrentStepIndex(idx)}
+                disabled={currentStepIndex < idx}
+                aria-label={`Step ${idx + 1} of ${steps.length}`}
+                aria-current={currentStepIndex === idx ? 'step' : undefined}
                 className={cn(
-                  'w-3 h-3 rounded-full transition-all duration-200',
+                  'h-3 rounded-full transition-all duration-200',
+                  'focus:outline-none focus-visible:ring-2 focus-visible:ring-violet-500 focus-visible:ring-offset-1',
                   currentStepIndex === idx
                     ? 'bg-violet-600 w-8'
                     : currentStepIndex > idx
-                      ? 'bg-lime-500'
-                      : 'bg-gray-300'
+                      ? 'bg-lime-500 w-3 cursor-pointer'
+                      : 'bg-gray-300 w-3'
                 )}
               />
             ))}
@@ -376,62 +420,61 @@ export function LobbyFlow({
         {currentStep === 'intensity' && (
           <>
             <ModalHeader>
-              <ModalTitle className="text-2xl">How much do you want this?</ModalTitle>
+              <ModalTitle className="text-2xl">
+                How badly do you want {brandName?.trim() ? 'this' : 'this to exist'}?
+              </ModalTitle>
+              <p className="text-sm text-gray-600 mt-2">
+                Go with your gut — there are no wrong answers. Tap one to add your voice.
+              </p>
+              {lobbyCount > 0 && (
+                <p className="mt-3 inline-flex items-center gap-1.5 text-sm font-medium text-violet-700">
+                  <span aria-hidden="true">🔥</span>
+                  Join {lobbyCount.toLocaleString()} {lobbyCount === 1 ? 'person' : 'people'} already
+                  lobbying
+                </p>
+              )}
             </ModalHeader>
             <ModalBody className="max-h-[60vh] overflow-y-auto">
-              <p className="text-gray-600 mb-6">
-                Your answer helps us understand how passionate your community is.
-              </p>
               <div className="space-y-3">
-                {INTENSITY_OPTIONS.map((option) => (
-                  <button
-                    key={option.id}
-                    onClick={() => setIntensity(option.level as IntensityLevel)}
-                    className={cn(
-                      'w-full p-4 rounded-lg border-2 transition-all duration-200 text-left',
-                      intensity === option.level
-                        ? `${option.bgColor} ${option.borderColor} border-2 shadow-md`
-                        : `${option.bgColor} border-gray-200 hover:border-gray-300`
-                    )}
-                  >
-                    <div className="flex items-start gap-3">
-                      <span className="text-2xl">{option.emoji}</span>
-                      <div className="flex-1">
-                        <p className="font-medium text-foreground">{option.title}</p>
-                        <p className="text-sm text-gray-600">{option.description}</p>
+                {INTENSITY_OPTIONS.map((option) => {
+                  const isSelected = intensity === option.level
+                  return (
+                    <button
+                      key={option.id}
+                      onClick={() => handleSelectIntensity(option.level as IntensityLevel)}
+                      aria-pressed={isSelected}
+                      className={cn(
+                        'group w-full min-h-[64px] p-4 rounded-xl border-2 text-left',
+                        'transition-all duration-200 motion-safe:hover:-translate-y-0.5 hover:shadow-md',
+                        'focus:outline-none focus-visible:ring-2 focus-visible:ring-violet-500 focus-visible:ring-offset-2',
+                        isSelected
+                          ? option.selectedClasses
+                          : 'bg-white border-gray-200 hover:border-violet-300'
+                      )}
+                    >
+                      <div className="flex items-center gap-4">
+                        <span className="text-3xl" aria-hidden="true">
+                          {option.emoji}
+                        </span>
+                        <div className="flex-1">
+                          <p className="font-semibold text-foreground">{option.title}</p>
+                          <p className="text-sm text-gray-600">{option.description}</p>
+                        </div>
+                        <span
+                          aria-hidden="true"
+                          className="text-gray-300 transition-transform duration-200 motion-safe:group-hover:translate-x-1"
+                        >
+                          →
+                        </span>
                       </div>
-                      <div
-                        className={cn(
-                          'w-5 h-5 rounded-full border-2 flex-shrink-0 mt-1',
-                          intensity === option.level
-                            ? `${option.borderColor} ${option.dotColor}`
-                            : 'border-gray-300'
-                        )}
-                      >
-                        {intensity === option.level && (
-                          <div className="w-full h-full flex items-center justify-center">
-                            <div className="w-2 h-2 bg-white rounded-full"></div>
-                          </div>
-                        )}
-                      </div>
-                    </div>
-                  </button>
-                ))}
+                    </button>
+                  )
+                })}
               </div>
             </ModalBody>
             <ModalFooter className="sticky bottom-0 z-10">
-              <Button
-                variant="ghost"
-                onClick={handleClose}
-              >
+              <Button variant="ghost" onClick={handleClose}>
                 Cancel
-              </Button>
-              <Button
-                variant="primary"
-                onClick={handleNext}
-                disabled={!intensity}
-              >
-                Continue
               </Button>
             </ModalFooter>
           </>
@@ -479,73 +522,53 @@ export function LobbyFlow({
           </>
         )}
 
-        {/* Step: Wishlist */}
-        {currentStep === 'wishlist' && (
+        {/* Step: Add a note (wishlist + reason on one optional screen) */}
+        {currentStep === 'note' && (
           <>
             <ModalHeader>
-              <ModalTitle className="text-2xl">This would be cooler if...</ModalTitle>
+              <ModalTitle className="text-2xl">Want to add anything? (optional)</ModalTitle>
               <p className="text-sm text-gray-600 mt-2">
-                Share your ideas to help shape the final product
+                A line or two makes your voice count for more — but you can skip straight to saving.
               </p>
             </ModalHeader>
             <ModalBody className="max-h-[60vh] overflow-y-auto">
-              <div className="space-y-4">
+              <div className="space-y-6">
                 <div>
+                  <label className="block text-sm font-semibold text-foreground mb-2">
+                    This would be even better if…
+                  </label>
                   <Textarea
-                    placeholder="e.g., came in different materials, had more sizing options, included a feature you're missing..."
+                    placeholder="e.g. more sizing options, came in recycled materials, had a feature you're missing…"
                     value={wishlistText}
-                    onChange={(e) => setWishlistText(e.target.value)}
-                    className="min-h-32"
+                    onChange={(e) => setWishlistText(e.target.value.slice(0, MAX_WISHLIST))}
+                    maxLength={MAX_WISHLIST}
+                    className="min-h-28"
                   />
                   <div className="flex justify-between items-center mt-2">
-                    <p className="text-xs text-gray-600">e.g. materials, sizing, colours, features</p>
-                    <span className="text-xs text-gray-600">
-                      {wishlistText.length}/500
+                    <p className="text-xs text-gray-600">Materials, sizing, colours, features…</p>
+                    <span className="text-xs text-gray-500">
+                      {wishlistText.length}/{MAX_WISHLIST}
                     </span>
                   </div>
                 </div>
-              </div>
-            </ModalBody>
-            <ModalFooter className="sticky bottom-0 z-10">
-              <Button variant="ghost" onClick={handlePrevious}>
-                Back
-              </Button>
-              <div className="flex-1"></div>
-              <button
-                onClick={handleNext}
-                className="text-violet-600 hover:text-violet-700 text-sm font-medium"
-              >
-                Skip
-              </button>
-              <Button variant="primary" onClick={handleNext}>
-                Continue
-              </Button>
-            </ModalFooter>
-          </>
-        )}
 
-        {/* Step: Why this product matters (Reason) */}
-        {currentStep === 'reason' && (
-          <>
-            <ModalHeader>
-              <ModalTitle className="text-2xl">Why do you want this product?</ModalTitle>
-              <p className="text-sm text-gray-600 mt-2">
-                Share why this product matters to you (optional)
-              </p>
-            </ModalHeader>
-            <ModalBody className="max-h-[60vh] overflow-y-auto">
-              <div className="space-y-4">
                 <div>
+                  <label className="block text-sm font-semibold text-foreground mb-2">
+                    Why do you want it?
+                  </label>
                   <Textarea
-                    placeholder="e.g., It would solve my daily problem with..., I've been looking for this because..., My friends would love this because..."
+                    placeholder="e.g. It'd solve a daily problem for me… I've searched everywhere for this…"
                     value={reasonText}
-                    onChange={(e) => setReasonText(e.target.value)}
-                    className="min-h-32"
+                    onChange={(e) => setReasonText(e.target.value.slice(0, MAX_REASON))}
+                    maxLength={MAX_REASON}
+                    className="min-h-24"
                   />
                   <div className="flex justify-between items-center mt-2">
-                    <p className="text-xs text-gray-600">Your reason helps the brand understand customer motivations</p>
-                    <span className="text-xs text-gray-600">
-                      {reasonText.length}/280
+                    <p className="text-xs text-gray-600">
+                      Helps {brandLabel} understand what buyers actually want
+                    </p>
+                    <span className="text-xs text-gray-500">
+                      {reasonText.length}/{MAX_REASON}
                     </span>
                   </div>
                 </div>
@@ -558,7 +581,7 @@ export function LobbyFlow({
               <div className="flex-1"></div>
               <button
                 onClick={handleNext}
-                className="text-violet-600 hover:text-violet-700 text-sm font-medium"
+                className="text-sm font-medium text-gray-500 hover:text-gray-700 px-2"
               >
                 Skip
               </button>
@@ -580,21 +603,37 @@ export function LobbyFlow({
                     ? 'Already lobbied'
                     : submitState === 'auth_required'
                       ? 'Sign in to lobby'
-                      : 'Save your lobby & preferences'}
+                      : 'One tap and your voice is counted'}
               </ModalTitle>
               {submitState === 'idle' && (
                 <p className="text-sm text-gray-600 mt-2">
-                  We'll notify you when the brand responds to this campaign
+                  {lobbyCount > 0
+                    ? `You'll be supporter #${(lobbyCount + 1).toLocaleString()}. `
+                    : "You'll be the very first supporter. "}
+                  We'll let you know the moment {brandLabel} responds.
                 </p>
               )}
             </ModalHeader>
             <ModalBody className="max-h-[60vh] overflow-y-auto space-y-6">
               {/* Success State */}
               {submitState === 'success' && (
-                <div className="text-center py-8">
-                  <div className="text-6xl mb-4">🎉</div>
-                  <p className="text-lg font-medium text-foreground mb-2">Your lobby has been saved!</p>
-                  <p className="text-sm text-gray-600">Thanks for supporting this campaign. We'll keep you updated.</p>
+                <div className="text-center py-6">
+                  <div className="text-6xl mb-4 motion-safe:animate-bounce-gentle">🎉</div>
+                  <p className="text-lg font-semibold text-foreground mb-1">You're in!</p>
+                  <p className="text-sm text-gray-600 mb-6">
+                    {lobbyCount > 0
+                      ? `You're supporter #${(lobbyCount + 1).toLocaleString()} — that's real demand ${brandLabel} can see.`
+                      : `You're the first to lobby — that's how every great product starts.`}
+                  </p>
+                  <div className="bg-lime-50 border border-lime-200 rounded-lg p-4">
+                    <p className="text-sm font-medium text-foreground mb-3">
+                      Campaigns grow fastest when supporters bring friends. Know someone who&apos;d
+                      want this too?
+                    </p>
+                    <Button variant="accent" size="default" onClick={handleShare} className="w-full sm:w-auto">
+                      {shareCopied ? '✓ Link copied!' : 'Share this campaign'}
+                    </Button>
+                  </div>
                 </div>
               )}
 
@@ -699,15 +738,16 @@ export function LobbyFlow({
                   <Button
                     variant="primary"
                     onClick={handleSave}
+                    loading={submitState === 'submitting'}
                     disabled={submitState === 'submitting'}
                   >
-                    {submitState === 'submitting' ? 'Saving...' : 'Save My Lobby'}
+                    {submitState === 'submitting' ? 'Adding your lobby…' : 'Count me in!'}
                   </Button>
                 </>
               )}
               {(submitState === 'success' || submitState === 'duplicate') && (
                 <Button variant="primary" onClick={handleClose}>
-                  Close
+                  Done
                 </Button>
               )}
             </ModalFooter>

@@ -10,18 +10,33 @@ export async function GET(
   { params }: { params: { id: string } }
 ) {
   try {
+    const user = await getCurrentUser()
+    if (!user) {
+      return NextResponse.json(
+        { error: 'Authentication required' },
+        { status: 401 }
+      )
+    }
+
     const { id: campaignId } = params
 
-    // Verify campaign exists
+    // Verify campaign exists and caller owns it (team roster includes member emails)
     const campaign = await prisma.campaign.findUnique({
       where: { id: campaignId },
-      select: { id: true },
+      select: { id: true, creatorUserId: true },
     })
 
     if (!campaign) {
       return NextResponse.json(
         { error: 'Campaign not found' },
         { status: 404 }
+      )
+    }
+
+    if (campaign.creatorUserId !== user.id) {
+      return NextResponse.json(
+        { error: 'Unauthorized - only campaign creator can view the team' },
+        { status: 403 }
       )
     }
 
@@ -104,16 +119,23 @@ export async function POST(
       )
     }
 
-    // Verify campaign exists
+    // Verify campaign exists and caller owns it
     const campaign = await prisma.campaign.findUnique({
       where: { id: campaignId },
-      select: { id: true },
+      select: { id: true, creatorUserId: true },
     })
 
     if (!campaign) {
       return NextResponse.json(
         { error: 'Campaign not found' },
         { status: 404 }
+      )
+    }
+
+    if (campaign.creatorUserId !== user.id) {
+      return NextResponse.json(
+        { error: 'Unauthorized - only campaign creator can invite team members' },
+        { status: 403 }
       )
     }
 
@@ -186,16 +208,23 @@ export async function PATCH(
       )
     }
 
-    // Verify campaign exists
+    // Verify campaign exists and caller owns it
     const campaign = await prisma.campaign.findUnique({
       where: { id: campaignId },
-      select: { id: true },
+      select: { id: true, creatorUserId: true },
     })
 
     if (!campaign) {
       return NextResponse.json(
         { error: 'Campaign not found' },
         { status: 404 }
+      )
+    }
+
+    if (campaign.creatorUserId !== user.id) {
+      return NextResponse.json(
+        { error: 'Unauthorized - only campaign creator can update team members' },
+        { status: 403 }
       )
     }
 
@@ -243,16 +272,23 @@ export async function DELETE(
       )
     }
 
-    // Verify campaign exists
+    // Verify campaign exists and caller owns it
     const campaign = await prisma.campaign.findUnique({
       where: { id: campaignId },
-      select: { id: true },
+      select: { id: true, creatorUserId: true },
     })
 
     if (!campaign) {
       return NextResponse.json(
         { error: 'Campaign not found' },
         { status: 404 }
+      )
+    }
+
+    if (campaign.creatorUserId !== user.id) {
+      return NextResponse.json(
+        { error: 'Unauthorized - only campaign creator can remove team members' },
+        { status: 403 }
       )
     }
 

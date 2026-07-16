@@ -16,7 +16,6 @@ interface ImpactStory {
   id: string
   userId: string
   authorName: string
-  authorEmail: string
   title: string
   story: string
   impact: string
@@ -73,7 +72,6 @@ export async function GET(
         user: {
           select: {
             displayName: true,
-            email: true,
           },
         },
         metadata: true,
@@ -88,7 +86,6 @@ export async function GET(
         id: event.id,
         userId: event.userId,
         authorName: event.user.displayName || 'Anonymous',
-        authorEmail: event.user.email || '',
         title: (metadata.title as string) || '',
         story: (metadata.story as string) || '',
         impact: (metadata.impact as string) || '',
@@ -197,7 +194,6 @@ export async function POST(
         user: {
           select: {
             displayName: true,
-            email: true,
           },
         },
       },
@@ -207,7 +203,6 @@ export async function POST(
       id: storyEvent.id,
       userId: user.id,
       authorName: storyEvent.user.displayName || 'Anonymous',
-      authorEmail: storyEvent.user.email || '',
       title: metadata.title,
       story: metadata.story,
       impact: metadata.impact,

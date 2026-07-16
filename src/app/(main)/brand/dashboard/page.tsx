@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react'
 import Link from 'next/link'
+import { useRouter } from 'next/navigation'
 import { DashboardLayout } from '@/components/shared'
 import { cn } from '@/lib/utils'
 import {
@@ -51,6 +52,7 @@ function getSentimentBgColor(score: number): string {
 }
 
 export default function BrandDashboardPage() {
+  const router = useRouter()
   const [data, setData] = useState<DashboardData | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
@@ -64,6 +66,12 @@ export default function BrandDashboardPage() {
       setLoading(true)
       setError(null)
       const response = await fetch('/api/brand/dashboard-v2')
+
+      if (response.status === 401 || response.status === 403) {
+        router.push('/login')
+        return
+      }
+
       const result = await response.json()
 
       if (result.success) {

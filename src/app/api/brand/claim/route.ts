@@ -12,7 +12,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getCurrentUser } from '@/lib/auth'
 import { prisma } from '@/lib/db'
-import { sendEmail } from '@/lib/email'
+import { sendEmail, isEmailConfigured } from '@/lib/email'
 import { generateVerificationToken, createBrandVerification, verifyEmailDomain } from '@/lib/brand-verification'
 import crypto from 'crypto'
 
@@ -112,17 +112,33 @@ export async function POST(request: NextRequest) {
       verificationCode
     )
 
-    // In production, you would store the code and send it via email
-    // For now, we'll include it in the response for testing
-    // In real implementation: await sendEmail({ ... })
-    const emailResult = {
+    // Email the verification code to the claimant via Postmark. sendEmail()
+    // falls back to a console log of the To/Subject when Postmark isn't
+    // configured, but that fallback only surfaces <a href> links (see
+    // src/lib/email.ts), not arbitrary body text like a numeric code — so
+    // we also log the code directly in that dev-only case, mirroring the
+    // `devToken` convention used by src/app/api/brands/[id]/claim/route.ts.
+    const brandName = campaign.targetedBrand.name
+    const html = `
+      <div style="font-family: sans-serif; max-width: 600px; margin: 0 auto;">
+        <h2 style="color: #7C3AED;">Verify your email</h2>
+        <p>Use the code below to verify your claim to <strong>${brandName}</strong> on ProductLobby:</p>
+        <p style="font-size: 32px; font-weight: 700; letter-spacing: 4px; background: #F5F3FF; color: #7C3AED; padding: 16px 24px; border-radius: 8px; text-align: center; margin: 16px 0;">${verificationCode}</p>
+        <p style="color: #666; font-size: 14px;">This code expires shortly. If you did not request this, you can safely ignore this email.</p>
+      </div>
+    `
+
+    const emailResult = await sendEmail({
       to: email,
       subject: 'Verify your brand on ProductLobby',
-      code: verificationCode, // In production, don't include in response
-    }
+      html,
+    })
 
-    // Log the verification code (in production, only log to secure audit trail)
-    console.log(`Verification code for ${email}: ${verificationCode}`)
+    if (!emailResult.success) {
+      console.error(`Failed to send brand claim verification email to ${email}`)
+    } else if (!isEmailConfigured()) {
+      console.log(`[DEV] Brand claim verification code for ${email}: ${verificationCode}`)
+    }
 
     return NextResponse.json({
       success: true,

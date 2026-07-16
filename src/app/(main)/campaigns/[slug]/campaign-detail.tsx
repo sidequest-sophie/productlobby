@@ -1011,6 +1011,7 @@ export default function CampaignDetailPage({ params }: CampaignDetailPageProps) 
         preferenceFields={campaign?.preferenceFields || []}
         isAuthenticated={!!user}
         onResumePending={() => setIsLobbyFlowOpen(true)}
+        lobbyCount={lobbyCount}
       />
     </div>
   )

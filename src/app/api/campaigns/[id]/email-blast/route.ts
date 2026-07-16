@@ -10,7 +10,35 @@ export async function GET(
   { params }: { params: { id: string } }
 ) {
   try {
+    const user = await getCurrentUser()
+    if (!user) {
+      return NextResponse.json(
+        { error: 'Unauthorized' },
+        { status: 401 }
+      )
+    }
+
     const campaignId = params.id
+
+    // Verify campaign exists and caller owns it - blast subject/body content is creator-only
+    const campaign = await prisma.campaign.findUnique({
+      where: { id: campaignId },
+      select: { creatorUserId: true },
+    })
+
+    if (!campaign) {
+      return NextResponse.json(
+        { error: 'Campaign not found' },
+        { status: 404 }
+      )
+    }
+
+    if (campaign.creatorUserId !== user.id) {
+      return NextResponse.json(
+        { error: 'Unauthorized - only campaign creator can view email blasts' },
+        { status: 403 }
+      )
+    }
 
     // Fetch contribution events with eventType 'SOCIAL_SHARE' and metadata.action = 'email_blast'
     const emailBlasts = await prisma.contributionEvent.findMany({

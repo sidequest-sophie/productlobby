@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react'
 import Link from 'next/link'
+import { useRouter } from 'next/navigation'
 import {
   Lightbulb,
   Users,
@@ -71,6 +72,8 @@ const FloatingShapes = () => {
 }
 
 export default function HomePage() {
+  const router = useRouter()
+  const [hookText, setHookText] = useState('')
   const [trendingCampaigns, setTrendingCampaigns] = useState<CampaignCardProps[]>([])
   const [isLoading, setIsLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
@@ -158,6 +161,15 @@ export default function HomePage() {
     fetchTrendingCampaigns()
   }, [])
 
+  // The homepage hook is Step 0 of the creation flow: capture the idea in one line
+  // while intent is highest, then hand it to the wizard pre-filled. Signup is deferred
+  // to the end of the wizard, so nothing here gates the idea behind an account.
+  const handleHookSubmit = (e: React.FormEvent) => {
+    e.preventDefault()
+    const idea = hookText.trim()
+    router.push(idea ? `/campaigns/new?idea=${encodeURIComponent(idea)}` : '/campaigns/new')
+  }
+
   return (
     <div className="min-h-screen bg-white">
       <WebsiteJsonLd />
@@ -171,22 +183,48 @@ export default function HomePage() {
           <h1 className="text-3xl sm:text-5xl lg:text-7xl font-bold font-display text-gray-900 mb-6 sm:mb-8 leading-tight">
             Lobby for the Products You Want to Exist
           </h1>
-          <p className="text-base sm:text-lg lg:text-xl text-gray-700 max-w-3xl mx-auto mb-8 sm:mb-12 font-sans leading-relaxed">
-            Turn product ideas into reality. Rally community support, build the business case, and get brands to
-            actually make what you want.
+          <p className="text-base sm:text-lg lg:text-xl text-gray-700 max-w-3xl mx-auto mb-8 sm:mb-10 font-sans leading-relaxed">
+            Rally the demand for a product you wish existed — and get the brand to actually make it.
+            No money down until it ships.
           </p>
-          <div className="flex flex-col sm:flex-row gap-4 justify-center items-center">
-            <Link href="/campaigns">
-              <Button variant="primary" size="lg" className="flex items-center justify-center gap-2">
-                Browse Campaigns
-                <ArrowRight className="w-5 h-5" />
-              </Button>
-            </Link>
-            <Link href="/campaigns/new">
-              <Button variant="accent" size="lg" className="flex items-center justify-center gap-2">
+
+          {/* Step 0 — the one-line hook. Start a campaign in a single sentence. */}
+          <form onSubmit={handleHookSubmit} className="max-w-2xl mx-auto">
+            <label htmlFor="idea-hook" className="sr-only">
+              Describe the product you wish existed
+            </label>
+            <div className="flex flex-col sm:flex-row gap-3 p-2 sm:bg-white sm:rounded-2xl sm:shadow-elevated-lg sm:border sm:border-violet-100">
+              <input
+                id="idea-hook"
+                type="text"
+                value={hookText}
+                onChange={(e) => setHookText(e.target.value)}
+                placeholder="I wish someone would make…"
+                aria-label="Describe the product you wish existed"
+                className="flex-1 min-h-[52px] px-4 sm:px-5 rounded-xl sm:rounded-lg border border-gray-200 sm:border-0 bg-white text-base text-gray-900 placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-violet-500 sm:focus:ring-0"
+              />
+              <Button
+                type="submit"
+                variant="accent"
+                size="lg"
+                className="min-h-[52px] flex items-center justify-center gap-2 whitespace-nowrap"
+              >
                 Start a Campaign
                 <Lightbulb className="w-5 h-5" />
               </Button>
+            </div>
+          </form>
+          <p className="mt-3 text-sm text-gray-500">
+            Takes about two minutes. No account needed to start.
+          </p>
+
+          <div className="mt-6 text-sm text-gray-600">
+            or{' '}
+            <Link
+              href="/campaigns"
+              className="font-semibold text-violet-600 hover:text-violet-700 underline-offset-2 hover:underline"
+            >
+              browse campaigns people are lobbying for
             </Link>
           </div>
         </div>
@@ -200,19 +238,19 @@ export default function HomePage() {
               <div className="text-4xl lg:text-5xl font-bold font-display text-violet-600 mb-2">
                 <CountUpNumber target={platformStats?.totalCampaigns ?? 0} />+
               </div>
-              <p className="text-gray-700 font-medium">Campaigns Created</p>
+              <p className="text-gray-700 font-medium">Campaigns Live</p>
             </div>
             <div className="text-center">
               <div className="text-4xl lg:text-5xl font-bold font-display text-violet-600 mb-2">
                 <CountUpNumber target={platformStats?.totalUsers ?? 0} />+
               </div>
-              <p className="text-gray-700 font-medium">Community Supporters</p>
+              <p className="text-gray-700 font-medium">People Lobbying</p>
             </div>
             <div className="text-center">
               <div className="text-4xl lg:text-5xl font-bold font-display text-violet-600 mb-2">
                 <CountUpNumber target={platformStats?.totalBrands ?? 0} />+
               </div>
-              <p className="text-gray-700 font-medium">Brands Engaged</p>
+              <p className="text-gray-700 font-medium">Brands Watching</p>
             </div>
           </div>
         </div>
@@ -362,6 +400,11 @@ export default function HomePage() {
           </div>
 
           <div className="bg-gradient-to-br from-violet-50 to-violet-100 rounded-xl border border-violet-200 p-6 sm:p-8 lg:p-12">
+            <div className="flex justify-end mb-2">
+              <span className="inline-flex items-center rounded-full bg-white/70 px-3 py-1 text-xs font-semibold text-violet-700 border border-violet-200">
+                Example dashboard
+              </span>
+            </div>
             <div className="space-y-6">
               <div>
                 <p className="text-sm font-semibold text-violet-700 uppercase tracking-wider mb-2">Projected Revenue</p>
