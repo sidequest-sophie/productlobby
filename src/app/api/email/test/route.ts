@@ -44,7 +44,7 @@ export async function POST(request: NextRequest) {
       <h2>Test Email from ProductLobby</h2>
 
       <p>
-        This is a test email to verify that your Resend email service is properly configured.
+        This is a test email to verify that your Postmark email service is properly configured.
       </p>
 
       <div class="highlight-box">
@@ -52,13 +52,13 @@ export async function POST(request: NextRequest) {
         <ul style="margin: 12px 0; padding-left: 20px;">
           <li><strong>Environment:</strong> Development</li>
           <li><strong>Recipient:</strong> ${email}</li>
-          <li><strong>Service:</strong> Resend</li>
+          <li><strong>Service:</strong> Postmark</li>
           <li><strong>Timestamp:</strong> ${new Date().toISOString()}</li>
         </ul>
       </div>
 
       <p>
-        If you received this email, your Resend integration is working correctly and you're ready to send transactional emails to your users.
+        If you received this email, your Postmark integration is working correctly and you're ready to send transactional emails to your users.
       </p>
 
       <p style="font-size: 13px; color: #6b7280;">

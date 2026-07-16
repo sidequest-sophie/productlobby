@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/db'
 import { getCurrentUser } from '@/lib/auth'
 import { AddTeamMemberSchema } from '@/types'
+import { sendEmail } from '@/lib/email'
 
 interface RouteParams {
   params: Promise<{ id: string }>
@@ -29,27 +30,7 @@ async function sendTeamInviteEmail(
 ) {
   const dashboardUrl = `${process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'}/brand/dashboard`
 
-  if (
-    !process.env.RESEND_API_KEY ||
-    process.env.RESEND_API_KEY === 'placeholder' ||
-    process.env.RESEND_API_KEY === 're_placeholder'
-  ) {
-    console.log('\n========================================')
-    console.log('DEV MODE: Team invite email (not sent)')
-    console.log('========================================')
-    console.log(`To: ${to}`)
-    console.log(`Subject: You've been invited to manage ${brandName} on ProductLobby`)
-    console.log(`Invited by: ${inviterName}`)
-    console.log(`Dashboard URL: ${dashboardUrl}`)
-    console.log('========================================\n')
-    return
-  }
-
-  const { Resend } = await import('resend')
-  const resend = new Resend(process.env.RESEND_API_KEY)
-
-  await resend.emails.send({
-    from: process.env.EMAIL_FROM || 'ProductLobby <noreply@productlobby.com>',
+  await sendEmail({
     to,
     subject: `You've been invited to manage ${brandName} on ProductLobby`,
     html: `

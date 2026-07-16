@@ -1,4 +1,3 @@
-import { Resend } from 'resend'
 import { buildVerifyUrl } from './utils'
 import {
   welcomeTemplate,
@@ -7,21 +6,23 @@ import {
   campaignUpdateTemplate,
 } from './email-templates'
 
-let _resend: Resend | null = null
-
-function getResendClient(): Resend {
-  if (!_resend) {
-    if (!process.env.RESEND_API_KEY) {
-      throw new Error('RESEND_API_KEY environment variable is not set')
-    }
-    _resend = new Resend(process.env.RESEND_API_KEY)
-  }
-  return _resend
-}
+// Email is delivered via Postmark's REST API (no SDK dependency, same
+// fetch-based approach used for Twilio SMS below).
+const POSTMARK_API_URL = 'https://api.postmarkapp.com/email'
+// Transactional messages use the "outbound" stream by default; override via
+// env if a dedicated stream is configured in Postmark.
+const POSTMARK_MESSAGE_STREAM = process.env.POSTMARK_MESSAGE_STREAM || 'outbound'
 
 const FROM_EMAIL = process.env.EMAIL_FROM || 'ProductLobby <noreply@productlobby.com>'
 const REPLY_TO = process.env.EMAIL_REPLY_TO || 'support@productlobby.com'
 const APP_URL = process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'
+
+// True when a real Postmark server token is configured. Routes gate their
+// "send real email" vs "dev fallback" behaviour on this.
+export function isEmailConfigured(): boolean {
+  const token = process.env.POSTMARK_SERVER_TOKEN
+  return Boolean(token && token !== 'placeholder' && token !== 'POSTMARK_TOKEN')
+}
 
 interface EmailResult {
   success: boolean
@@ -40,8 +41,8 @@ export async function sendEmail({
   html: string
   replyTo?: string
 }): Promise<EmailResult> {
-  // Dev-mode bypass: log emails to console when Resend isn't configured
-  if (!process.env.RESEND_API_KEY || process.env.RESEND_API_KEY === 're_...') {
+  // Dev-mode bypass: log emails to console when Postmark isn't configured
+  if (!isEmailConfigured()) {
     console.log('\n📧 [DEV EMAIL] ─────────────────────────────')
     console.log(`  To: ${to}`)
     console.log(`  Subject: ${subject}`)
@@ -56,13 +57,33 @@ export async function sendEmail({
   }
 
   try {
-    await getResendClient().emails.send({
-      from: FROM_EMAIL,
-      to,
-      subject,
-      html,
-      reply_to: replyTo || REPLY_TO,
+    const res = await fetch(POSTMARK_API_URL, {
+      method: 'POST',
+      headers: {
+        Accept: 'application/json',
+        'Content-Type': 'application/json',
+        'X-Postmark-Server-Token': process.env.POSTMARK_SERVER_TOKEN as string,
+      },
+      body: JSON.stringify({
+        From: FROM_EMAIL,
+        To: to,
+        Subject: subject,
+        HtmlBody: html,
+        ReplyTo: replyTo || REPLY_TO,
+        MessageStream: POSTMARK_MESSAGE_STREAM,
+      }),
     })
+
+    // Postmark returns HTTP 422 with { ErrorCode, Message } on failure,
+    // and 200 with { ErrorCode: 0 } on success.
+    const data = (await res.json().catch(() => ({}))) as {
+      ErrorCode?: number
+      Message?: string
+    }
+    if (!res.ok || (data.ErrorCode && data.ErrorCode !== 0)) {
+      console.error('Postmark send failed:', res.status, data.Message)
+      return { success: false, error: 'Failed to send email' }
+    }
 
     return { success: true }
   } catch (error) {
