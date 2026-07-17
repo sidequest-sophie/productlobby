@@ -47,11 +47,17 @@ interface EmailOutreachState {
   newSubject: string
   newBody: string
   isSending: boolean
+  templateLoading: boolean
+  markingRespondedId: string | null
 }
 
 // ============================================================================
 // HELPER FUNCTIONS
 // ============================================================================
+
+// OutreachQueue's PENDING means "queued, not yet delivered" — show it that way.
+const getStatusLabel = (status: OutreachStatus) =>
+  status === 'pending' ? 'queued' : status
 
 const getStatusColor = (status: OutreachStatus) => {
   switch (status) {
@@ -102,6 +108,8 @@ export function EmailOutreach({ campaignId }: EmailOutreachProps) {
     newSubject: '',
     newBody: '',
     isSending: false,
+    templateLoading: false,
+    markingRespondedId: null,
   })
 
   // Fetch outreach emails
@@ -134,6 +142,65 @@ export function EmailOutreach({ campaignId }: EmailOutreachProps) {
   useEffect(() => {
     fetchEmails()
   }, [fetchEmails])
+
+  // Open the compose form pre-filled with the demand-evidence template
+  // (real supporter count, strong-buyer share, campaign link) — editable
+  // before queueing. The template is the feature (spec §4).
+  const openCompose = async () => {
+    setState((prev) => ({ ...prev, showCompose: true, templateLoading: true }))
+    try {
+      const response = await fetch(
+        `/api/campaigns/${campaignId}/email-outreach/template`
+      )
+      const data = await response.json().catch(() => null)
+      if (response.ok && data?.success && data.template) {
+        setState((prev) => ({
+          ...prev,
+          // Don't clobber anything the creator already typed
+          newBrandName: prev.newBrandName || data.template.brandName || '',
+          newSubject: prev.newSubject || data.template.subject || '',
+          newBody: prev.newBody || data.template.body || '',
+          templateLoading: false,
+        }))
+      } else {
+        setState((prev) => ({ ...prev, templateLoading: false }))
+      }
+    } catch {
+      setState((prev) => ({ ...prev, templateLoading: false }))
+    }
+  }
+
+  // "They replied" — creator manually marks a real brand response (v1: no
+  // tracking pixels; the timestamp is when the creator confirmed it).
+  const markResponded = async (emailId: string) => {
+    try {
+      setState((prev) => ({ ...prev, markingRespondedId: emailId, error: null }))
+      const response = await fetch(
+        `/api/campaigns/${campaignId}/email-outreach`,
+        {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ emailId, action: 'responded' }),
+        }
+      )
+      if (!response.ok) {
+        const data = await response.json().catch(() => null)
+        throw new Error(data?.error || 'Failed to update email')
+      }
+      const data = await response.json()
+      setState((prev) => ({
+        ...prev,
+        markingRespondedId: null,
+        emails: prev.emails.map((e) => (e.id === emailId ? data.email : e)),
+      }))
+    } catch (err) {
+      setState((prev) => ({
+        ...prev,
+        markingRespondedId: null,
+        error: err instanceof Error ? err.message : 'Failed to update email',
+      }))
+    }
+  }
 
   // Handle queueing new outreach email
   const handleSendEmail = async () => {
@@ -194,11 +261,9 @@ export function EmailOutreach({ campaignId }: EmailOutreachProps) {
     }
   }
 
+  const queuedCount = state.emails.filter((e) => e.status === 'pending').length
   const sentCount = state.emails.filter((e) =>
     ['sent', 'opened', 'responded'].includes(e.status)
-  ).length
-  const openedCount = state.emails.filter((e) =>
-    ['opened', 'responded'].includes(e.status)
   ).length
   const respondedCount = state.emails.filter(
     (e) => e.status === 'responded'
@@ -213,16 +278,21 @@ export function EmailOutreach({ campaignId }: EmailOutreachProps) {
             <Mail className="h-6 w-6 text-violet-600" />
           </div>
           <div>
-            <h2 className="text-2xl font-bold text-gray-900">Email Outreach</h2>
+            <h2 className="text-2xl font-bold text-gray-900">Brand outreach</h2>
             <p className="text-sm text-gray-500">
-              Queue and track outreach emails to brands
+              Send a credible demand-evidence email to a brand contact — max 3
+              sends per 7 days
             </p>
           </div>
         </div>
         <Button
-          onClick={() =>
-            setState((prev) => ({ ...prev, showCompose: !prev.showCompose }))
-          }
+          onClick={() => {
+            if (state.showCompose) {
+              setState((prev) => ({ ...prev, showCompose: false }))
+            } else {
+              openCompose()
+            }
+          }}
           className="bg-violet-600 hover:bg-violet-700"
         >
           <Send className="mr-2 h-4 w-4" />
@@ -257,11 +327,11 @@ export function EmailOutreach({ campaignId }: EmailOutreachProps) {
         <div className="rounded-lg border border-gray-200 bg-white p-4">
           <div className="flex items-center justify-between">
             <div>
-              <p className="text-sm text-gray-600">Opened</p>
-              <p className="text-2xl font-bold text-gray-900">{openedCount}</p>
+              <p className="text-sm text-gray-600">Queued</p>
+              <p className="text-2xl font-bold text-gray-900">{queuedCount}</p>
             </div>
-            <div className="rounded-lg bg-lime-100 p-3">
-              <MailOpen className="h-5 w-5 text-lime-600" />
+            <div className="rounded-lg bg-gray-100 p-3">
+              <Clock className="h-5 w-5 text-gray-600" />
             </div>
           </div>
         </div>
@@ -284,16 +354,25 @@ export function EmailOutreach({ campaignId }: EmailOutreachProps) {
       {/* Compose Form */}
       {state.showCompose && (
         <div className="rounded-lg border border-gray-200 bg-white p-6">
-          <h3 className="mb-4 text-lg font-semibold text-gray-900">
+          <h3 className="mb-1 text-lg font-semibold text-gray-900">
             Compose New Email
           </h3>
+          <p className="mb-4 text-sm text-gray-500">
+            {state.templateLoading
+              ? 'Pre-filling from your campaign’s real demand stats…'
+              : 'Pre-filled from your campaign’s real demand stats — edit anything before sending. A footer identifying ProductLobby is added automatically, and replies go to your account email.'}
+          </p>
           <div className="space-y-4">
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
+                <label
+                  htmlFor="outreach-brand-name"
+                  className="block text-sm font-medium text-gray-700 mb-1"
+                >
                   Brand Name
                 </label>
                 <input
+                  id="outreach-brand-name"
                   type="text"
                   value={state.newBrandName}
                   onChange={(e) =>
@@ -307,10 +386,14 @@ export function EmailOutreach({ campaignId }: EmailOutreachProps) {
                 />
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
+                <label
+                  htmlFor="outreach-brand-email"
+                  className="block text-sm font-medium text-gray-700 mb-1"
+                >
                   Brand Email
                 </label>
                 <input
+                  id="outreach-brand-email"
                   type="email"
                   value={state.newBrandEmail}
                   onChange={(e) =>
@@ -326,10 +409,14 @@ export function EmailOutreach({ campaignId }: EmailOutreachProps) {
             </div>
 
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
+              <label
+                htmlFor="outreach-subject"
+                className="block text-sm font-medium text-gray-700 mb-1"
+              >
                 Subject
               </label>
               <input
+                id="outreach-subject"
                 type="text"
                 value={state.newSubject}
                 onChange={(e) =>
@@ -344,10 +431,14 @@ export function EmailOutreach({ campaignId }: EmailOutreachProps) {
             </div>
 
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
+              <label
+                htmlFor="outreach-body"
+                className="block text-sm font-medium text-gray-700 mb-1"
+              >
                 Body
               </label>
               <textarea
+                id="outreach-body"
                 value={state.newBody}
                 onChange={(e) =>
                   setState((prev) => ({
@@ -370,12 +461,12 @@ export function EmailOutreach({ campaignId }: EmailOutreachProps) {
                 {state.isSending ? (
                   <>
                     <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                    Queueing...
+                    Sending...
                   </>
                 ) : (
                   <>
                     <Send className="mr-2 h-4 w-4" />
-                    Queue Email
+                    Send Email
                   </>
                 )}
               </Button>
@@ -437,13 +528,28 @@ export function EmailOutreach({ campaignId }: EmailOutreachProps) {
                           )}
                         >
                           <StatusIcon className="h-3 w-3" />
-                          {email.status}
+                          {getStatusLabel(email.status)}
                         </span>
                       </div>
                       <p className="text-sm text-gray-600 truncate">
                         {email.subject}
                       </p>
                     </div>
+                    {['sent', 'opened', 'pending'].includes(email.status) && (
+                      <Button
+                        onClick={() => markResponded(email.id)}
+                        disabled={state.markingRespondedId === email.id}
+                        variant="outline"
+                        size="sm"
+                        className="whitespace-nowrap"
+                      >
+                        {state.markingRespondedId === email.id ? (
+                          <Loader2 className="h-4 w-4 animate-spin" />
+                        ) : (
+                          'They replied'
+                        )}
+                      </Button>
+                    )}
                   </div>
 
                   {/* Timeline */}

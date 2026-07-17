@@ -1,40 +1,70 @@
+import crypto from 'crypto'
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/db'
 import { getCurrentUser } from '@/lib/auth'
+import { getCampaignRole } from '@/lib/campaign-team'
+import { sendEmail } from '@/lib/email'
+import { rateLimitDurable } from '@/lib/rate-limit'
+import { isValidEmail } from '@/lib/utils'
 
 export const dynamic = 'force-dynamic'
 
-const INVITE_ROLES = ['admin', 'editor', 'viewer'] as const
+const APP_URL = process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'
 
-interface TeamInviteMetadata {
-  action?: string
-  invitedEmail?: string
-  role?: string
-  timestamp?: string
+const TEAM_ROLES = ['ORGANIZER', 'CONTRIBUTOR'] as const
+type TeamRole = (typeof TEAM_ROLES)[number]
+
+function isTeamRole(v: unknown): v is TeamRole {
+  return typeof v === 'string' && (TEAM_ROLES as readonly string[]).includes(v)
 }
 
-function isRecord(v: unknown): v is Record<string, unknown> {
-  return typeof v === 'object' && v !== null && !Array.isArray(v)
-}
-
-// Fetch a pending team-invite event, verifying it belongs to this campaign
-async function findInviteEvent(campaignId: string, eventId: string) {
-  const event = await prisma.contributionEvent.findUnique({
-    where: { id: eventId },
+// Resolve a campaign by UUID or slug (several campaign routes accept either).
+async function resolveCampaign(idOrSlug: string) {
+  return prisma.campaign.findFirst({
+    where: { OR: [{ id: idOrSlug }, { slug: idOrSlug }] },
+    select: {
+      id: true,
+      slug: true,
+      title: true,
+      creatorUserId: true,
+      creator: {
+        select: { id: true, displayName: true, handle: true, avatar: true },
+      },
+    },
   })
-
-  if (!event || event.campaignId !== campaignId) return null
-
-  const metadata: TeamInviteMetadata = isRecord(event.metadata)
-    ? (event.metadata as TeamInviteMetadata)
-    : {}
-
-  if (metadata.action !== 'team_invite') return null
-
-  return { event, metadata }
 }
 
-// GET /api/campaigns/[id]/team - Fetch team members and pending invitations
+function inviteEmailHtml(opts: {
+  inviterName: string
+  campaignTitle: string
+  role: TeamRole
+  acceptUrl: string
+}): string {
+  const roleLabel = opts.role === 'ORGANIZER' ? 'an Organizer' : 'a Contributor'
+  return `
+    <div style="font-family: -apple-system, 'Segoe UI', Roboto, sans-serif; max-width: 560px; margin: 0 auto; padding: 24px;">
+      <h2 style="color: #111827;">You're invited to join a campaign team</h2>
+      <p style="color: #374151; line-height: 1.6;">
+        <strong>${opts.inviterName}</strong> has invited you to join the team for
+        <strong>${opts.campaignTitle}</strong> on ProductLobby as ${roleLabel}.
+      </p>
+      <p style="margin: 28px 0;">
+        <a href="${opts.acceptUrl}"
+           style="background: #7c3aed; color: #ffffff; padding: 12px 24px; border-radius: 8px; text-decoration: none; font-weight: 600;">
+          Accept invitation
+        </a>
+      </p>
+      <p style="color: #6b7280; font-size: 13px; line-height: 1.6;">
+        This invitation expires in 14 days. If you weren't expecting it, you can
+        safely ignore this email.
+      </p>
+    </div>
+  `
+}
+
+// GET /api/campaigns/[id]/team
+// Owner/Organizer only: full roster - owner, active members, pending invites,
+// plus the campaign's real supporters (from Lobby rows) for the promote picker.
 export async function GET(
   request: NextRequest,
   { params }: { params: { id: string } }
@@ -48,88 +78,108 @@ export async function GET(
       )
     }
 
-    const { id: campaignId } = params
-
-    // Verify campaign exists and caller owns it (team roster includes member emails)
-    const campaign = await prisma.campaign.findUnique({
-      where: { id: campaignId },
-      select: {
-        id: true,
-        creatorUserId: true,
-        createdAt: true,
-        creator: {
-          select: {
-            id: true,
-            displayName: true,
-            email: true,
-            avatar: true,
-          },
-        },
-      },
-    })
-
+    const campaign = await resolveCampaign(params.id)
     if (!campaign) {
-      return NextResponse.json(
-        { error: 'Campaign not found' },
-        { status: 404 }
-      )
+      return NextResponse.json({ error: 'Campaign not found' }, { status: 404 })
     }
 
-    if (campaign.creatorUserId !== user.id) {
+    const viewerRole = await getCampaignRole(user.id, campaign.id)
+    if (viewerRole !== 'OWNER' && viewerRole !== 'ORGANIZER') {
       return NextResponse.json(
-        { error: 'Unauthorized - only campaign creator can view the team' },
+        { error: 'Only the campaign owner or organizers can view the team' },
         { status: 403 }
       )
     }
 
-    // The campaign creator is the sole confirmed member; invitations are
-    // stored as contribution events until accepted (no CampaignTeam model).
-    const members = [
-      {
-        id: campaign.creator.id,
-        name: campaign.creator.displayName,
-        email: campaign.creator.email,
-        avatar: campaign.creator.avatar || undefined,
-        role: 'owner',
-        joinedAt: campaign.createdAt.toISOString(),
+    const rows = await prisma.campaignTeamMember.findMany({
+      where: { campaignId: campaign.id },
+      orderBy: { createdAt: 'asc' },
+      include: {
+        user: {
+          select: { id: true, displayName: true, handle: true, avatar: true },
+        },
+        invitedBy: { select: { id: true, displayName: true } },
       },
-    ]
+    })
 
-    const inviteEvents = await prisma.contributionEvent.findMany({
-      where: {
-        campaignId,
-        eventType: 'SOCIAL_SHARE',
-        metadata: {
-          path: ['action'],
-          equals: 'team_invite',
+    const members = rows
+      .filter((r) => r.status === 'ACTIVE' && r.user)
+      .map((r) => ({
+        id: r.id,
+        userId: r.user!.id,
+        displayName: r.user!.displayName,
+        handle: r.user!.handle,
+        avatar: r.user!.avatar,
+        role: r.role,
+        joinedAt: (r.acceptedAt || r.createdAt).toISOString(),
+        invitedBy: r.invitedBy.displayName,
+      }))
+
+    const pending = rows
+      .filter((r) => r.status === 'PENDING')
+      .map((r) => ({
+        id: r.id,
+        email: r.invitedEmail,
+        role: r.role,
+        sentAt: r.createdAt.toISOString(),
+        invitedBy: r.invitedBy.displayName,
+      }))
+
+    // Real supporters of this campaign (Lobby rows), excluding people already
+    // on the team, for the promote-supporter picker.
+    const existingUserIds = new Set<string>([
+      campaign.creatorUserId,
+      ...rows.filter((r) => r.userId).map((r) => r.userId as string),
+    ])
+
+    const lobbies = await prisma.lobby.findMany({
+      where: { campaignId: campaign.id },
+      orderBy: { createdAt: 'asc' },
+      take: 200,
+      select: {
+        intensity: true,
+        createdAt: true,
+        user: {
+          select: { id: true, displayName: true, handle: true, avatar: true },
         },
       },
-      orderBy: { createdAt: 'asc' },
     })
 
-    const pending = inviteEvents.map((event) => {
-      const metadata: TeamInviteMetadata = isRecord(event.metadata)
-        ? (event.metadata as TeamInviteMetadata)
-        : {}
-      return {
-        id: event.id,
-        email: metadata.invitedEmail || '',
-        role: metadata.role || 'viewer',
-        sentAt: event.createdAt.toISOString(),
-      }
-    })
+    const supporters = lobbies
+      .filter((l) => !existingUserIds.has(l.user.id))
+      .map((l) => ({
+        userId: l.user.id,
+        displayName: l.user.displayName,
+        handle: l.user.handle,
+        avatar: l.user.avatar,
+        intensity: l.intensity,
+        supportedAt: l.createdAt.toISOString(),
+      }))
 
-    return NextResponse.json({ members, pending }, { status: 200 })
+    return NextResponse.json({
+      success: true,
+      data: {
+        viewerRole,
+        owner: {
+          userId: campaign.creator.id,
+          displayName: campaign.creator.displayName,
+          handle: campaign.creator.handle,
+          avatar: campaign.creator.avatar,
+        },
+        members,
+        pending,
+        supporters,
+      },
+    })
   } catch (error) {
-    console.error('Error fetching team:', error)
-    return NextResponse.json(
-      { error: 'Failed to fetch team' },
-      { status: 500 }
-    )
+    console.error('GET /api/campaigns/[id]/team error:', error)
+    return NextResponse.json({ error: 'Failed to load team' }, { status: 500 })
   }
 }
 
-// POST /api/campaigns/[id]/team - Invite team member
+// POST /api/campaigns/[id]/team
+// Owner/Organizer: invite by email ({ email, role }) or promote an existing
+// supporter ({ userId, role }). Organizers can only add CONTRIBUTORs.
 export async function POST(
   request: NextRequest,
   { params }: { params: { id: string } }
@@ -143,104 +193,221 @@ export async function POST(
       )
     }
 
-    const { id: campaignId } = params
-    const body = await request.json()
-    const { email, role } = body
-
-    if (!email || !role) {
-      return NextResponse.json(
-        { error: 'Email and role are required' },
-        { status: 400 }
-      )
-    }
-
-    const normalizedRole = String(role).toLowerCase()
-    if (!INVITE_ROLES.includes(normalizedRole as (typeof INVITE_ROLES)[number])) {
-      return NextResponse.json(
-        { error: 'Invalid role' },
-        { status: 400 }
-      )
-    }
-
-    // Verify campaign exists and caller owns it
-    const campaign = await prisma.campaign.findUnique({
-      where: { id: campaignId },
-      select: { id: true, creatorUserId: true },
-    })
-
+    const campaign = await resolveCampaign(params.id)
     if (!campaign) {
-      return NextResponse.json(
-        { error: 'Campaign not found' },
-        { status: 404 }
-      )
+      return NextResponse.json({ error: 'Campaign not found' }, { status: 404 })
     }
 
-    if (campaign.creatorUserId !== user.id) {
+    const actorRole = await getCampaignRole(user.id, campaign.id)
+    if (actorRole !== 'OWNER' && actorRole !== 'ORGANIZER') {
       return NextResponse.json(
-        { error: 'Unauthorized - only campaign creator can invite team members' },
+        { error: 'Only the campaign owner or organizers can add team members' },
         { status: 403 }
       )
     }
 
-    const normalizedEmail = String(email).trim().toLowerCase()
-
-    // Prevent duplicate pending invitations for the same email
-    const existingInvite = await prisma.contributionEvent.findFirst({
-      where: {
-        campaignId,
-        eventType: 'SOCIAL_SHARE',
-        AND: [
-          { metadata: { path: ['action'], equals: 'team_invite' } },
-          { metadata: { path: ['invitedEmail'], equals: normalizedEmail } },
-        ],
-      },
-    })
-
-    if (existingInvite) {
+    const body = await request.json().catch(() => null)
+    if (!body || typeof body !== 'object') {
       return NextResponse.json(
-        { error: 'This email has already been invited' },
+        { error: 'Invalid request body' },
         { status: 400 }
       )
     }
 
-    // Create team invite event
-    const inviteEvent = await prisma.contributionEvent.create({
-      data: {
-        userId: user.id,
-        campaignId,
-        eventType: 'SOCIAL_SHARE',
-        points: 0,
-        metadata: {
-          action: 'team_invite',
-          invitedEmail: normalizedEmail,
-          role: normalizedRole,
-          timestamp: new Date().toISOString(),
+    const { email, userId, role } = body as {
+      email?: unknown
+      userId?: unknown
+      role?: unknown
+    }
+
+    if (!isTeamRole(role)) {
+      return NextResponse.json(
+        { error: 'Role must be ORGANIZER or CONTRIBUTOR' },
+        { status: 400 }
+      )
+    }
+
+    // Per spec: organizers can only add Contributors.
+    if (actorRole === 'ORGANIZER' && role !== 'CONTRIBUTOR') {
+      return NextResponse.json(
+        { error: 'Organizers can only invite Contributors' },
+        { status: 403 }
+      )
+    }
+
+    // Durable rate limit on invite sending (user-triggered sends).
+    const limit = await rateLimitDurable(`team-invite:user:${user.id}`, {
+      limit: 20,
+      windowSeconds: 60 * 60,
+    })
+    if (!limit.success) {
+      return NextResponse.json(
+        { error: 'Too many invitations sent - try again later' },
+        { status: 429 }
+      )
+    }
+
+    // -- Path 1: promote an existing supporter by userId ---------------------
+    if (typeof userId === 'string' && userId.length > 0) {
+      if (userId === campaign.creatorUserId) {
+        return NextResponse.json(
+          { error: 'The campaign owner is already on the team' },
+          { status: 400 }
+        )
+      }
+
+      // Must be a real supporter of this campaign (a Lobby row exists).
+      const lobby = await prisma.lobby.findUnique({
+        where: { campaignId_userId: { campaignId: campaign.id, userId } },
+        select: { id: true },
+      })
+      if (!lobby) {
+        return NextResponse.json(
+          { error: 'That user is not a supporter of this campaign' },
+          { status: 400 }
+        )
+      }
+
+      const existing = await prisma.campaignTeamMember.findFirst({
+        where: { campaignId: campaign.id, userId },
+        select: { id: true },
+      })
+      if (existing) {
+        return NextResponse.json(
+          { error: 'That user is already on the team' },
+          { status: 409 }
+        )
+      }
+
+      const member = await prisma.campaignTeamMember.create({
+        data: {
+          campaignId: campaign.id,
+          userId,
+          role,
+          status: 'ACTIVE',
+          invitedById: user.id,
+          acceptedAt: new Date(),
         },
+      })
+
+      // Best-effort in-app notification for the promoted supporter.
+      try {
+        await prisma.notification.create({
+          data: {
+            userId,
+            type: 'TEAM_ADDED',
+            title: 'You joined a campaign team',
+            message: `${user.displayName} added you to the team for "${campaign.title}" as ${role === 'ORGANIZER' ? 'an Organizer' : 'a Contributor'}.`,
+            linkUrl: `/campaigns/${campaign.slug}`,
+          },
+        })
+      } catch (notifyError) {
+        console.error('Team notification failed:', notifyError)
+      }
+
+      return NextResponse.json({
+        success: true,
+        data: { id: member.id, userId, role, status: 'ACTIVE' },
+      })
+    }
+
+    // -- Path 2: invite by email ---------------------------------------------
+    if (typeof email !== 'string' || !isValidEmail(email.trim())) {
+      return NextResponse.json(
+        { error: 'A valid email address (or a supporter userId) is required' },
+        { status: 400 }
+      )
+    }
+
+    const normalizedEmail = email.trim().toLowerCase()
+
+    // Existing account with this email that's already owner/member?
+    const existingUser = await prisma.user.findUnique({
+      where: { email: normalizedEmail },
+      select: { id: true },
+    })
+    if (existingUser) {
+      if (existingUser.id === campaign.creatorUserId) {
+        return NextResponse.json(
+          { error: 'The campaign owner is already on the team' },
+          { status: 400 }
+        )
+      }
+      const existingMember = await prisma.campaignTeamMember.findFirst({
+        where: { campaignId: campaign.id, userId: existingUser.id },
+        select: { id: true },
+      })
+      if (existingMember) {
+        return NextResponse.json(
+          { error: 'That person is already on the team' },
+          { status: 409 }
+        )
+      }
+    }
+
+    const existingInvite = await prisma.campaignTeamMember.findFirst({
+      where: { campaignId: campaign.id, invitedEmail: normalizedEmail },
+      select: { id: true },
+    })
+    if (existingInvite) {
+      return NextResponse.json(
+        { error: 'An invitation has already been sent to that email' },
+        { status: 409 }
+      )
+    }
+
+    const inviteToken = crypto.randomBytes(32).toString('hex')
+
+    const invite = await prisma.campaignTeamMember.create({
+      data: {
+        campaignId: campaign.id,
+        invitedEmail: normalizedEmail,
+        role,
+        status: 'PENDING',
+        invitedById: user.id,
+        inviteToken,
       },
     })
 
-    return NextResponse.json(
-      {
-        success: true,
-        invitation: {
-          id: inviteEvent.id,
-          email: normalizedEmail,
-          role: normalizedRole,
-          sentAt: inviteEvent.createdAt.toISOString(),
-        },
+    const acceptUrl = `${APP_URL}/team-invites/${inviteToken}`
+    const emailResult = await sendEmail({
+      to: normalizedEmail,
+      subject: `${user.displayName} invited you to help run "${campaign.title}"`,
+      html: inviteEmailHtml({
+        inviterName: user.displayName,
+        campaignTitle: campaign.title,
+        role,
+        acceptUrl,
+      }),
+    })
+
+    if (!emailResult.success) {
+      // Keep the pending row (it can be revoked and re-sent) but surface the
+      // delivery problem to the inviter.
+      console.error('Team invite email failed:', emailResult.error)
+    }
+
+    return NextResponse.json({
+      success: true,
+      data: {
+        id: invite.id,
+        email: normalizedEmail,
+        role,
+        status: 'PENDING',
+        emailSent: emailResult.success,
       },
-      { status: 201 }
-    )
+    })
   } catch (error) {
-    console.error('Error inviting team member:', error)
+    console.error('POST /api/campaigns/[id]/team error:', error)
     return NextResponse.json(
-      { error: 'Failed to invite team member' },
+      { error: 'Failed to add team member' },
       { status: 500 }
     )
   }
 }
 
-// PATCH /api/campaigns/[id]/team - Update a pending invitation's role
+// PATCH /api/campaigns/[id]/team - change a member's role. Owner only
+// (role changes are organizer-level team management).
 export async function PATCH(
   request: NextRequest,
   { params }: { params: { id: string } }
@@ -254,90 +421,62 @@ export async function PATCH(
       )
     }
 
-    const { id: campaignId } = params
-    const body = await request.json()
-    const { memberId, role } = body
-
-    if (!memberId || !role) {
-      return NextResponse.json(
-        { error: 'Member ID and role are required' },
-        { status: 400 }
-      )
-    }
-
-    const normalizedRole = String(role).toLowerCase()
-    if (!INVITE_ROLES.includes(normalizedRole as (typeof INVITE_ROLES)[number])) {
-      return NextResponse.json(
-        { error: 'Invalid role' },
-        { status: 400 }
-      )
-    }
-
-    // Verify campaign exists and caller owns it
-    const campaign = await prisma.campaign.findUnique({
-      where: { id: campaignId },
-      select: { id: true, creatorUserId: true },
-    })
-
+    const campaign = await resolveCampaign(params.id)
     if (!campaign) {
-      return NextResponse.json(
-        { error: 'Campaign not found' },
-        { status: 404 }
-      )
+      return NextResponse.json({ error: 'Campaign not found' }, { status: 404 })
     }
 
-    if (campaign.creatorUserId !== user.id) {
+    const actorRole = await getCampaignRole(user.id, campaign.id)
+    if (actorRole !== 'OWNER') {
       return NextResponse.json(
-        { error: 'Unauthorized - only campaign creator can update team members' },
+        { error: 'Only the campaign owner can change roles' },
         { status: 403 }
       )
     }
 
-    if (memberId === campaign.creatorUserId) {
+    const body = await request.json().catch(() => null)
+    const memberId = body?.memberId
+    const role = body?.role
+
+    if (typeof memberId !== 'string' || !isTeamRole(role)) {
       return NextResponse.json(
-        { error: 'The campaign owner role cannot be changed' },
+        {
+          error:
+            'memberId and a valid role (ORGANIZER | CONTRIBUTOR) are required',
+        },
         { status: 400 }
       )
     }
 
-    const invite = await findInviteEvent(campaignId, memberId)
-    if (!invite) {
+    const member = await prisma.campaignTeamMember.findUnique({
+      where: { id: memberId },
+      select: { id: true, campaignId: true },
+    })
+    if (!member || member.campaignId !== campaign.id) {
       return NextResponse.json(
         { error: 'Team member not found' },
         { status: 404 }
       )
     }
 
-    await prisma.contributionEvent.update({
-      where: { id: invite.event.id },
-      data: {
-        metadata: {
-          ...invite.metadata,
-          role: normalizedRole,
-        },
-      },
+    const updated = await prisma.campaignTeamMember.update({
+      where: { id: memberId },
+      data: { role },
     })
 
-    return NextResponse.json(
-      {
-        success: true,
-        member: {
-          id: memberId,
-          role: normalizedRole,
-        },
-      },
-      { status: 200 }
-    )
+    return NextResponse.json({
+      success: true,
+      data: { id: updated.id, role: updated.role, status: updated.status },
+    })
   } catch (error) {
-    console.error('Error updating team member:', error)
-    return NextResponse.json(
-      { error: 'Failed to update team member' },
-      { status: 500 }
-    )
+    console.error('PATCH /api/campaigns/[id]/team error:', error)
+    return NextResponse.json({ error: 'Failed to update role' }, { status: 500 })
   }
 }
 
-// DELETE /api/campaigns/[id]/team - Remove a pending invitation
+// DELETE /api/campaigns/[id]/team?memberId=...
+// Remove an active member or revoke a pending invite. Owner can remove
+// anyone; organizers can only remove/revoke Contributors.
 export async function DELETE(
   request: NextRequest,
   { params }: { params: { id: string } }
@@ -351,59 +490,51 @@ export async function DELETE(
       )
     }
 
-    const { id: campaignId } = params
-    const body = await request.json()
-    const { memberId } = body
-
-    if (!memberId) {
-      return NextResponse.json(
-        { error: 'Member ID is required' },
-        { status: 400 }
-      )
-    }
-
-    // Verify campaign exists and caller owns it
-    const campaign = await prisma.campaign.findUnique({
-      where: { id: campaignId },
-      select: { id: true, creatorUserId: true },
-    })
-
+    const campaign = await resolveCampaign(params.id)
     if (!campaign) {
-      return NextResponse.json(
-        { error: 'Campaign not found' },
-        { status: 404 }
-      )
+      return NextResponse.json({ error: 'Campaign not found' }, { status: 404 })
     }
 
-    if (campaign.creatorUserId !== user.id) {
+    const actorRole = await getCampaignRole(user.id, campaign.id)
+    if (actorRole !== 'OWNER' && actorRole !== 'ORGANIZER') {
       return NextResponse.json(
-        { error: 'Unauthorized - only campaign creator can remove team members' },
+        { error: 'Only the campaign owner or organizers can manage the team' },
         { status: 403 }
       )
     }
 
-    if (memberId === campaign.creatorUserId) {
+    const memberId = new URL(request.url).searchParams.get('memberId')
+    if (!memberId) {
       return NextResponse.json(
-        { error: 'The campaign owner cannot be removed' },
+        { error: 'memberId is required' },
         { status: 400 }
       )
     }
 
-    const invite = await findInviteEvent(campaignId, memberId)
-    if (!invite) {
+    const member = await prisma.campaignTeamMember.findUnique({
+      where: { id: memberId },
+      select: { id: true, campaignId: true, role: true },
+    })
+    if (!member || member.campaignId !== campaign.id) {
       return NextResponse.json(
         { error: 'Team member not found' },
         { status: 404 }
       )
     }
 
-    await prisma.contributionEvent.delete({
-      where: { id: invite.event.id },
-    })
+    // Organizer-level changes (removing an organizer) are owner-only.
+    if (actorRole === 'ORGANIZER' && member.role !== 'CONTRIBUTOR') {
+      return NextResponse.json(
+        { error: 'Only the campaign owner can remove organizers' },
+        { status: 403 }
+      )
+    }
 
-    return NextResponse.json({ success: true }, { status: 200 })
+    await prisma.campaignTeamMember.delete({ where: { id: memberId } })
+
+    return NextResponse.json({ success: true })
   } catch (error) {
-    console.error('Error removing team member:', error)
+    console.error('DELETE /api/campaigns/[id]/team error:', error)
     return NextResponse.json(
       { error: 'Failed to remove team member' },
       { status: 500 }

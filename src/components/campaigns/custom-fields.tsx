@@ -59,6 +59,18 @@ const FIELD_TYPE_LABELS: Record<CustomFieldType, string> = {
   range: 'Range',
 }
 
+// Spec §6: creators pick from select / multi-select / range / text. Existing
+// NUMBER fields still render and stay editable, but new ones aren't offered.
+const CREATABLE_FIELD_TYPES: CustomFieldType[] = [
+  'select',
+  'multi_select',
+  'range',
+  'text',
+]
+
+// Spec §6: cap 5 fields — the lobby must stay ~60 seconds.
+const MAX_FIELDS = 5
+
 const hasOptions = (type: CustomFieldType | undefined) =>
   type === 'select' || type === 'multi_select'
 
@@ -124,7 +136,10 @@ export function CustomFields({ campaignId }: CustomFieldsProps) {
         }
       )
 
-      if (!response.ok) throw new Error('Failed to add field')
+      if (!response.ok) {
+        const data = await response.json().catch(() => null)
+        throw new Error(data?.error || 'Failed to add field')
+      }
 
       await fetchFields()
       resetForm()
@@ -248,11 +263,17 @@ export function CustomFields({ campaignId }: CustomFieldsProps) {
     <Card className="border-violet-200 bg-gradient-to-br from-violet-50 to-lime-50">
       <CardHeader className="pb-4">
         <div className="flex items-center justify-between">
-          <CardTitle className="text-lg font-bold text-violet-900 flex items-center gap-2">
-            <Settings className="h-5 w-5" />
-            Custom Fields
-          </CardTitle>
-          {!isAddingField && !editingId && (
+          <div>
+            <CardTitle className="text-lg font-bold text-violet-900 flex items-center gap-2">
+              <Settings className="h-5 w-5" />
+              Custom Fields
+            </CardTitle>
+            <p className="text-xs text-violet-700 mt-1">
+              {fields.length} of {MAX_FIELDS} fields — supporters answer these
+              in one optional lobby step
+            </p>
+          </div>
+          {!isAddingField && !editingId && fields.length < MAX_FIELDS && (
             <Button
               onClick={() => setIsAddingField(true)}
               className="bg-gradient-to-r from-violet-500 to-lime-500 text-white hover:from-violet-600 hover:to-lime-600"
@@ -302,11 +323,15 @@ export function CustomFields({ campaignId }: CustomFieldsProps) {
                     type: e.target.value as CustomFieldType,
                   })
                 }
+                aria-label="Field type"
                 className="w-full px-3 py-2 border border-violet-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-violet-500"
               >
-                {Object.entries(FIELD_TYPE_LABELS).map(([key, label]) => (
+                {(formData.type === 'number'
+                  ? [...CREATABLE_FIELD_TYPES, 'number' as CustomFieldType]
+                  : CREATABLE_FIELD_TYPES
+                ).map((key) => (
                   <option key={key} value={key}>
-                    {label}
+                    {FIELD_TYPE_LABELS[key]}
                   </option>
                 ))}
               </select>

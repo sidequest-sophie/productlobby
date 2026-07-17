@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getCurrentUser } from '@/lib/auth'
 import { prisma } from '@/lib/db'
+import { getCampaignRole } from '@/lib/campaign-team'
 
 interface RouteParams {
   params: {
@@ -128,7 +129,14 @@ export async function PUT(request: NextRequest, { params }: RouteParams) {
       },
     })
 
-    if (!isBrandMember) {
+    // Owner/Organizer may edit any update; a Contributor may edit their own.
+    const teamRole = await getCampaignRole(user.id, campaignId)
+    const canEditAsTeam =
+      teamRole === 'OWNER' ||
+      teamRole === 'ORGANIZER' ||
+      (teamRole === 'CONTRIBUTOR' && update.creatorUserId === user.id)
+
+    if (!isBrandMember && !canEditAsTeam) {
       return NextResponse.json(
         { success: false, error: 'Unauthorized to edit this update' },
         { status: 403 }
@@ -225,7 +233,9 @@ export async function PATCH(request: NextRequest, { params }: RouteParams) {
       )
     }
 
-    const isCampaignCreator = campaign.creatorUserId === user.id
+    // Pinning is content management: Owner/Organizer (or brand members).
+    const teamRole = await getCampaignRole(user.id, campaignId)
+    const canPinAsTeam = teamRole === 'OWNER' || teamRole === 'ORGANIZER'
     const isBrandMember = await prisma.brandTeam.findFirst({
       where: {
         brandId: campaign?.targetedBrand?.id,
@@ -233,9 +243,9 @@ export async function PATCH(request: NextRequest, { params }: RouteParams) {
       },
     })
 
-    if (!isCampaignCreator && !isBrandMember) {
+    if (!canPinAsTeam && !isBrandMember) {
       return NextResponse.json(
-        { success: false, error: 'Only campaign creator or brand members can pin updates' },
+        { success: false, error: 'Only the campaign team or brand members can pin updates' },
         { status: 403 }
       )
     }
@@ -354,7 +364,14 @@ export async function DELETE(request: NextRequest, { params }: RouteParams) {
       },
     })
 
-    if (!isBrandMember) {
+    // Owner/Organizer may delete any update; a Contributor their own.
+    const teamRole = await getCampaignRole(user.id, campaignId)
+    const canDeleteAsTeam =
+      teamRole === 'OWNER' ||
+      teamRole === 'ORGANIZER' ||
+      (teamRole === 'CONTRIBUTOR' && update.creatorUserId === user.id)
+
+    if (!isBrandMember && !canDeleteAsTeam) {
       return NextResponse.json(
         { success: false, error: 'Unauthorized to delete this update' },
         { status: 403 }

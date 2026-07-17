@@ -67,12 +67,40 @@ export async function PUT(
       return NextResponse.json({ error: 'Unauthorized to update this survey' }, { status: 403 })
     }
 
+    // One active (PUBLISHED) survey per campaign (spec §5).
+    if (status === 'PUBLISHED' && survey.status !== 'PUBLISHED') {
+      const existingPublished = await prisma.survey.findFirst({
+        where: {
+          campaignId: survey.campaignId,
+          status: 'PUBLISHED',
+          id: { not: survey.id },
+        },
+        select: { id: true, title: true },
+      })
+      if (existingPublished) {
+        return NextResponse.json(
+          {
+            error: `This campaign already has an active survey ("${existingPublished.title}"). Close it before publishing another.`,
+          },
+          { status: 409 }
+        )
+      }
+    }
+
+    const nextStatus = status || survey.status
     const updatedSurvey = await prisma.survey.update({
       where: { id: params.surveyId },
       data: {
         title: title || survey.title,
         description: description !== undefined ? description : survey.description,
-        status: status || survey.status,
+        status: nextStatus,
+        // Keep the real lifecycle timestamps in sync with status changes.
+        ...(nextStatus === 'PUBLISHED' && survey.status !== 'PUBLISHED'
+          ? { publishedAt: new Date() }
+          : {}),
+        ...(nextStatus === 'CLOSED' && survey.status !== 'CLOSED'
+          ? { closedAt: new Date() }
+          : {}),
       },
       include: {
         questions: {

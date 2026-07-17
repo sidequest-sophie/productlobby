@@ -180,6 +180,22 @@ export async function POST(
       )
     }
 
+    // One active (PUBLISHED) survey per campaign (spec §5).
+    if (status === 'PUBLISHED') {
+      const existingPublished = await prisma.survey.findFirst({
+        where: { campaignId, status: 'PUBLISHED' },
+        select: { id: true, title: true },
+      })
+      if (existingPublished) {
+        return NextResponse.json(
+          {
+            error: `This campaign already has an active survey ("${existingPublished.title}"). Close it before publishing another.`,
+          },
+          { status: 409 }
+        )
+      }
+    }
+
     // Create survey with questions
     const newSurvey = await prisma.survey.create({
       data: {

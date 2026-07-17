@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/db'
 import { getCurrentUser } from '@/lib/auth'
+import { requireCampaignRole } from '@/lib/campaign-team'
 
 // GET /api/campaigns/[id]/polls - List all polls for a campaign
 export async function GET(
@@ -164,16 +165,14 @@ export async function POST(
       )
     }
 
-    // Verify user is the campaign creator
-    if (campaign.creatorUserId !== user.id) {
-      return NextResponse.json(
-        {
-          success: false,
-          error: 'Only the campaign creator can create polls',
-        },
-        { status: 403 }
-      )
-    }
+    // Owner, Organizers and Contributors may all create polls (spec v1).
+    // The poll is attributed to its real author via creatorId below.
+    const check = await requireCampaignRole(user.id, campaign.id, [
+      'OWNER',
+      'ORGANIZER',
+      'CONTRIBUTOR',
+    ])
+    if (check.error) return check.error
 
     // Validation
     if (

@@ -23,9 +23,11 @@ interface SurveyResponse {
 
 interface FeedbackSurveyProps {
   campaignId: string
+  /** Whether the viewer has a session — answering requires login (one response per user). */
+  isLoggedIn?: boolean
 }
 
-export default function FeedbackSurvey({ campaignId }: FeedbackSurveyProps) {
+export default function FeedbackSurvey({ campaignId, isLoggedIn = false }: FeedbackSurveyProps) {
   const [questions, setQuestions] = useState<SurveyQuestion[]>([])
   const [surveyId, setSurveyId] = useState<string | null>(null)
   const [loading, setLoading] = useState(true)
@@ -45,6 +47,11 @@ export default function FeedbackSurvey({ campaignId }: FeedbackSurveyProps) {
       if (data.success) {
         setQuestions(data.data || [])
         setSurveyId(data.surveyId || null)
+        // Server-enforced one-response-per-user: show the thank-you state
+        // straight away when this user has already answered.
+        if (data.alreadyResponded) {
+          setSubmitted(true)
+        }
       }
     } catch (error) {
       console.error('Failed to fetch survey:', error)
@@ -85,6 +92,10 @@ export default function FeedbackSurvey({ campaignId }: FeedbackSurveyProps) {
       if (data.success) {
         setSubmitted(true)
         toast.success('Thank you for your feedback!')
+      } else if (response.status === 409) {
+        // Already answered (enforced server-side) — reflect it honestly.
+        setSubmitted(true)
+        toast.info('You have already answered this survey')
       } else {
         toast.error(data.error || 'Failed to submit survey')
       }
@@ -143,6 +154,23 @@ export default function FeedbackSurvey({ campaignId }: FeedbackSurveyProps) {
             <div className="text-center">
               <AlertCircle className="w-8 h-8 text-gray-400 mx-auto mb-2" />
               <p className="text-gray-600">No survey questions available</p>
+            </div>
+          </div>
+        ) : !isLoggedIn ? (
+          <div className="flex items-center justify-center py-12">
+            <div className="text-center">
+              <MessageSquare className="w-8 h-8 text-violet-400 mx-auto mb-2" />
+              <p className="text-gray-900 font-medium mb-1">
+                The creator is asking supporters {questions.length}{' '}
+                {questions.length === 1 ? 'question' : 'questions'}
+              </p>
+              <p className="text-gray-600 mb-4">Sign in to add your answers — it takes about 30 seconds.</p>
+              <a
+                href="/login"
+                className="inline-flex items-center justify-center rounded-lg bg-violet-600 px-4 py-2 text-sm font-medium text-white hover:bg-violet-700 focus:outline-none focus-visible:ring-2 focus-visible:ring-violet-500 focus-visible:ring-offset-2"
+              >
+                Sign in to answer
+              </a>
             </div>
           </div>
         ) : (

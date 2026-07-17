@@ -19,7 +19,41 @@ interface SurveyPayload {
   success: boolean
   surveyId?: string | null
   data?: SurveyQuestion[]
+  alreadyResponded?: boolean
   error?: string
+}
+
+/**
+ * Has this user already answered this survey? Server-side enforcement of
+ * one response per user (spec §5). For non-anonymous surveys the
+ * SurveyResponse row carries the userId; for anonymous surveys the response
+ * row deliberately doesn't, so we check the ContributionEvent recorded at
+ * submission time instead (userId + surveyId in metadata).
+ */
+async function hasUserResponded(
+  userId: string,
+  survey: { id: string; campaignId: string; isAnonymous: boolean }
+): Promise<boolean> {
+  if (!survey.isAnonymous) {
+    const existing = await prisma.surveyResponse.findFirst({
+      where: { surveyId: survey.id, userId },
+      select: { id: true },
+    })
+    if (existing) return true
+  }
+
+  const event = await prisma.contributionEvent.findFirst({
+    where: {
+      userId,
+      campaignId: survey.campaignId,
+      AND: [
+        { metadata: { path: ['action'], equals: 'survey_response' } },
+        { metadata: { path: ['surveyId'], equals: survey.id } },
+      ],
+    },
+    select: { id: true },
+  })
+  return !!event
 }
 
 function mapQuestionType(
@@ -58,10 +92,10 @@ export async function GET(
   { params }: { params: { id: string } }
 ): Promise<NextResponse<SurveyPayload>> {
   try {
+    // Reading a published survey's questions is public — the campaign detail
+    // page is public and the widget shows a sign-in prompt before answering.
+    // Submitting (POST) still requires an authenticated user.
     const user = await getCurrentUser()
-    if (!user) {
-      return NextResponse.json({ success: false, error: 'Unauthorized' }, { status: 401 })
-    }
 
     // Verify campaign access
     const campaign = await prisma.campaign.findUnique({
@@ -95,6 +129,14 @@ export async function GET(
       })
     }
 
+    const alreadyResponded = user
+      ? await hasUserResponded(user.id, {
+          id: survey.id,
+          campaignId: campaign.id,
+          isAnonymous: survey.isAnonymous,
+        })
+      : false
+
     const questions: SurveyQuestion[] = []
     for (const q of survey.questions) {
       const type = mapQuestionType(q.questionType, q.maxScale)
@@ -114,6 +156,7 @@ export async function GET(
       success: true,
       surveyId: survey.id,
       data: questions,
+      alreadyResponded,
     })
   } catch (error) {
     console.error('Feedback survey error:', error)
@@ -175,6 +218,19 @@ export async function POST(
       return NextResponse.json(
         { success: false, error: 'Survey is not accepting responses' },
         { status: 400 }
+      )
+    }
+
+    // One response per user, enforced server-side (spec §5).
+    const alreadyResponded = await hasUserResponded(user.id, {
+      id: survey.id,
+      campaignId: campaign.id,
+      isAnonymous: survey.isAnonymous,
+    })
+    if (alreadyResponded) {
+      return NextResponse.json(
+        { success: false, error: 'You have already answered this survey', alreadyResponded: true },
+        { status: 409 }
       )
     }
 

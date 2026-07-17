@@ -27,12 +27,13 @@ interface Question {
 
 interface SurveyBuilderProps {
   campaignId: string
-  brandId: string
-  creatorUserId: string
+  /** Unused by the builder itself (the API derives them) — kept optional for callers that pass them. */
+  brandId?: string
+  creatorUserId?: string
   onSave?: (survey: any) => void
 }
 
-export function SurveyBuilder({ campaignId, brandId, creatorUserId, onSave }: SurveyBuilderProps) {
+export function SurveyBuilder({ campaignId, onSave }: SurveyBuilderProps) {
   const [title, setTitle] = useState('')
   const [description, setDescription] = useState('')
   const [surveyType, setSurveyType] = useState<SurveyType>('QUICK_POLL')
@@ -40,6 +41,7 @@ export function SurveyBuilder({ campaignId, brandId, creatorUserId, onSave }: Su
   const [questions, setQuestions] = useState<Question[]>([])
   const [previewMode, setPreviewMode] = useState(false)
   const [isSaving, setIsSaving] = useState(false)
+  const [error, setError] = useState<string | null>(null)
 
   const addQuestion = () => {
     const newQuestion: Question = {
@@ -75,13 +77,19 @@ export function SurveyBuilder({ campaignId, brandId, creatorUserId, onSave }: Su
   }
 
   const handleSave = async (asDraft: boolean) => {
+    setError(null)
     if (!title.trim()) {
-      alert('Please enter a survey title')
+      setError('Please enter a survey title')
       return
     }
 
     if (questions.length === 0) {
-      alert('Please add at least one question')
+      setError('Please add at least one question')
+      return
+    }
+
+    if (questions.some((q) => !q.question.trim())) {
+      setError('Please fill in every question text')
       return
     }
 
@@ -100,13 +108,15 @@ export function SurveyBuilder({ campaignId, brandId, creatorUserId, onSave }: Su
         }),
       })
 
-      if (!response.ok) throw new Error('Failed to save survey')
+      if (!response.ok) {
+        const data = await response.json().catch(() => null)
+        throw new Error(data?.error || 'Failed to save survey')
+      }
 
       const survey = await response.json()
       onSave?.(survey)
-      alert(`Survey ${asDraft ? 'saved as draft' : 'published'} successfully!`)
     } catch (error) {
-      alert('Error saving survey: ' + (error instanceof Error ? error.message : 'Unknown error'))
+      setError(error instanceof Error ? error.message : 'Failed to save survey')
     } finally {
       setIsSaving(false)
     }
@@ -214,6 +224,15 @@ export function SurveyBuilder({ campaignId, brandId, creatorUserId, onSave }: Su
           )}
         </CardContent>
       </Card>
+
+      {error && (
+        <div
+          role="alert"
+          className="rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-800"
+        >
+          {error}
+        </div>
+      )}
 
       <div className="flex gap-3 justify-between">
         <Button

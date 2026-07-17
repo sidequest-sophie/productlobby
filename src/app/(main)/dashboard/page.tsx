@@ -208,9 +208,14 @@ export default function CreatorDashboard() {
       <PageHeader
         title="Dashboard"
         actions={
-          <Link href="/campaigns/new">
-            <Button variant="primary" size="lg">Create Campaign</Button>
-          </Link>
+          <div className="flex items-center gap-2">
+            <Link href="/groups/new">
+              <Button variant="outline" size="lg">Create LobbyGroup</Button>
+            </Link>
+            <Link href="/campaigns/new">
+              <Button variant="primary" size="lg">Create Campaign</Button>
+            </Link>
+          </div>
         }
       />
 

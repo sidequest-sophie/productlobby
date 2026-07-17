@@ -99,6 +99,7 @@ export async function GET(
       intensityDistribution,
       recentLobbies,
       wishlistThemes,
+      publishedSurveyCount,
     ] = await Promise.all([
       // Total verified lobbies
       prisma.lobby.count({
@@ -147,6 +148,14 @@ export async function GET(
         },
         select: {
           text: true,
+        },
+      }),
+      // Whether a PUBLISHED feedback survey exists — lets the detail page
+      // gate the (lazy) survey widget without an extra client request.
+      prisma.survey.count({
+        where: {
+          campaignId,
+          status: 'PUBLISHED',
         },
       }),
     ])
@@ -213,6 +222,7 @@ export async function GET(
       },
       topWishlistThemes,
       preferenceData,
+      hasPublishedSurvey: publishedSurveyCount > 0,
     })
   } catch (error) {
     console.error('[GET /api/campaigns/[id]]', error)

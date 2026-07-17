@@ -16,7 +16,8 @@ const FIELD_TYPE_MAP: Record<string, FieldType> = {
   range: 'RANGE',
 }
 
-const MAX_FIELDS = 20
+// Spec (feature-specs-2026-07-17 §6): cap 5 fields — the lobby must stay ~60s.
+const MAX_FIELDS = 5
 
 function serialiseField(field: {
   id: string

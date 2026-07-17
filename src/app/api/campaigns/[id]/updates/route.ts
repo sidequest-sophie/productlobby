@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/db'
 import { getCurrentUser } from '@/lib/auth'
+import { getCampaignRole } from '@/lib/campaign-team'
 import { notifySubscribers } from '@/lib/update-notifications'
 
 interface RouteParams {
@@ -199,11 +200,13 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
       },
     })
 
-    const isCampaignCreator = campaign.creatorUserId === user.id
+    // Owner, Organizers and Contributors may all post updates (spec v1).
+    // The update is attributed to its real author via creatorUserId.
+    const teamRole = await getCampaignRole(user.id, campaignId)
 
-    if (!isBrandMember && !isCampaignCreator) {
+    if (!isBrandMember && !teamRole) {
       return NextResponse.json(
-        { success: false, error: 'Only brand members and campaign creator can post updates' },
+        { success: false, error: 'Only brand members and the campaign team can post updates' },
         { status: 403 }
       )
     }

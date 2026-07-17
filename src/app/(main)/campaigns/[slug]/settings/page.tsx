@@ -3,14 +3,45 @@
 import { useEffect, useState } from 'react'
 import { useParams, useRouter } from 'next/navigation'
 import Link from 'next/link'
+import nextDynamic from 'next/dynamic'
 import { ArrowLeft, Loader2, Save, Trash2 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Textarea } from '@/components/ui/textarea'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Spinner } from '@/components/ui/spinner'
+import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs'
 import { useToast } from '@/components/ui/toast'
 import { cn } from '@/lib/utils'
+
+// Feature tabs are creator-only and below the fold — lazy-load their chunks
+// so the settings shell stays light.
+const CustomFields = nextDynamic(
+  () =>
+    import('@/components/campaigns/custom-fields').then((m) => m.CustomFields),
+  { ssr: false, loading: () => <Spinner /> }
+)
+const PreferenceInsights = nextDynamic(
+  () =>
+    import('@/components/campaigns/preference-insights').then(
+      (m) => m.PreferenceInsights
+    ),
+  { ssr: false, loading: () => <Spinner /> }
+)
+const SurveySettings = nextDynamic(
+  () =>
+    import('@/components/campaigns/survey-settings').then(
+      (m) => m.SurveySettings
+    ),
+  { ssr: false, loading: () => <Spinner /> }
+)
+const EmailOutreach = nextDynamic(
+  () =>
+    import('@/components/campaigns/email-outreach').then(
+      (m) => m.EmailOutreach
+    ),
+  { ssr: false, loading: () => <Spinner /> }
+)
 
 interface CampaignData {
   id: string
@@ -20,6 +51,7 @@ interface CampaignData {
   category: string
   status: 'DRAFT' | 'LIVE' | 'PAUSED' | 'CLOSED'
   creatorUserId: string
+  targetedBrand?: { id: string; name: string } | null
 }
 
 const CAMPAIGN_STATUSES = [
@@ -55,12 +87,15 @@ export default function CampaignSettingsPage() {
     const fetchCampaign = async () => {
       try {
         setLoading(true)
-        const response = await fetch(`/api/campaigns/${slug}`)
-        if (!response.ok) {
+        const [campaignRes, userRes] = await Promise.all([
+          fetch(`/api/campaigns/${slug}`),
+          fetch('/api/auth/me'),
+        ])
+        if (!campaignRes.ok) {
           throw new Error('Campaign not found')
         }
 
-        const data = await response.json()
+        const data = await campaignRes.json()
         const campaign = data.campaign || data
 
         setCampaign(campaign)
@@ -69,9 +104,14 @@ export default function CampaignSettingsPage() {
         setCategory(campaign.category || '')
         setStatus(campaign.status || 'DRAFT')
 
-        // Check if user is creator by checking if we can access the campaign
-        // If we got here without 403, assume user is creator or has access
-        setIsCreator(true)
+        // Only the campaign creator gets settings access — compare the real
+        // session user against Campaign.creatorUserId (never assumed).
+        let creator = false
+        if (userRes.ok) {
+          const { data: userData } = await userRes.json().catch(() => ({ data: null }))
+          creator = !!userData?.id && userData.id === campaign.creatorUserId
+        }
+        setIsCreator(creator)
       } catch (err) {
         console.error('Error loading campaign:', err)
         addToast('Failed to load campaign', 'error')
@@ -123,11 +163,11 @@ export default function CampaignSettingsPage() {
       }
 
       const updated = await response.json()
-      setCampaign(updated)
+      setCampaign((prev) => (prev ? { ...prev, ...updated } : updated))
       addToast('Campaign settings saved successfully', 'success')
 
       // If slug changed, redirect
-      if (updated.slug !== slug) {
+      if (updated.slug && updated.slug !== slug) {
         router.push(`/campaigns/${updated.slug}/settings`)
       }
     } catch (error) {
@@ -206,12 +246,17 @@ export default function CampaignSettingsPage() {
   }
 
   return (
-    <div className="mx-auto max-w-2xl py-8">
+    <div className="mx-auto max-w-3xl py-8 px-4">
       {/* Header */}
       <div className="mb-8 flex items-center gap-4">
         <Link href={`/campaigns/${campaign.slug}`}>
-          <Button variant="ghost" size="sm" className="w-9 px-0">
-            <ArrowLeft className="h-5 w-5" />
+          <Button
+            variant="ghost"
+            size="sm"
+            className="w-9 px-0"
+            aria-label="Back to campaign"
+          >
+            <ArrowLeft className="h-5 w-5" aria-hidden="true" />
           </Button>
         </Link>
         <div>
@@ -220,153 +265,204 @@ export default function CampaignSettingsPage() {
         </div>
       </div>
 
-      {/* Main Settings */}
-      <Card className="mb-8">
-        <CardHeader>
-          <CardTitle>Basic Information</CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-6">
-          {/* Title */}
-          <div>
-            <label className="block text-sm font-medium text-gray-700">
-              Campaign Title *
-            </label>
-            <Input
-              value={title}
-              onChange={(e) => setTitle(e.target.value)}
-              placeholder="Enter campaign title"
-              className="mt-2"
-            />
-          </div>
+      <Tabs defaultValue="general" className="w-full">
+        <TabsList className="mb-6 flex w-full flex-nowrap justify-start overflow-x-auto">
+          <TabsTrigger value="general">General</TabsTrigger>
+          <TabsTrigger value="preferences">Preferences</TabsTrigger>
+          <TabsTrigger value="survey">Survey</TabsTrigger>
+          <TabsTrigger value="outreach">Brand outreach</TabsTrigger>
+        </TabsList>
 
-          {/* Description */}
-          <div>
-            <label className="block text-sm font-medium text-gray-700">
-              Description *
-            </label>
-            <Textarea
-              value={description}
-              onChange={(e) => setDescription(e.target.value)}
-              placeholder="Enter campaign description"
-              rows={5}
-              className="mt-2"
-            />
-          </div>
-
-          {/* Category */}
-          <div>
-            <label className="block text-sm font-medium text-gray-700">
-              Category *
-            </label>
-            <Input
-              value={category}
-              onChange={(e) => setCategory(e.target.value)}
-              placeholder="e.g., Technology, Health, Finance"
-              className="mt-2"
-            />
-          </div>
-
-          {/* Save Button */}
-          <Button
-            onClick={handleSave}
-            disabled={saving}
-            className="w-full bg-violet-600 hover:bg-violet-700"
-          >
-            {saving ? (
-              <>
-                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                Saving...
-              </>
-            ) : (
-              <>
-                <Save className="mr-2 h-4 w-4" />
-                Save Changes
-              </>
-            )}
-          </Button>
-        </CardContent>
-      </Card>
-
-      {/* Campaign Status */}
-      <Card className="mb-8">
-        <CardHeader>
-          <CardTitle>Campaign Status</CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          <p className="text-sm text-gray-600">
-            Choose the status for your campaign to control its visibility and
-            acceptance of contributions.
-          </p>
-
-          <div className="space-y-3">
-            {CAMPAIGN_STATUSES.map((s) => (
-              <label
-                key={s.value}
-                className={cn(
-                  'flex cursor-pointer items-center gap-3 rounded-lg border-2 p-4 transition-all',
-                  status === s.value
-                    ? 'border-violet-500 bg-violet-50'
-                    : 'border-gray-200 bg-white hover:border-gray-300'
-                )}
-              >
-                <input
-                  type="radio"
-                  name="status"
-                  value={s.value}
-                  checked={status === s.value}
-                  onChange={(e) => setStatus(e.target.value as any)}
-                  className="h-4 w-4"
+        {/* Tab: General (existing settings) */}
+        <TabsContent value="general">
+          {/* Main Settings */}
+          <Card className="mb-8">
+            <CardHeader>
+              <CardTitle>Basic Information</CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-6">
+              {/* Title */}
+              <div>
+                <label
+                  htmlFor="settings-title"
+                  className="block text-sm font-medium text-gray-700"
+                >
+                  Campaign Title *
+                </label>
+                <Input
+                  id="settings-title"
+                  value={title}
+                  onChange={(e) => setTitle(e.target.value)}
+                  placeholder="Enter campaign title"
+                  className="mt-2"
                 />
-                <div>
-                  <p className="font-medium text-gray-900">{s.label}</p>
-                  <p className="text-sm text-gray-600">{s.description}</p>
-                </div>
-              </label>
-            ))}
+              </div>
+
+              {/* Description */}
+              <div>
+                <label
+                  htmlFor="settings-description"
+                  className="block text-sm font-medium text-gray-700"
+                >
+                  Description *
+                </label>
+                <Textarea
+                  id="settings-description"
+                  value={description}
+                  onChange={(e) => setDescription(e.target.value)}
+                  placeholder="Enter campaign description"
+                  rows={5}
+                  className="mt-2"
+                />
+              </div>
+
+              {/* Category */}
+              <div>
+                <label
+                  htmlFor="settings-category"
+                  className="block text-sm font-medium text-gray-700"
+                >
+                  Category *
+                </label>
+                <Input
+                  id="settings-category"
+                  value={category}
+                  onChange={(e) => setCategory(e.target.value)}
+                  placeholder="e.g., Technology, Health, Finance"
+                  className="mt-2"
+                />
+              </div>
+
+              {/* Save Button */}
+              <Button
+                onClick={handleSave}
+                disabled={saving}
+                className="w-full bg-violet-600 hover:bg-violet-700"
+              >
+                {saving ? (
+                  <>
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                    Saving...
+                  </>
+                ) : (
+                  <>
+                    <Save className="mr-2 h-4 w-4" />
+                    Save Changes
+                  </>
+                )}
+              </Button>
+            </CardContent>
+          </Card>
+
+          {/* Campaign Status */}
+          <Card className="mb-8">
+            <CardHeader>
+              <CardTitle>Campaign Status</CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <p className="text-sm text-gray-600">
+                Choose the status for your campaign to control its visibility and
+                acceptance of contributions.
+              </p>
+
+              <div className="space-y-3">
+                {CAMPAIGN_STATUSES.map((s) => (
+                  <label
+                    key={s.value}
+                    className={cn(
+                      'flex cursor-pointer items-center gap-3 rounded-lg border-2 p-4 transition-all',
+                      status === s.value
+                        ? 'border-violet-500 bg-violet-50'
+                        : 'border-gray-200 bg-white hover:border-gray-300'
+                    )}
+                  >
+                    <input
+                      type="radio"
+                      name="status"
+                      value={s.value}
+                      checked={status === s.value}
+                      onChange={(e) => setStatus(e.target.value as any)}
+                      className="h-4 w-4"
+                    />
+                    <div>
+                      <p className="font-medium text-gray-900">{s.label}</p>
+                      <p className="text-sm text-gray-600">{s.description}</p>
+                    </div>
+                  </label>
+                ))}
+              </div>
+
+              <Button
+                onClick={handleSave}
+                disabled={saving}
+                variant="outline"
+                className="w-full"
+              >
+                {saving ? (
+                  <>
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                    Saving...
+                  </>
+                ) : (
+                  <>
+                    <Save className="mr-2 h-4 w-4" />
+                    Save Status Change
+                  </>
+                )}
+              </Button>
+            </CardContent>
+          </Card>
+
+          {/* Danger Zone */}
+          <Card className="border-red-200 bg-red-50">
+            <CardHeader>
+              <CardTitle className="text-red-900">Danger Zone</CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <p className="text-sm text-red-800">
+                Deleting your campaign is a permanent action. Please be careful.
+              </p>
+
+              <Button
+                variant="destructive"
+                onClick={() => setShowDeleteConfirm(true)}
+                disabled={deleting}
+                className="w-full"
+              >
+                <Trash2 className="mr-2 h-4 w-4" />
+                Delete Campaign
+              </Button>
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        {/* Tab: Preferences — custom fields editor + real aggregates (spec §6) */}
+        <TabsContent value="preferences">
+          <div className="space-y-6">
+            <p className="text-sm text-gray-600">
+              Preference fields turn &ldquo;150 people want this&rdquo; into
+              &ldquo;150 people want this, 60% in black&rdquo;. Supporters
+              answer them as one optional step when they lobby — never
+              required, never blocking.
+            </p>
+            <CustomFields campaignId={campaign.id} />
+            <PreferenceInsights campaignId={campaign.id} />
           </div>
+        </TabsContent>
 
-          <Button
-            onClick={handleSave}
-            disabled={saving}
-            variant="outline"
-            className="w-full"
-          >
-            {saving ? (
-              <>
-                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                Saving...
-              </>
-            ) : (
-              <>
-                <Save className="mr-2 h-4 w-4" />
-                Save Status Change
-              </>
-            )}
-          </Button>
-        </CardContent>
-      </Card>
+        {/* Tab: Survey — create/publish one survey + real results (spec §5) */}
+        <TabsContent value="survey">
+          <SurveySettings
+            campaignId={campaign.id}
+            hasTargetedBrand={!!campaign.targetedBrand}
+          />
+        </TabsContent>
 
-      {/* Danger Zone */}
-      <Card className="border-red-200 bg-red-50">
-        <CardHeader>
-          <CardTitle className="text-red-900">Danger Zone</CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          <p className="text-sm text-red-800">
-            Deleting your campaign is a permanent action. Please be careful.
-          </p>
-
-          <Button
-            variant="destructive"
-            onClick={() => setShowDeleteConfirm(true)}
-            disabled={deleting}
-            className="w-full"
-          >
-            <Trash2 className="mr-2 h-4 w-4" />
-            Delete Campaign
-          </Button>
-        </CardContent>
-      </Card>
+        {/* Tab: Brand outreach — demand-evidence emails (spec §4) */}
+        <TabsContent value="outreach">
+          <EmailOutreach campaignId={campaign.id} />
+        </TabsContent>
+      </Tabs>
 
       {/* Delete Confirmation Modal */}
       {showDeleteConfirm && (

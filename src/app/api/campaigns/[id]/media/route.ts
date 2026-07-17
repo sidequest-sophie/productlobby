@@ -2,6 +2,7 @@ import { getCurrentUser } from '@/lib/auth'
 import { prisma } from '@/lib/db'
 import { NextRequest, NextResponse } from 'next/server'
 import { MediaKind } from '@prisma/client'
+import { requireCampaignRole } from '@/lib/campaign-team'
 import {
   MAX_MEDIA_ITEMS,
   isValidImageUrl,
@@ -88,12 +89,12 @@ export async function POST(
       return NextResponse.json({ error: 'Campaign not found' }, { status: 404 })
     }
 
-    if (campaign.creatorUserId !== user.id) {
-      return NextResponse.json(
-        { error: 'Only the campaign creator can manage media' },
-        { status: 403 }
-      )
-    }
+    // Media management: Owner or Organizer (spec v1).
+    const check = await requireCampaignRole(user.id, campaign.id, [
+      'OWNER',
+      'ORGANIZER',
+    ])
+    if (check.error) return check.error
 
     const body = await request.json().catch(() => null)
     if (!body || typeof body !== 'object') {

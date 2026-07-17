@@ -623,7 +623,8 @@ export function LobbyFlow({
             <ModalHeader>
               <ModalTitle className="text-2xl">Help shape this product</ModalTitle>
               <p className="text-sm text-gray-600 mt-2">
-                Your preferences help {brandLabel} build exactly what you want
+                Takes about 20 seconds, and it&apos;s completely optional — your
+                preferences help {brandLabel} build exactly what you want.
               </p>
             </ModalHeader>
             <ModalBody className="max-h-[60vh] overflow-y-auto">

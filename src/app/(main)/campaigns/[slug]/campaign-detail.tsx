@@ -16,6 +16,7 @@ import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs'
 import { SocialLinks } from '@/components/shared/social-links'
 import { LobbyFlow } from './lobby-flow'
 import { CampaignUpdatesFeed } from '@/components/campaigns/campaign-updates-feed'
+import { TeamByline } from '@/components/campaigns/team-byline'
 import { UpdateCreationForm } from '@/components/campaigns/update-creation-form'
 import { CampaignMilestones } from '@/components/campaigns/campaign-milestones'
 import { CampaignTimeline } from '@/components/campaigns/campaign-timeline'
@@ -35,6 +36,13 @@ import { CampaignJsonLd } from '@/components/shared/json-ld'
 // so its chunk (lightbox, upload form) never competes with the page's LCP.
 const MediaGallery = nextDynamic(
   () => import('@/components/campaigns/media-gallery').then((m) => m.MediaGallery),
+  { ssr: false }
+)
+
+// Feedback survey lives in the Updates (engagement) tab and only when the
+// campaign has a PUBLISHED survey — lazy-load so it never affects LCP.
+const FeedbackSurvey = nextDynamic(
+  () => import('@/components/campaigns/feedback-survey'),
   { ssr: false }
 )
 
@@ -128,6 +136,8 @@ interface ApiCampaign {
     fieldType: string
     valueCounts: Record<string, number>
   }>
+  /** True when a PUBLISHED feedback survey exists (computed server-side). */
+  hasPublishedSurvey?: boolean
 }
 
 const LOBBY_MILESTONE_LADDER = [25, 50, 100, 250, 500, 1000, 2500, 5000]
@@ -464,6 +474,8 @@ export default function CampaignDetailPage({ params }: CampaignDetailPageProps) 
                     </div>
                   </div>
                 </Link>
+
+                <TeamByline campaignId={campaign.id} />
 
                 <div className="flex gap-6 text-sm text-gray-600">
                   <span>Created {formatDate(campaign.createdAt)}</span>
@@ -803,6 +815,17 @@ export default function CampaignDetailPage({ params }: CampaignDetailPageProps) 
                         isCreator={!!(user && campaign && user.id === campaign.creator.id)}
                       />
                     </div>
+                    {/* Feedback survey — only when a PUBLISHED survey exists;
+                        lazy-loaded, one response per logged-in user
+                        (enforced server-side). */}
+                    {campaign.hasPublishedSurvey && (
+                      <div className="mb-8">
+                        <FeedbackSurvey
+                          campaignId={campaign.id}
+                          isLoggedIn={!!user}
+                        />
+                      </div>
+                    )}
                     <CampaignPollsFeed
                       campaignId={campaign?.id || ''}
                       currentUserId={user?.id || null}

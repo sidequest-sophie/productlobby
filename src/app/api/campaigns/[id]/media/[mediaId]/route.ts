@@ -1,6 +1,7 @@
 import { getCurrentUser } from '@/lib/auth'
 import { prisma } from '@/lib/db'
 import { NextRequest, NextResponse } from 'next/server'
+import { getCampaignRole } from '@/lib/campaign-team'
 
 export const dynamic = 'force-dynamic'
 
@@ -16,10 +17,12 @@ async function requireOwnedMedia(campaignId: string, mediaId: string, userId: st
     return { error: NextResponse.json({ error: 'Campaign not found' }, { status: 404 }) }
   }
 
-  if (campaign.creatorUserId !== userId) {
+  // Media management: Owner or Organizer (spec v1).
+  const role = await getCampaignRole(userId, campaign.id)
+  if (role !== 'OWNER' && role !== 'ORGANIZER') {
     return {
       error: NextResponse.json(
-        { error: 'Only the campaign creator can manage media' },
+        { error: 'Only the campaign owner or organizers can manage media' },
         { status: 403 }
       ),
     }

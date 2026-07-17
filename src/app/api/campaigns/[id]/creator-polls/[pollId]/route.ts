@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/db'
 import { getCurrentUser } from '@/lib/auth'
+import { getCampaignRole } from '@/lib/campaign-team'
 
 // GET /api/campaigns/[id]/creator-polls/[pollId] - Get single poll with detailed results
 export async function GET(
@@ -218,9 +219,15 @@ export async function PATCH(
       )
     }
 
-    if (poll.creatorId !== user.id) {
+    // Owner/Organizer may manage any poll; a Contributor only their own.
+    const teamRole = await getCampaignRole(user.id, poll.campaignId)
+    const canManage =
+      teamRole === 'OWNER' ||
+      teamRole === 'ORGANIZER' ||
+      (teamRole === 'CONTRIBUTOR' && poll.creatorId === user.id)
+    if (!canManage) {
       return NextResponse.json(
-        { error: 'Only poll creator can update' },
+        { error: 'Only the campaign team can update this poll' },
         { status: 403 }
       )
     }
@@ -310,9 +317,15 @@ export async function DELETE(
       )
     }
 
-    if (poll.creatorId !== user.id) {
+    // Owner/Organizer may close any poll; a Contributor only their own.
+    const teamRole = await getCampaignRole(user.id, poll.campaignId)
+    const canManage =
+      teamRole === 'OWNER' ||
+      teamRole === 'ORGANIZER' ||
+      (teamRole === 'CONTRIBUTOR' && poll.creatorId === user.id)
+    if (!canManage) {
       return NextResponse.json(
-        { error: 'Only poll creator can delete' },
+        { error: 'Only the campaign team can delete this poll' },
         { status: 403 }
       )
     }
