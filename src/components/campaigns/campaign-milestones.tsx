@@ -34,7 +34,12 @@ export const CampaignMilestones: React.FC<CampaignMilestonesProps> = ({
   campaignId,
   isCreator,
 }) => {
-  const [milestonesState, setMilestonesState] = useState<Milestone[]>(milestones)
+  // The wizard stores `milestones` as a JSON object ({ successCriteria }) while
+  // older campaigns use an array of milestone rows — guard so a non-array shape
+  // renders the empty state instead of crashing the whole campaign page.
+  const [milestonesState, setMilestonesState] = useState<Milestone[]>(
+    Array.isArray(milestones) ? milestones : []
+  )
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
 

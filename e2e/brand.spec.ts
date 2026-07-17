@@ -76,11 +76,16 @@ test.describe('Brand — signed-in journeys', () => {
     await expect(page.getByPlaceholder('Search brands...')).toBeVisible()
     // getBrands() (src/app/(main)/brands/page.tsx) falls back to 4
     // hardcoded sample brands (TechVision, StyleHub, EcoGoods, FoodFresh)
-    // if the /api/brands/directory fetch fails.
-    // SIMULATED DATA — only assert the grid renders *something*, real or
-    // fallback, rather than asserting specific brand names.
+    // if the /api/brands/directory fetch fails, and renders a "No brands
+    // found" empty state when the fetch succeeds but the Brand table is
+    // empty (possible in a freshly seeded e2e database).
+    // SIMULATED DATA — only assert the grid area renders one of its real
+    // outcomes (brand cards, fallback cards, or the empty state) rather
+    // than asserting specific brand names.
     await expect(page.getByText(/techvision|stylehub|ecogoods|foodfresh/i).or(
       page.locator('a[href^="/brands/"]').first()
+    ).or(
+      page.getByRole('heading', { name: 'No brands found' })
     )).toBeVisible({ timeout: 10_000 })
   })
 
@@ -123,9 +128,19 @@ test.describe('Brand — signed-in journeys', () => {
     await page.getByPlaceholder('you@company.com').fill(`brand.rep.${Date.now()}@some-real-brand.example.com`)
     await page.getByRole('button', { name: 'Send Verification Code' }).click()
 
+    // Three real outcomes, depending on which LIVE campaign the fixture
+    // helper returned:
+    //  - the campaign has no targetedBrand → 400 "Campaign has no associated
+    //    brand to claim" (the case for campaigns our helper creates itself);
+    //  - the campaign HAS a targetedBrand with a known email domain → the
+    //    route's work-email check rejects our example.com address with
+    //    "Email domain must match <domain>" (the case for seeded campaigns,
+    //    which do target real brands — correct anti-spoofing behaviour);
+    //  - domain matches → step 2 "Verify Email" is reached.
     const noBrandError = page.getByText('Campaign has no associated brand to claim')
+    const domainMismatch = page.getByText(/Email domain must match/)
     const step2Heading = page.getByRole('heading', { name: 'Verify Email' })
-    await expect(noBrandError.or(step2Heading)).toBeVisible({ timeout: 10_000 })
+    await expect(noBrandError.or(domainMismatch).or(step2Heading)).toBeVisible({ timeout: 10_000 })
 
     // Even on the happy path (a campaign that does have a targeted brand),
     // this journey is a dead end for automated testing: POST
@@ -136,15 +151,21 @@ test.describe('Brand — signed-in journeys', () => {
     // the "Verify Email" step. See JOURNEYS.md.
   })
 
-  test('brand dashboard loads for any authenticated user, not just brand team members (coarse access control)', async ({ page }) => {
+  test('brand dashboard is denied to signed-in users who are not brand team members', async ({ page, request }) => {
     // /api/brand/dashboard-v2 (src/app/api/brand/dashboard-v2/route.ts)
-    // only checks getCurrentUser() — it never checks whether this user is
-    // actually a member of any brand's team. So a completely unaffiliated
-    // supporter account can load the brand dashboard, just with
-    // empty/zeroed-out data. This documents that behaviour rather than
-    // asserting some stricter (currently nonexistent) 403.
+    // now checks brandTeam membership and returns 403 for authenticated
+    // users who belong to no brand team — the coarse access control this
+    // test previously documented (any signed-in user could load the
+    // dashboard with zeroed data) has been fixed.
+    const res = await request.get('/api/brand/dashboard-v2')
+    expect(res.status()).toBe(403)
+
+    // The page mirrors the redirect-on-403 pattern used elsewhere: it
+    // router.push('/login')s on 401/403, and middleware.ts's AUTH_ROUTES
+    // rule immediately bounces the still-signed-in user on to /campaigns —
+    // so, as with the /admin tests, assert the end state (moved off
+    // /brand/dashboard) rather than the transient /login URL.
     await page.goto('/brand/dashboard')
-    await expect(page).toHaveURL(/\/brand\/dashboard$/)
-    await expect(page.getByRole('heading', { name: 'Brand Dashboard' })).toBeVisible()
+    await page.waitForURL(/\/(login|campaigns)([/?]|$)/, { timeout: 10_000 })
   })
 })

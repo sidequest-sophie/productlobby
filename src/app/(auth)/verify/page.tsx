@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState, Suspense } from 'react'
+import { useEffect, useRef, useState, Suspense } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import Link from 'next/link'
 import { Loader2, CheckCircle, XCircle } from 'lucide-react'
@@ -17,7 +17,15 @@ function VerifyContent() {
   const [error, setError] = useState('')
   const [email, setEmail] = useState('')
 
+  // Magic-link tokens are single-use, but React StrictMode re-runs effects in
+  // development — without this guard the second run re-posts the consumed
+  // token, gets rejected, and stomps the success screen with an error.
+  const hasVerified = useRef(false)
+
   useEffect(() => {
+    if (hasVerified.current) return
+    hasVerified.current = true
+
     if (!token) {
       setStatus('error')
       setError('No verification token provided')

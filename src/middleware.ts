@@ -28,7 +28,48 @@ const ONBOARDING_EXEMPT_ROUTES = [
 ]
 
 const RATE_LIMIT_WINDOW_SECONDS = 60
-const RATE_LIMIT_MAX_REQUESTS = 100
+// Production cap: fixed, not env-tunable, so a stray env var on a real
+// deployment can never weaken it.
+const PRODUCTION_RATE_LIMIT_MAX_REQUESTS = 100
+// Dev/test default: high enough that a serial e2e suite (a few hundred API
+// calls per minute from one IP) never trips it, while still finitely bounded.
+const NON_PRODUCTION_RATE_LIMIT_MAX_REQUESTS = 10_000
+
+/**
+ * Resolve the per-IP API rate cap for this environment.
+ *
+ * Behaviour matrix:
+ *  - Real production (NODE_ENV === 'production' and E2E_TEST !== '1', or any
+ *    Vercel deployment regardless of flags) → always 100 (hard-coded;
+ *    RATE_LIMIT_MAX_REQUESTS and E2E_TEST are IGNORED).
+ *  - NODE_ENV !== 'production' (next dev / tests), or E2E_TEST === '1' on a
+ *    non-Vercel production build started explicitly for end-to-end testing
+ *    (e.g. `next start` in CI):
+ *      - RATE_LIMIT_MAX_REQUESTS set to a positive integer → that value
+ *      - RATE_LIMIT_MAX_REQUESTS=0 → rate limiting disabled entirely
+ *      - unset/invalid → 10,000
+ */
+function resolveRateLimitMaxRequests(): number {
+  // Any Vercel deployment (preview or prod) is "real" — the escape hatch and
+  // env override can never weaken the cap there, even if E2E_TEST leaks in.
+  const isRealProduction =
+    Boolean(process.env.VERCEL) ||
+    (process.env.NODE_ENV === 'production' && process.env.E2E_TEST !== '1')
+  if (isRealProduction) {
+    return PRODUCTION_RATE_LIMIT_MAX_REQUESTS
+  }
+
+  const raw = process.env.RATE_LIMIT_MAX_REQUESTS
+  if (raw !== undefined && raw !== '') {
+    const parsed = Number(raw)
+    if (Number.isInteger(parsed) && parsed >= 0) {
+      return parsed
+    }
+  }
+  return NON_PRODUCTION_RATE_LIMIT_MAX_REQUESTS
+}
+
+const RATE_LIMIT_MAX_REQUESTS = resolveRateLimitMaxRequests()
 
 export async function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl
@@ -38,7 +79,9 @@ export async function middleware(request: NextRequest) {
   // configured (see src/lib/kv.ts) so the limit holds across all Vercel
   // serverless instances; falls back to a per-instance in-memory limiter
   // when no KV store is configured yet.
-  if (pathname.startsWith('/api/')) {
+  // RATE_LIMIT_MAX_REQUESTS === 0 (only reachable outside real production,
+  // see resolveRateLimitMaxRequests) disables the check entirely.
+  if (pathname.startsWith('/api/') && RATE_LIMIT_MAX_REQUESTS > 0) {
     const rateLimitKey = `middleware:${getClientIP(request)}`
     const result = await rateLimitDurable(rateLimitKey, {
       limit: RATE_LIMIT_MAX_REQUESTS,

@@ -53,6 +53,39 @@ interface RateLimitResult {
   resetAt: number
 }
 
+/**
+ * Test/dev escape hatch: DISABLE_RATE_LIMIT=1 makes every limiter in this
+ * module allow all requests (so e2e suites can sign in / hit APIs without
+ * tripping e.g. the magic-link 5/IP/15min limit), WITHOUT any auth route
+ * needing to know about it.
+ *
+ * It is honoured ONLY outside real production:
+ *  - never on Vercel — every Vercel deployment sets VERCEL=1, so the flags
+ *    are ignored there even if they leak into the environment;
+ *  - in dev/test (NODE_ENV !== 'production'), DISABLE_RATE_LIMIT=1 alone
+ *    is enough;
+ *  - in a production BUILD (NODE_ENV is always 'production' under
+ *    `next start`, including CI's e2e job), the run must ALSO be explicitly
+ *    marked as an end-to-end test run with E2E_TEST=1 — the guard is on the
+ *    environment, not just the one flag, so a stray DISABLE_RATE_LIMIT on a
+ *    production server does nothing by itself.
+ *
+ * On a real deployment all of this is a no-op and every limit is unchanged.
+ */
+function isRateLimitBypassed(): boolean {
+  if (process.env.DISABLE_RATE_LIMIT !== '1') return false
+  if (process.env.VERCEL) return false
+  return process.env.NODE_ENV !== 'production' || process.env.E2E_TEST === '1'
+}
+
+function bypassedResult(options: RateLimitOptions): RateLimitResult {
+  return {
+    success: true,
+    remaining: options.limit,
+    resetAt: Date.now() + options.windowSeconds * 1000,
+  }
+}
+
 function inMemoryRateLimit(
   key: string,
   options: RateLimitOptions
@@ -128,6 +161,9 @@ export function rateLimit(
   key: string,
   options: RateLimitOptions
 ): RateLimitResult {
+  if (isRateLimitBypassed()) {
+    return bypassedResult(options)
+  }
   return inMemoryRateLimit(key, options)
 }
 
@@ -144,6 +180,9 @@ export async function rateLimitDurable(
   key: string,
   options: RateLimitOptions
 ): Promise<RateLimitResult> {
+  if (isRateLimitBypassed()) {
+    return bypassedResult(options)
+  }
   if (!isKvConfigured()) {
     logNoKvFallbackOnce()
     return inMemoryRateLimit(key, options)

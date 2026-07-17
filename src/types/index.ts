@@ -68,6 +68,9 @@ export const CreateCampaignSchema = z.object({
   suggestedPrice: z.coerce.number().min(0).optional(),
   milestones: z.any().optional(),
   videoUrl: z.string().url().optional().or(z.literal('')),
+  // Only LIVE may be requested at creation ("Launch Campaign" in the wizard);
+  // any other value is ignored and the campaign is created as a draft.
+  status: z.enum(['LIVE', 'DRAFT']).optional(),
 })
 
 export const UpdateCampaignSchema = CreateCampaignSchema.partial()

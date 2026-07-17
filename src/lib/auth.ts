@@ -129,55 +129,236 @@ export async function deleteSession(): Promise<void> {
 // ============================================================================
 
 /**
- * Verify a magic link token and authenticate the user
- * Returns the user if token is valid, null otherwise
- * Marks the magic link as used and sets emailVerified = true
+ * Normalize an email address for storage/lookup: trim whitespace and
+ * lowercase. Applied consistently at both magic-link issue and redemption so
+ * the same inbox always maps to the same user row.
+ */
+export function normalizeEmail(email: string): string {
+  return email.trim().toLowerCase()
+}
+
+/**
+ * Secret used to HMAC-sign magic-link tokens. Reuses JWT_SECRET (already a
+ * required env var — see .env.example). In production a missing secret is a
+ * hard error rather than a silent weak fallback.
+ */
+function getMagicLinkSecret(): string {
+  const secret = process.env.JWT_SECRET
+  if (secret && secret.length > 0) {
+    return secret
+  }
+  if (process.env.NODE_ENV === 'production') {
+    throw new Error('JWT_SECRET must be set to issue or verify magic links')
+  }
+  // Non-production fallback so local dev/tests work without configuration.
+  return 'dev-only-magic-link-secret'
+}
+
+function signMagicLinkPayload(payloadB64: string): string {
+  return crypto
+    .createHmac('sha256', getMagicLinkSecret())
+    .update(payloadB64)
+    .digest('base64url')
+}
+
+/**
+ * Verify a magic link token and authenticate the user.
+ * Returns the user if the token is valid, null otherwise.
+ *
+ * The user row is created (or fetched) HERE, at redemption — not at issue
+ * time — so submitting an email to POST /api/auth/magic-link no longer
+ * creates a user row. This stops bots that spray the request form from
+ * filling the users table with rows that never verify.
+ *
+ * Token format: `<base64url payload>.<base64url HMAC-SHA256 signature>`
+ * where the payload carries { e: email, x: expiryMs, n: nonce }. Single-use
+ * is enforced by writing a MagicLink row (unique token) at redemption: if a
+ * row already exists for the token, it has been consumed.
+ *
+ * Legacy tokens (plain UUIDs issued before this change, stored in the DB
+ * with a pending usedAt) are still honoured until they expire.
  */
 export async function verifyMagicLink(token: string): Promise<CurrentUser | null> {
   try {
-    const magicLink = await prisma.magicLink.findUnique({
-      where: { token },
-      include: {
-        user: {
-          select: {
-            id: true,
-            email: true,
-            displayName: true,
-            handle: true,
-            avatar: true,
-            emailVerified: true,
-          },
-        },
-      },
-    })
+    if (!token.includes('.')) {
+      // Old-format token issued before signed tokens shipped.
+      return await verifyLegacyMagicLink(token)
+    }
 
-    // Validate magic link exists, not expired, and not already used
-    if (!magicLink || magicLink.expiresAt < new Date() || magicLink.usedAt) {
+    const [payloadB64, signature] = token.split('.')
+    if (!payloadB64 || !signature) {
       return null
     }
 
-    // Mark magic link as used
-    await prisma.magicLink.update({
-      where: { id: magicLink.id },
-      data: { usedAt: new Date() },
+    const expectedSignature = signMagicLinkPayload(payloadB64)
+    const signatureBuf = Buffer.from(signature)
+    const expectedBuf = Buffer.from(expectedSignature)
+    if (
+      signatureBuf.length !== expectedBuf.length ||
+      !crypto.timingSafeEqual(signatureBuf, expectedBuf)
+    ) {
+      return null
+    }
+
+    let payload: { e?: unknown; x?: unknown }
+    try {
+      payload = JSON.parse(Buffer.from(payloadB64, 'base64url').toString('utf8'))
+    } catch {
+      return null
+    }
+    if (typeof payload.e !== 'string' || typeof payload.x !== 'number') {
+      return null
+    }
+
+    const email = normalizeEmail(payload.e)
+    const expiresAt = new Date(payload.x)
+    if (!email || expiresAt < new Date()) {
+      return null
+    }
+
+    // Single-use check: a MagicLink row is only ever written at redemption
+    // now, so an existing row for this token means it was already consumed.
+    const alreadyUsed = await prisma.magicLink.findUnique({
+      where: { token },
+      select: { id: true },
+    })
+    if (alreadyUsed) {
+      return null
+    }
+
+    // Create-or-fetch the user, only now that the link has provably reached
+    // the inbox (or dev direct mode). Prefer an exact match on the
+    // normalized email; fall back to a case-insensitive match so accounts
+    // created before normalization (mixed-case emails) are reused rather
+    // than duplicated.
+    const userSelect = {
+      id: true,
+      email: true,
+      displayName: true,
+      handle: true,
+      avatar: true,
+      emailVerified: true,
+    } as const
+
+    let user = await prisma.user.findUnique({
+      where: { email },
+      select: userSelect,
     })
 
-    // Update user to mark email as verified
-    await prisma.user.update({
-      where: { id: magicLink.userId },
-      data: { emailVerified: true },
-    })
+    if (!user) {
+      user = await prisma.user.findFirst({
+        where: { email: { equals: email, mode: 'insensitive' } },
+        select: userSelect,
+      })
+    }
+
+    if (user) {
+      if (!user.emailVerified) {
+        await prisma.user.update({
+          where: { id: user.id },
+          data: { emailVerified: true },
+        })
+      }
+    } else {
+      try {
+        user = await prisma.user.create({
+          data: {
+            email,
+            displayName: email.split('@')[0],
+            handle: null,
+            avatar: null,
+            emailVerified: true,
+          },
+          select: userSelect,
+        })
+      } catch {
+        // Unique-constraint race: another request created the user between
+        // our lookup and create. Fetch the row it made.
+        user = await prisma.user.findUnique({
+          where: { email },
+          select: userSelect,
+        })
+        if (!user) {
+          return null
+        }
+      }
+    }
+
+    // Record consumption. The unique constraint on token makes concurrent
+    // redemption of the same link race-safe: exactly one request wins.
+    try {
+      await prisma.magicLink.create({
+        data: {
+          token,
+          userId: user.id,
+          expiresAt,
+          usedAt: new Date(),
+        },
+      })
+    } catch {
+      // Lost the race — this token was consumed by a parallel request.
+      return null
+    }
 
     return {
-      id: magicLink.user.id,
-      email: magicLink.user.email,
-      displayName: magicLink.user.displayName,
-      handle: magicLink.user.handle,
-      avatar: magicLink.user.avatar,
+      id: user.id,
+      email: user.email,
+      displayName: user.displayName,
+      handle: user.handle,
+      avatar: user.avatar,
       emailVerified: true,
     }
   } catch {
     return null
+  }
+}
+
+/**
+ * Redemption path for pre-signed-token magic links (plain UUID tokens that
+ * were stored in the DB at issue time with usedAt = null). Kept so links
+ * already sitting in inboxes at deploy time keep working until they expire.
+ */
+async function verifyLegacyMagicLink(token: string): Promise<CurrentUser | null> {
+  const magicLink = await prisma.magicLink.findUnique({
+    where: { token },
+    include: {
+      user: {
+        select: {
+          id: true,
+          email: true,
+          displayName: true,
+          handle: true,
+          avatar: true,
+          emailVerified: true,
+        },
+      },
+    },
+  })
+
+  // Validate magic link exists, not expired, and not already used
+  if (!magicLink || magicLink.expiresAt < new Date() || magicLink.usedAt) {
+    return null
+  }
+
+  // Mark magic link as used
+  await prisma.magicLink.update({
+    where: { id: magicLink.id },
+    data: { usedAt: new Date() },
+  })
+
+  // Update user to mark email as verified
+  await prisma.user.update({
+    where: { id: magicLink.userId },
+    data: { emailVerified: true },
+  })
+
+  return {
+    id: magicLink.user.id,
+    email: magicLink.user.email,
+    displayName: magicLink.user.displayName,
+    handle: magicLink.user.handle,
+    avatar: magicLink.user.avatar,
+    emailVerified: true,
   }
 }
 
@@ -203,44 +384,31 @@ export async function requireAuth(): Promise<CurrentUser> {
 // MAGIC LINK CREATION
 // ============================================================================
 
+/** How long a magic link stays valid. */
+const MAGIC_LINK_TTL_MS = 30 * 60 * 1000 // 30 minutes
+
 /**
- * Create a magic link token for email authentication
- * Returns the token to be used in an email link
+ * Create a magic link token for email authentication.
+ * Returns the token to be used in an email link.
+ *
+ * Deliberately touches NEITHER the users table NOR the magic_links table:
+ * everything needed at redemption (the email and the expiry) is carried in
+ * an HMAC-signed token, and the user row is created only when the link is
+ * actually clicked (see verifyMagicLink). Production previously accumulated
+ * hundreds of bot user rows because a row was created for every submitted
+ * email address here.
  */
 export async function createMagicLink(email: string): Promise<string> {
   try {
-    // Check if user exists
-    let user = await prisma.user.findUnique({
-      where: { email },
-    })
-
-    // Create user if doesn't exist
-    if (!user) {
-      user = await prisma.user.create({
-        data: {
-          email,
-          displayName: email.split('@')[0],
-          handle: null,
-          avatar: null,
-          emailVerified: false,
-        },
-      })
+    const payload = {
+      e: normalizeEmail(email),
+      x: Date.now() + MAGIC_LINK_TTL_MS,
+      // Nonce so two requests for the same email yield distinct tokens,
+      // each independently single-use.
+      n: crypto.randomBytes(9).toString('base64url'),
     }
-
-    // Generate magic link token
-    const token = crypto.randomUUID()
-    const expiresAt = new Date(Date.now() + 30 * 60 * 1000) // 30 minutes
-
-    // Create magic link in database
-    await prisma.magicLink.create({
-      data: {
-        userId: user.id,
-        token,
-        expiresAt,
-      },
-    })
-
-    return token
+    const payloadB64 = Buffer.from(JSON.stringify(payload)).toString('base64url')
+    return `${payloadB64}.${signMagicLinkPayload(payloadB64)}`
   } catch (error) {
     throw new Error('Failed to create magic link')
   }

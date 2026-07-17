@@ -45,7 +45,11 @@ export const TabsList = React.forwardRef<
       <TabsPrimitive.List
         ref={ref}
         className={cn(
-          'inline-flex items-center justify-center rounded-lg bg-gray-100 p-1 text-gray-600',
+          // max-w-full: an inline-flex strip sizes to its content, so without a
+          // cap a long tab row widens the page's layout viewport on mobile
+          // (breaking every fixed/centered element). Capping it lets callers'
+          // overflow-x-auto actually scroll instead.
+          'inline-flex max-w-full items-center justify-center rounded-lg bg-gray-100 p-1 text-gray-600',
           className
         )}
         {...props}

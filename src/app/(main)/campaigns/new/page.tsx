@@ -131,6 +131,7 @@ function WizardContent() {
           priceRangeMax: formData.priceRangeMax,
           suggestedPrice: formData.suggestedPrice,
           milestones: { successCriteria: formData.successCriteria },
+          status: 'LIVE',
           mediaUrls: formData.images.length > 0 ? formData.images : undefined,
           videoUrl: formData.videoUrl || undefined,
           template: 'VARIANT',

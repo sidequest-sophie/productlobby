@@ -147,6 +147,97 @@ async function main() {
     const allUsers = [...demoUsers, ...communityUsers]
     await seedCampaigns(demoUsers.map((u) => ({ id: u.id, handle: u.handle || u.displayName })))
 
+    // ------------------------------------------------------------------
+    // Claimed-brand fixture: a VERIFIED brand with a BrandTeam member, so
+    // the brand persona (brand dashboard, claim gate, brand-side audience
+    // insights) can be exercised locally. Idempotent: upserts throughout.
+    // ------------------------------------------------------------------
+    console.log('Seeding claimed-brand fixture...')
+
+    const brandRep = await prisma.user.upsert({
+      where: { email: 'brandrep@example.com' },
+      update: {},
+      create: {
+        email: 'brandrep@example.com',
+        displayName: 'Dana Brandrep',
+        handle: 'dana_dyson',
+        bio: 'Brand representative at Dyson. Listening to what the community wants.',
+        emailVerified: true,
+        phoneVerified: false,
+      },
+    })
+
+    // Dyson is seeded (UNCLAIMED) by seedCampaigns; promote it to VERIFIED.
+    const claimedBrand = await prisma.brand.upsert({
+      where: { slug: 'dyson' },
+      update: { status: 'VERIFIED' },
+      create: {
+        name: 'Dyson',
+        slug: 'dyson',
+        website: 'https://www.dyson.co.uk',
+        status: 'VERIFIED',
+      },
+    })
+
+    await prisma.brandTeam.upsert({
+      where: {
+        brandId_userId: { brandId: claimedBrand.id, userId: brandRep.id },
+      },
+      update: { role: 'OWNER' },
+      create: {
+        brandId: claimedBrand.id,
+        userId: brandRep.id,
+        role: 'OWNER',
+      },
+    })
+
+    // A completed verification record, as the claim flow would leave behind.
+    const existingVerification = await prisma.brandVerification.findFirst({
+      where: { brandId: claimedBrand.id, status: 'VERIFIED' },
+    })
+    if (!existingVerification) {
+      await prisma.brandVerification.create({
+        data: {
+          brandId: claimedBrand.id,
+          method: 'EMAIL_DOMAIN',
+          status: 'VERIFIED',
+          token: 'seed-brand-verification-dyson',
+          code: null,
+          verifiedAt: new Date(),
+        },
+      })
+    }
+
+    // Make sure at least 3 campaigns target the claimed brand so its
+    // dashboard has real data to aggregate.
+    const targetedCount = await prisma.campaign.count({
+      where: { targetedBrandId: claimedBrand.id },
+    })
+    if (targetedCount < 3) {
+      const retargetable = await prisma.campaign.findMany({
+        where: { targetedBrandId: { not: claimedBrand.id } },
+        orderBy: { createdAt: 'asc' },
+        take: 3 - targetedCount,
+        select: { id: true, title: true },
+      })
+      for (const campaign of retargetable) {
+        await prisma.campaign.update({
+          where: { id: campaign.id },
+          data: { targetedBrandId: claimedBrand.id, openToAlternatives: false },
+        })
+        console.log(`Retargeted campaign at ${claimedBrand.name}: ${campaign.title}`)
+      }
+    }
+
+    const finalTargetedCount = await prisma.campaign.count({
+      where: { targetedBrandId: claimedBrand.id },
+    })
+    console.log(
+      `Claimed-brand fixture ready: ${claimedBrand.name} (VERIFIED), ` +
+        `team member brandrep@example.com (OWNER), ` +
+        `${finalTargetedCount} campaigns targeting it`
+    )
+
     console.log('Database seeding complete!')
     console.log(`Total users: ${allUsers.length}`)
 
