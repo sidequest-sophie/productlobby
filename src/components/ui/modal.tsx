@@ -52,7 +52,9 @@ export const ModalContent = React.forwardRef<
         <DialogPrimitive.Content
           ref={ref}
           className={cn(
-            'fixed left-[50%] top-[50%] z-50 w-full max-w-lg max-h-[90vh] overflow-y-auto translate-x-[-50%] translate-y-[-50%] border border-gray-200 bg-white shadow-elevated-lg rounded-lg duration-200 animate-slide-up-center',
+            // w-[calc(100%-2rem)]: keep a 1rem gutter each side on phones so
+            // the rounded panel never touches the screen edge.
+            'fixed left-[50%] top-[50%] z-50 w-[calc(100%-2rem)] sm:w-full max-w-lg max-h-[90vh] overflow-y-auto translate-x-[-50%] translate-y-[-50%] border border-gray-200 bg-white shadow-elevated-lg rounded-lg duration-200 animate-slide-up-center',
             'data-[state=open]:animate-slide-up-center data-[state=closed]:animate-fade-out',
             className
           )}
@@ -186,7 +188,9 @@ export const ModalClose = React.forwardRef<
       <DialogPrimitive.Close
         ref={ref}
         className={cn(
-          'absolute right-4 top-4 rounded-md opacity-70 ring-offset-background transition-opacity hover:opacity-100 focus:outline-none focus:ring-2 focus:ring-violet-500 focus:ring-offset-2 disabled:pointer-events-none',
+          // p-2.5 grows the 16px icon to a 36px+ touch target for phones;
+          // z-20 keeps it above sticky modal footer/header content.
+          'absolute right-1.5 top-1.5 z-20 p-2.5 rounded-md opacity-70 ring-offset-background transition-opacity hover:opacity-100 focus:outline-none focus:ring-2 focus:ring-violet-500 focus:ring-offset-2 disabled:pointer-events-none',
           className
         )}
         {...props}

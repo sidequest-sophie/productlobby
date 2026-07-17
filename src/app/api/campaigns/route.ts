@@ -217,7 +217,9 @@ export async function POST(request: NextRequest) {
         targetedBrandId: resolvedBrandId,
         openToAlternatives: data.openToAlternatives,
         currency: data.currency,
-        status: 'DRAFT',
+        // "Launch Campaign" in the wizard publishes immediately; anything
+        // else (or an unrecognised value) stays a draft.
+        status: data.status === 'LIVE' ? 'LIVE' : 'DRAFT',
         pitchSummary: data.pitchSummary || null,
         problemSolved: data.problemSolved || null,
         inspiration: data.inspiration || null,
@@ -225,7 +227,22 @@ export async function POST(request: NextRequest) {
         priceRangeMin: data.priceRangeMin ?? null,
         priceRangeMax: data.priceRangeMax ?? null,
         suggestedPrice: data.suggestedPrice ?? null,
-        milestones: data.milestones || undefined,
+        // milestones is canonically an array of milestone rows; the wizard
+        // submits { successCriteria } — normalise it into a real entry so the
+        // detail page never receives a non-array shape.
+        milestones: Array.isArray(data.milestones)
+          ? data.milestones
+          : typeof data.milestones?.successCriteria === 'string' &&
+              data.milestones.successCriteria.trim()
+            ? [
+                {
+                  id: 'success-criteria',
+                  title: 'Success criteria',
+                  description: data.milestones.successCriteria.trim(),
+                  isComplete: false,
+                },
+              ]
+            : undefined,
         // Create media records if URLs provided
         ...(data.mediaUrls && data.mediaUrls.length > 0
           ? {

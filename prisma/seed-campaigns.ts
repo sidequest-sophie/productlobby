@@ -285,6 +285,18 @@ export async function seedCampaigns(creatorUsers: Array<{ id: string; handle: st
     const targetBrand = campaignIndex % 4 === 3 ? null : pool[campaignIndex % pool.length]
     campaignIndex++
 
+    // Idempotency: campaigns are created (not upserted) because they carry
+    // dependent rows (lobbies, comments) — if this slug already exists from
+    // a previous seed run, leave it and its data alone.
+    const existingCampaign = await prisma.campaign.findUnique({
+      where: { slug },
+      select: { id: true },
+    })
+    if (existingCampaign) {
+      console.log(`Campaign already seeded, skipping: ${campaign.title}`)
+      continue
+    }
+
     // Create campaign
     const createdCampaign = await prisma.campaign.create({
       data: {

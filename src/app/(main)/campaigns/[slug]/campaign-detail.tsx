@@ -391,7 +391,9 @@ export default function CampaignDetailPage({ params }: CampaignDetailPageProps) 
   const brandDisplayName = brand?.name || 'any brand'
 
   return (
-    <div className="min-h-screen bg-white flex flex-col">
+    // pb-24 reserves space for the fixed mobile CTA bar so it never covers
+    // the footer's last links; lg+ has no bar, so no padding.
+    <div className="min-h-screen bg-white flex flex-col pb-24 lg:pb-0">
       <CampaignJsonLd
         title={campaign.title}
         description={campaign.description.slice(0, 200)}
@@ -603,7 +605,7 @@ export default function CampaignDetailPage({ params }: CampaignDetailPageProps) 
               {/* Left Column - Main Content */}
               <div className="lg:col-span-2">
                 {/* Lobby Section */}
-                <Card className="mb-8 sticky top-4 lg:hidden">
+                <Card className="mb-8 lg:hidden">
                   <CardContent className="p-6">
                     <Button
                       variant="primary"
@@ -630,7 +632,7 @@ export default function CampaignDetailPage({ params }: CampaignDetailPageProps) 
 
                 {/* Tabs */}
                 <Tabs defaultValue="about" className="w-full">
-                  <TabsList className="border-b border-gray-200 mb-0 rounded-none overflow-x-auto flex-nowrap">
+                  <TabsList className="flex w-full justify-start border-b border-gray-200 mb-0 rounded-none overflow-x-auto flex-nowrap">
                     <TabsTrigger value="about">About</TabsTrigger>
                     <TabsTrigger value="preferences">Preferences</TabsTrigger>
                     <TabsTrigger value="wishlist">Wishlist</TabsTrigger>
@@ -1017,6 +1019,22 @@ export default function CampaignDetailPage({ params }: CampaignDetailPageProps) 
       </main>
 
       <Footer />
+
+      {/* Mobile sticky CTA — most launch traffic lands on phones via shared
+          links, so the primary action stays one thumb-tap away wherever the
+          reader has scrolled. Hidden on lg+ where the sidebar card owns this
+          job, and sits below the modal overlay (z-40 < z-50). */}
+      <div className="fixed inset-x-0 bottom-0 z-40 border-t border-gray-200 bg-white/95 backdrop-blur-sm px-4 py-3 pb-[calc(0.75rem+env(safe-area-inset-bottom))] lg:hidden">
+        <Button
+          variant="primary"
+          size="lg"
+          className="w-full flex items-center justify-center gap-2"
+          onClick={() => setIsLobbyFlowOpen(true)}
+        >
+          <Megaphone className="w-5 h-5" />
+          Lobby for this!
+        </Button>
+      </div>
 
       {/* Lobby Flow Modal */}
       <LobbyFlow

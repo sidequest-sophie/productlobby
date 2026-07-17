@@ -146,11 +146,13 @@ export default function CampaignTeamPage() {
     const load = async () => {
       try {
         setLoading(true)
-        const res = await fetch(`/api/campaigns?slug=${slug}`)
+        // Fetch by slug via the detail endpoint — the list endpoint ignores a
+        // `?slug=` filter (and wraps results in data.items), so looking the
+        // campaign up there never found anything.
+        const res = await fetch(`/api/campaigns/${slug}`)
         if (!res.ok) throw new Error('Campaign not found')
-        const json = await res.json()
-        const info = json.data?.[0]
-        if (!info) {
+        const info = await res.json()
+        if (!info?.id) {
           setError('Campaign not found')
           return
         }

@@ -2,6 +2,9 @@ import { Metadata } from 'next';
 import { Building2, ExternalLink, Search } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import Link from 'next/link';
+import { prisma } from '@/lib/db';
+
+export const dynamic = 'force-dynamic';
 
 export const metadata: Metadata = {
   title: 'Brand Directory',
@@ -17,62 +20,46 @@ interface Brand {
   campaignCount: number;
 }
 
-async function getBrands(search?: string) {
+async function getBrands(search?: string): Promise<Brand[]> {
+  // Query directly rather than HTTP self-fetching /api/brands/directory —
+  // the absolute-URL hop broke whenever NEXT_PUBLIC_APP_URL didn't match the
+  // serving host, and the old catch block silently rendered fabricated brands.
   try {
-    const params = new URLSearchParams();
-    if (search) {
-      params.set('search', search);
-    }
+    const brands = await prisma.brand.findMany({
+      where: {
+        AND: [
+          { OR: [{ status: 'CLAIMED' }, { status: 'VERIFIED' }] },
+          search
+            ? {
+                OR: [
+                  { name: { contains: search, mode: 'insensitive' } },
+                  { slug: { contains: search, mode: 'insensitive' } },
+                ],
+              }
+            : {},
+        ],
+      },
+      select: {
+        id: true,
+        name: true,
+        slug: true,
+        logo: true,
+        _count: { select: { campaigns: true } },
+      },
+      take: 100,
+    });
 
-    const response = await fetch(
-      `${process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'}/api/brands/directory?${params}`,
-      {
-        cache: 'no-store',
-      }
-    );
-
-    if (!response.ok) {
-      throw new Error('Failed to fetch brands');
-    }
-
-    return await response.json();
+    return brands.map((brand) => ({
+      id: brand.id,
+      name: brand.name,
+      handle: brand.slug,
+      avatar: brand.logo,
+      category: 'General',
+      campaignCount: brand._count.campaigns,
+    }));
   } catch (error) {
     console.error('Error fetching brands:', error);
-    // Return sample data on error
-    return [
-      {
-        id: '1',
-        name: 'TechVision',
-        handle: 'techvision',
-        avatar: null,
-        category: 'Technology',
-        campaignCount: 5,
-      },
-      {
-        id: '2',
-        name: 'StyleHub',
-        handle: 'stylehub',
-        avatar: null,
-        category: 'Fashion',
-        campaignCount: 3,
-      },
-      {
-        id: '3',
-        name: 'EcoGoods',
-        handle: 'ecogoods',
-        avatar: null,
-        category: 'Sustainability',
-        campaignCount: 7,
-      },
-      {
-        id: '4',
-        name: 'FoodFresh',
-        handle: 'foodfresh',
-        avatar: null,
-        category: 'Food & Beverage',
-        campaignCount: 4,
-      },
-    ];
+    return [];
   }
 }
 

@@ -43,13 +43,17 @@ test.describe('Admin — unauthenticated access', () => {
     })
   }
 
-  test('POST /api/admin/seed returns 401 for an anonymous request', async ({ request }) => {
+  test('POST /api/admin/seed is rejected for an anonymous request', async ({ request }) => {
     // Confirms the destructive seed/reset endpoint (src/app/api/admin/
     // seed/route.ts, which can wipe campaigns/users when {clear:true}) is
     // not reachable without auth — deliberately not calling it with a
     // real session anywhere in this suite.
+    // The route refuses outright with 403 in a production build (its
+    // NODE_ENV guard runs before the auth check); under `next dev` the
+    // auth check runs first and anonymous requests get 401. Both are
+    // hard denials.
     const res = await request.post('/api/admin/seed', { data: {} })
-    expect(res.status()).toBe(401)
+    expect([401, 403]).toContain(res.status())
   })
 })
 
@@ -77,30 +81,35 @@ test.describe('Admin — authenticated but non-admin access', () => {
     expect(res.status()).toBe(403)
   })
 
-  test('/admin redirects a non-admin account to /login once the client-side check resolves', async ({ page }) => {
+  test('/admin bounces a non-admin account away once the client-side check resolves', async ({ page }) => {
     // /admin/page.tsx has no server-side guard of its own — it renders,
     // fires GET /api/admin/stats client-side, and only then does
     // `if (res.status === 401 || res.status === 403) router.push('/login')`.
     // So a non-admin briefly sees the page shell before being redirected.
+    // Because this account IS signed in, middleware.ts's AUTH_ROUTES rule
+    // then immediately bounces the /login navigation on to /campaigns —
+    // in a production build that redirect chain resolves fast enough that
+    // the URL is never observably '/login'. Assert the end state: the
+    // user has been moved off /admin to one of the two possible landing
+    // URLs.
     await page.goto('/admin')
-    await page.waitForURL(/\/login/, { timeout: 10_000 })
+    await page.waitForURL(/\/(login|campaigns)([/?]|$)/, { timeout: 10_000 })
   })
 
   test('/admin/analytics behaves the same way', async ({ page }) => {
     await page.goto('/admin/analytics')
-    await page.waitForURL(/\/login/, { timeout: 10_000 })
+    await page.waitForURL(/\/(login|campaigns)([/?]|$)/, { timeout: 10_000 })
   })
 
-  test('/admin/reports does NOT redirect a non-admin — it silently shows an inline error instead', async ({ page }) => {
-    // Unlike /admin and /admin/analytics, admin/reports/page.tsx's fetch
-    // of /api/admin/reports just does `if (!response.ok) throw new
-    // Error('Failed to fetch reports')` on any non-2xx status (including
-    // this account's 403) — there's no 401/403-specific handling and no
-    // router.push('/login'). The page stays put with no report data
-    // rendered. This is an inconsistency worth flagging (see JOURNEYS.md):
-    // the underlying data is still protected by the API's 403, but the
-    // UX for a non-admin here differs from /admin and /admin/analytics.
+  test('/admin/reports bounces a non-admin away too (inconsistency fixed)', async ({ page }) => {
+    // admin/reports/page.tsx previously swallowed the API's 403 as a
+    // generic inline error and stayed put — an inconsistency with /admin
+    // and /admin/analytics documented in JOURNEYS.md. That's been fixed:
+    // its fetch handler now does `if (status === 401 || status === 403)
+    // router.push('/login')` like the other two, and middleware then
+    // bounces the signed-in user on to /campaigns. Assert the same end
+    // state as the tests above.
     await page.goto('/admin/reports')
-    await expect(page).toHaveURL(/\/admin\/reports$/)
+    await page.waitForURL(/\/(login|campaigns)([/?]|$)/, { timeout: 10_000 })
   })
 })

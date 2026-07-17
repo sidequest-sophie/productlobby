@@ -51,7 +51,10 @@ export const DialogContent = React.forwardRef<
         <DialogPrimitive.Content
           ref={ref}
           className={cn(
-            'fixed left-[50%] top-[50%] z-50 w-full max-w-lg translate-x-[-50%] translate-y-[-50%] bg-white rounded-xl shadow-elevated-lg p-6 animate-slide-up-center',
+            // w-[calc(100%-2rem)]: keep a 1rem gutter each side on phones so
+            // the panel never touches the screen edge; max-h + overflow keep
+            // tall dialogs scrollable instead of extending past the viewport.
+            'fixed left-[50%] top-[50%] z-50 w-[calc(100%-2rem)] sm:w-full max-w-lg max-h-[90vh] overflow-y-auto translate-x-[-50%] translate-y-[-50%] bg-white rounded-xl shadow-elevated-lg p-6 animate-slide-up-center',
             'data-[state=open]:animate-slide-up-center data-[state=closed]:animate-fade-out',
             className
           )}
@@ -165,7 +168,8 @@ export const DialogClose = React.forwardRef<
       <DialogPrimitive.Close
         ref={ref}
         className={cn(
-          'absolute right-4 top-4 rounded-md opacity-70 transition-opacity hover:opacity-100 focus:outline-none focus:ring-2 focus:ring-violet-600 focus:ring-offset-2 disabled:pointer-events-none',
+          // p-2.5 grows the 16px icon to a 36px+ touch target for phones.
+          'absolute right-1.5 top-1.5 p-2.5 rounded-md opacity-70 transition-opacity hover:opacity-100 focus:outline-none focus:ring-2 focus:ring-violet-600 focus:ring-offset-2 disabled:pointer-events-none',
           className
         )}
         {...props}

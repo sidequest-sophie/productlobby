@@ -649,7 +649,7 @@ export function LobbyFlow({
               <div className="flex-1"></div>
               <button
                 onClick={handleNext}
-                className="text-violet-600 hover:text-violet-700 text-sm font-medium"
+                className="min-h-[44px] px-3 text-violet-600 hover:text-violet-700 text-sm font-medium"
               >
                 Skip
               </button>
@@ -719,7 +719,7 @@ export function LobbyFlow({
               <div className="flex-1"></div>
               <button
                 onClick={handleNext}
-                className="text-sm font-medium text-gray-500 hover:text-gray-700 px-2"
+                className="min-h-[44px] px-3 text-sm font-medium text-gray-500 hover:text-gray-700"
               >
                 Skip
               </button>
