@@ -24,6 +24,19 @@ export async function POST(request: NextRequest) {
       )
     }
 
+    // Local dev without Vercel Blob configured: fail fast with a clear
+    // message so the UI can fall back to URL-paste input.
+    if (!process.env.BLOB_READ_WRITE_TOKEN) {
+      return NextResponse.json(
+        {
+          success: false,
+          error:
+            'File uploads are not configured in this environment. Paste an image URL instead.',
+        },
+        { status: 503 }
+      )
+    }
+
     const formData = await request.formData()
     const file = formData.get('file') as File | null
 

@@ -15,6 +15,7 @@ import { Textarea } from '@/components/ui/textarea'
 import { Input } from '@/components/ui/input'
 import { ChipSelector, type ChipOption } from '@/components/ui/chip-selector'
 import { cn } from '@/lib/utils'
+import { getReferralCode, clearReferralCode } from '@/lib/referral-attribution'
 
 export interface CampaignPreferenceFieldDTO {
   id: string
@@ -98,6 +99,12 @@ function pendingLobbyStorageKey(campaignId: string) {
   return `productlobby:pending-lobby:${campaignId}`
 }
 
+/** The supporter's own referral link + real referral count, fetched post-lobby. */
+interface ReferralInfo {
+  url: string
+  signups: number
+}
+
 export function LobbyFlow({
   isOpen,
   onClose,
@@ -127,8 +134,37 @@ export function LobbyFlow({
   const [submitState, setSubmitState] = useState<SubmitState>('idle')
   const [errorMessage, setErrorMessage] = useState('')
   const [shareCopied, setShareCopied] = useState(false)
+  const [referral, setReferral] = useState<ReferralInfo | null>(null)
 
   const currentStep = steps[currentStepIndex] ?? 'intensity'
+
+  // Once the lobby lands (or turns out to already exist), fetch this
+  // supporter's own referral link — GET lazily creates the ReferralLink row —
+  // so the success screen can offer a personal link, not just the plain URL.
+  useEffect(() => {
+    if (submitState !== 'success' && submitState !== 'duplicate') return
+    let cancelled = false
+
+    fetch(`/api/campaigns/${campaignId}/referral-program`)
+      .then((res) => (res.ok ? res.json() : null))
+      .then((data) => {
+        if (cancelled) return
+        const stats = data?.stats
+        if (stats && typeof stats.uniqueReferralLink === 'string') {
+          setReferral({
+            url: stats.uniqueReferralLink,
+            signups: typeof stats.signups === 'number' ? stats.signups : 0,
+          })
+        }
+      })
+      .catch(() => {
+        // No referral link — the success screen falls back to sharing the plain URL.
+      })
+
+    return () => {
+      cancelled = true
+    }
+  }, [submitState, campaignId])
 
   // If the user was bounced to /login mid-flow, restore whatever they'd filled in
   // once they're back and authenticated, and jump straight to the save step.
@@ -163,6 +199,7 @@ export function LobbyFlow({
     setSubmitState('idle')
     setErrorMessage('')
     setShareCopied(false)
+    setReferral(null)
   }
 
   const handleClose = () => {
@@ -194,25 +231,47 @@ export function LobbyFlow({
     }, 240)
   }
 
+  // Share the supporter's personal referral link when we have one, otherwise
+  // the plain campaign URL — supporters still get a working share either way.
+  const shareUrl =
+    referral?.url ??
+    (typeof window !== 'undefined'
+      ? `${window.location.origin}/campaigns/${campaignSlug}`
+      : `/campaigns/${campaignSlug}`)
+
+  const shareMessage = `I just lobbied for "${campaignTitle}" on ProductLobby — add your voice:`
+
   const handleShare = async () => {
-    const url =
-      typeof window !== 'undefined'
-        ? `${window.location.origin}/campaigns/${campaignSlug}`
-        : `/campaigns/${campaignSlug}`
     try {
       if (typeof navigator !== 'undefined' && navigator.share) {
-        await navigator.share({ title: campaignTitle, url })
+        await navigator.share({ title: campaignTitle, text: shareMessage, url: shareUrl })
         return
       }
-      if (typeof navigator !== 'undefined' && navigator.clipboard) {
-        await navigator.clipboard.writeText(url)
-        setShareCopied(true)
-        window.setTimeout(() => setShareCopied(false), 2000)
-      }
+      await handleCopyLink()
     } catch {
       // User dismissed the share sheet, or clipboard was blocked — nothing to do.
     }
   }
+
+  const handleCopyLink = async () => {
+    try {
+      if (typeof navigator !== 'undefined' && navigator.clipboard) {
+        await navigator.clipboard.writeText(shareUrl)
+        setShareCopied(true)
+        window.setTimeout(() => setShareCopied(false), 2000)
+      }
+    } catch {
+      // Clipboard blocked — nothing to do.
+    }
+  }
+
+  const xShareHref = `https://twitter.com/intent/tweet?text=${encodeURIComponent(
+    shareMessage
+  )}&url=${encodeURIComponent(shareUrl)}`
+
+  const whatsAppShareHref = `https://wa.me/?text=${encodeURIComponent(
+    `${shareMessage} ${shareUrl}`
+  )}`
 
   const buildPreferencesPayload = () =>
     Object.entries(preferenceValues).reduce<Array<{ fieldId: string; value: string }>>(
@@ -268,6 +327,10 @@ export function LobbyFlow({
     try {
       const preferencesPayload = buildPreferencesPayload()
 
+      // 7-day first-touch attribution: if this supporter arrived via someone's
+      // ?ref link, send the stored code so the API can credit the referrer.
+      const referralCode = getReferralCode(campaignSlug)
+
       const response = await fetch(`/api/campaigns/${campaignId}/lobby`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -276,6 +339,7 @@ export function LobbyFlow({
           preferences: preferencesPayload.length > 0 ? preferencesPayload : undefined,
           wishlist: wishlistText.trim() || undefined,
           reason: reasonText.trim() || undefined,
+          ref: referralCode || undefined,
         }),
       })
 
@@ -296,6 +360,7 @@ export function LobbyFlow({
       }
 
       clearPendingLobby()
+      clearReferralCode(campaignSlug) // attribution consumed by this lobby
       setSubmitState('success')
       // Deliberately no auto-close: the success screen offers a share prompt, and
       // closing (via the button or the X) refreshes the page to show the new count.
@@ -318,6 +383,78 @@ export function LobbyFlow({
   }
 
   const brandLabel = brandName?.trim() || 'the brand'
+
+  // Only rendered inside post-submit states (after user interaction), so the
+  // navigator check can't cause a hydration mismatch.
+  const canNativeShare = typeof navigator !== 'undefined' && !!navigator.share
+
+  const shareLinkButtonClasses =
+    'inline-flex items-center justify-center rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm font-medium text-foreground transition-colors hover:bg-gray-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-violet-500 focus-visible:ring-offset-1'
+
+  // The post-lobby share moment: the supporter's personal referral link with
+  // copy + native share / X / WhatsApp, and a real-count impact readback for
+  // returning referrers. Falls back to plain campaign-URL sharing while the
+  // referral link loads (or if fetching it failed).
+  const renderShareBlock = () => (
+    <div className="bg-lime-50 border border-lime-200 rounded-lg p-4 text-left">
+      {referral && referral.signups > 0 && (
+        <p className="text-sm font-semibold text-violet-700 mb-2">
+          Your referrals: {referral.signups}{' '}
+          {referral.signups === 1 ? 'supporter has' : 'supporters have'} joined through you
+        </p>
+      )}
+      <p className="text-sm font-medium text-foreground mb-3">
+        {referral
+          ? 'Campaigns grow fastest when supporters bring friends — share your personal link and we count everyone who joins through it.'
+          : "Campaigns grow fastest when supporters bring friends. Know someone who'd want this too?"}
+      </p>
+
+      {referral && (
+        <div className="flex items-center gap-2 mb-3">
+          <Input
+            readOnly
+            value={referral.url}
+            aria-label="Your personal referral link"
+            onFocus={(e) => e.currentTarget.select()}
+            className="flex-1 bg-white font-mono text-xs"
+          />
+          <Button variant="secondary" size="sm" onClick={handleCopyLink}>
+            {shareCopied ? '✓ Copied' : 'Copy'}
+          </Button>
+        </div>
+      )}
+
+      <div className="flex flex-wrap gap-2">
+        {canNativeShare ? (
+          <Button variant="accent" size="sm" onClick={handleShare}>
+            Share…
+          </Button>
+        ) : (
+          !referral && (
+            <Button variant="accent" size="sm" onClick={handleShare}>
+              {shareCopied ? '✓ Link copied!' : 'Share this campaign'}
+            </Button>
+          )
+        )}
+        <a
+          href={xShareHref}
+          target="_blank"
+          rel="noopener noreferrer"
+          className={shareLinkButtonClasses}
+        >
+          Post on X
+        </a>
+        <a
+          href={whatsAppShareHref}
+          target="_blank"
+          rel="noopener noreferrer"
+          className={shareLinkButtonClasses}
+        >
+          WhatsApp
+        </a>
+      </div>
+    </div>
+  )
 
   const renderPreferenceField = (field: CampaignPreferenceFieldDTO) => {
     const options: ChipOption[] = (field.options || []).map((opt) => ({ id: opt, label: opt }))
@@ -625,15 +762,7 @@ export function LobbyFlow({
                       ? `You're supporter #${(lobbyCount + 1).toLocaleString()} — that's real demand ${brandLabel} can see.`
                       : `You're the first to lobby — that's how every great product starts.`}
                   </p>
-                  <div className="bg-lime-50 border border-lime-200 rounded-lg p-4">
-                    <p className="text-sm font-medium text-foreground mb-3">
-                      Campaigns grow fastest when supporters bring friends. Know someone who&apos;d
-                      want this too?
-                    </p>
-                    <Button variant="accent" size="default" onClick={handleShare} className="w-full sm:w-auto">
-                      {shareCopied ? '✓ Link copied!' : 'Share this campaign'}
-                    </Button>
-                  </div>
+                  {renderShareBlock()}
                 </div>
               )}
 
@@ -642,7 +771,8 @@ export function LobbyFlow({
                 <div className="text-center py-8">
                   <div className="text-6xl mb-4">✋</div>
                   <p className="text-lg font-medium text-foreground mb-2">You've already lobbied this campaign</p>
-                  <p className="text-sm text-gray-600">Your support is already counted. Share the campaign to rally more people!</p>
+                  <p className="text-sm text-gray-600 mb-6">Your support is already counted. Share the campaign to rally more people!</p>
+                  {renderShareBlock()}
                 </div>
               )}
 

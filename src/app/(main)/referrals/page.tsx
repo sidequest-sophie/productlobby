@@ -1,48 +1,47 @@
 import type { Metadata } from 'next';
-import { Gift, Users, Award, Share2, Trophy } from 'lucide-react';
+import Link from 'next/link';
+import { Heart, Link2, Users, Share2, LayoutDashboard, ArrowRight } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import { prisma } from '@/lib/db';
+
+export const dynamic = 'force-dynamic';
 
 export const metadata: Metadata = {
-  title: 'Referral Program',
-  description: 'Invite friends and earn rewards through our referral program.',
+  title: 'Referrals',
+  description:
+    'How referrals work on ProductLobby: lobby a campaign, share your personal link, and see the supporters you bring counted on your dashboard.',
 };
 
-const ReferralStats = {
-  totalReferrals: 12543,
-  activeReferrers: 3421,
-  pointsDistributed: 89234,
-};
+// Only show platform-wide numbers when they are real and meaningful.
+const MIN_STAT_THRESHOLD = 50;
 
-const RewardTiers = [
-  {
-    milestone: '1-5 Friends',
-    points: '100',
-    description: 'Invite your first friends',
-    color: 'from-violet-500 to-violet-600',
-  },
-  {
-    milestone: '6-15 Friends',
-    points: '500',
-    description: 'Building your network',
-    color: 'from-violet-400 to-violet-500',
-  },
-  {
-    milestone: '16+ Friends',
-    points: '1000+',
-    description: 'Elite referrer status',
-    color: 'from-lime-400 to-violet-500',
-  },
-];
+async function getReferralStats() {
+  try {
+    const [linkClicks, referredJoins] = await Promise.all([
+      prisma.share.aggregate({
+        _sum: { clickCount: true },
+        where: { referralCode: { not: null } },
+      }),
+      prisma.contributionEvent.count({
+        where: { eventType: 'REFERRAL_SIGNUP' },
+      }),
+    ]);
 
-const TopReferrers = [
-  { rank: 1, name: 'User_Alpha', referrals: 487, points: 48700 },
-  { rank: 2, name: 'User_Beta', referrals: 342, points: 34200 },
-  { rank: 3, name: 'User_Gamma', referrals: 298, points: 29800 },
-  { rank: 4, name: 'User_Delta', referrals: 267, points: 26700 },
-  { rank: 5, name: 'User_Epsilon', referrals: 245, points: 24500 },
-];
+    return {
+      linkClicks: linkClicks._sum.clickCount ?? 0,
+      referredJoins,
+    };
+  } catch {
+    return { linkClicks: 0, referredJoins: 0 };
+  }
+}
 
-export default function ReferralProgramPage() {
+export default async function ReferralsPage() {
+  const stats = await getReferralStats();
+  const showStats =
+    stats.linkClicks >= MIN_STAT_THRESHOLD ||
+    stats.referredJoins >= MIN_STAT_THRESHOLD;
+
   return (
     <div className="min-h-screen bg-gradient-to-b from-slate-50 to-slate-100 dark:from-slate-950 dark:to-slate-900">
       {/* Hero Section */}
@@ -50,65 +49,62 @@ export default function ReferralProgramPage() {
         <div className="mx-auto max-w-4xl">
           <div className="flex flex-col items-center text-center">
             <div className="mb-6 inline-flex rounded-full bg-violet-100 dark:bg-violet-900 p-4">
-              <Gift className="h-12 w-12 text-violet-600 dark:text-violet-400" />
+              <Share2 className="h-12 w-12 text-violet-600 dark:text-violet-400" />
             </div>
             <h1 className="mb-4 text-4xl font-bold tracking-tight text-slate-900 dark:text-white sm:text-5xl">
-              Invite Friends, Earn Rewards
+              Bring Friends to the Campaigns You Believe In
             </h1>
             <p className="mb-8 text-lg text-slate-600 dark:text-slate-400 max-w-2xl">
-              Share your unique referral link with friends and earn points for every successful sign-up. Both you and your friends receive rewards!
+              When you lobby a campaign, you get a personal share link. Friends
+              who join through it are counted as part of your impact — visible
+              on your supporter dashboard.
             </p>
             <Button
+              asChild
               size="lg"
               className="bg-gradient-to-r from-violet-600 to-violet-700 hover:from-violet-700 hover:to-violet-800 text-white"
             >
-              <Share2 className="mr-2 h-5 w-5" />
-              Start Referring
+              <Link href="/explore">
+                <Heart className="mr-2 h-5 w-5" />
+                Find a Campaign to Lobby
+              </Link>
             </Button>
           </div>
 
-          {/* Stats */}
-          <div className="mt-16 grid grid-cols-1 gap-6 sm:grid-cols-3">
-            <div className="rounded-lg bg-white dark:bg-slate-800 p-6 shadow-sm border border-slate-200 dark:border-slate-700">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-sm font-medium text-slate-600 dark:text-slate-400">
-                    Total Referrals
-                  </p>
-                  <p className="mt-2 text-3xl font-bold text-slate-900 dark:text-white">
-                    {ReferralStats.totalReferrals.toLocaleString()}
-                  </p>
+          {showStats && (
+            <div className="mt-16 grid grid-cols-1 gap-6 sm:grid-cols-2">
+              {stats.linkClicks >= MIN_STAT_THRESHOLD && (
+                <div className="rounded-lg bg-white dark:bg-slate-800 p-6 shadow-sm border border-slate-200 dark:border-slate-700">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <p className="text-sm font-medium text-slate-600 dark:text-slate-400">
+                        Share Link Visits
+                      </p>
+                      <p className="mt-2 text-3xl font-bold text-slate-900 dark:text-white">
+                        {stats.linkClicks.toLocaleString()}
+                      </p>
+                    </div>
+                    <Link2 className="h-8 w-8 text-violet-500" />
+                  </div>
                 </div>
-                <Users className="h-8 w-8 text-violet-500" />
-              </div>
-            </div>
-            <div className="rounded-lg bg-white dark:bg-slate-800 p-6 shadow-sm border border-slate-200 dark:border-slate-700">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-sm font-medium text-slate-600 dark:text-slate-400">
-                    Active Referrers
-                  </p>
-                  <p className="mt-2 text-3xl font-bold text-slate-900 dark:text-white">
-                    {ReferralStats.activeReferrers.toLocaleString()}
-                  </p>
+              )}
+              {stats.referredJoins >= MIN_STAT_THRESHOLD && (
+                <div className="rounded-lg bg-white dark:bg-slate-800 p-6 shadow-sm border border-slate-200 dark:border-slate-700">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <p className="text-sm font-medium text-slate-600 dark:text-slate-400">
+                        Supporters Referred by Friends
+                      </p>
+                      <p className="mt-2 text-3xl font-bold text-slate-900 dark:text-white">
+                        {stats.referredJoins.toLocaleString()}
+                      </p>
+                    </div>
+                    <Users className="h-8 w-8 text-lime-500" />
+                  </div>
                 </div>
-                <Award className="h-8 w-8 text-lime-500" />
-              </div>
+              )}
             </div>
-            <div className="rounded-lg bg-white dark:bg-slate-800 p-6 shadow-sm border border-slate-200 dark:border-slate-700">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-sm font-medium text-slate-600 dark:text-slate-400">
-                    Points Distributed
-                  </p>
-                  <p className="mt-2 text-3xl font-bold text-slate-900 dark:text-white">
-                    {ReferralStats.pointsDistributed.toLocaleString()}
-                  </p>
-                </div>
-                <Trophy className="h-8 w-8 text-violet-500" />
-              </div>
-            </div>
-          </div>
+          )}
         </div>
       </section>
 
@@ -119,20 +115,23 @@ export default function ReferralProgramPage() {
             How It Works
           </h2>
           <p className="mb-12 text-center text-slate-600 dark:text-slate-400">
-            Three simple steps to start earning rewards
+            No sign-up forms, no codes to remember — your link is created for
+            you the moment you lobby
           </p>
 
           <div className="grid grid-cols-1 gap-8 md:grid-cols-3">
             {/* Step 1 */}
             <div className="flex flex-col items-center">
               <div className="mb-6 flex h-16 w-16 items-center justify-center rounded-full bg-gradient-to-br from-violet-500 to-violet-600">
-                <Share2 className="h-8 w-8 text-white" />
+                <Heart className="h-8 w-8 text-white" />
               </div>
               <h3 className="mb-3 text-xl font-bold text-slate-900 dark:text-white">
-                Share Your Link
+                Lobby a Campaign
               </h3>
               <p className="text-center text-slate-600 dark:text-slate-400">
-                Copy your unique referral link and share it with friends via email, social media, or messaging apps.
+                Back a product idea you want to exist. Right after you lobby,
+                the success screen shows your personal share link for that
+                campaign.
               </p>
               <div className="mt-4 text-sm font-semibold text-violet-600 dark:text-violet-400">
                 Step 1
@@ -142,13 +141,15 @@ export default function ReferralProgramPage() {
             {/* Step 2 */}
             <div className="flex flex-col items-center">
               <div className="mb-6 flex h-16 w-16 items-center justify-center rounded-full bg-gradient-to-br from-violet-400 to-lime-500">
-                <Users className="h-8 w-8 text-white" />
+                <Link2 className="h-8 w-8 text-white" />
               </div>
               <h3 className="mb-3 text-xl font-bold text-slate-900 dark:text-white">
-                Friend Signs Up
+                Share Your Link
               </h3>
               <p className="text-center text-slate-600 dark:text-slate-400">
-                Your friend creates an account using your referral link and completes their profile setup.
+                Send it to friends however you like — messages, social media,
+                email. Your link is also available any time from your supporter
+                dashboard.
               </p>
               <div className="mt-4 text-sm font-semibold text-violet-600 dark:text-violet-400">
                 Step 2
@@ -158,13 +159,15 @@ export default function ReferralProgramPage() {
             {/* Step 3 */}
             <div className="flex flex-col items-center">
               <div className="mb-6 flex h-16 w-16 items-center justify-center rounded-full bg-gradient-to-br from-lime-500 to-lime-600">
-                <Award className="h-8 w-8 text-white" />
+                <Users className="h-8 w-8 text-white" />
               </div>
               <h3 className="mb-3 text-xl font-bold text-slate-900 dark:text-white">
-                Both Earn Points
+                Your Impact Is Counted
               </h3>
               <p className="text-center text-slate-600 dark:text-slate-400">
-                You and your friend receive bonus points immediately that can be used for premium features.
+                When friends join the campaign through your link, they are
+                attributed to you — and your dashboard shows the supporters you
+                brought in.
               </p>
               <div className="mt-4 text-sm font-semibold text-violet-600 dark:text-violet-400">
                 Step 3
@@ -174,91 +177,48 @@ export default function ReferralProgramPage() {
         </div>
       </section>
 
-      {/* Reward Tiers */}
+      {/* Why It Matters */}
       <section className="px-4 py-20 sm:px-6 lg:px-8">
         <div className="mx-auto max-w-4xl">
           <h2 className="mb-4 text-center text-3xl font-bold text-slate-900 dark:text-white">
-            Reward Tiers
+            Why Sharing Matters
           </h2>
           <p className="mb-12 text-center text-slate-600 dark:text-slate-400">
-            Earn more points as you refer more friends
+            Campaigns win when brands see real demand — and demand grows one
+            supporter at a time
           </p>
 
           <div className="grid grid-cols-1 gap-6 md:grid-cols-3">
-            {RewardTiers.map((tier) => (
-              <div
-                key={tier.milestone}
-                className={`rounded-lg bg-gradient-to-br ${tier.color} p-6 text-white shadow-lg`}
-              >
-                <h3 className="mb-2 text-lg font-bold">{tier.milestone}</h3>
-                <p className="mb-4 text-sm opacity-90">{tier.description}</p>
-                <div className="flex items-baseline gap-1">
-                  <span className="text-4xl font-bold">{tier.points}</span>
-                  <span className="text-sm opacity-75">points each</span>
-                </div>
-              </div>
-            ))}
-          </div>
-        </div>
-      </section>
-
-      {/* Referral Leaderboard */}
-      <section className="px-4 py-20 sm:px-6 lg:px-8 bg-white dark:bg-slate-800">
-        <div className="mx-auto max-w-4xl">
-          <div className="flex items-center justify-center gap-2 mb-4">
-            <Trophy className="h-6 w-6 text-violet-600 dark:text-violet-400" />
-            <h2 className="text-center text-3xl font-bold text-slate-900 dark:text-white">
-              Top Referrers
-            </h2>
-          </div>
-          <p className="mb-12 text-center text-slate-600 dark:text-slate-400">
-            Celebrate our most active referrers this month
-          </p>
-
-          <div className="overflow-x-auto">
-            <table className="w-full">
-              <thead>
-                <tr className="border-b border-slate-200 dark:border-slate-700">
-                  <th className="px-4 py-3 text-left text-sm font-semibold text-slate-900 dark:text-white">
-                    Rank
-                  </th>
-                  <th className="px-4 py-3 text-left text-sm font-semibold text-slate-900 dark:text-white">
-                    Name
-                  </th>
-                  <th className="px-4 py-3 text-right text-sm font-semibold text-slate-900 dark:text-white">
-                    Referrals
-                  </th>
-                  <th className="px-4 py-3 text-right text-sm font-semibold text-slate-900 dark:text-white">
-                    Points
-                  </th>
-                </tr>
-              </thead>
-              <tbody>
-                {TopReferrers.map((referrer) => (
-                  <tr
-                    key={referrer.rank}
-                    className="border-b border-slate-100 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-700/50 transition-colors"
-                  >
-                    <td className="px-4 py-4">
-                      <div className="flex items-center gap-3">
-                        <div className="flex h-8 w-8 items-center justify-center rounded-full bg-gradient-to-br from-violet-500 to-lime-500 font-bold text-white">
-                          {referrer.rank}
-                        </div>
-                      </div>
-                    </td>
-                    <td className="px-4 py-4 text-sm font-medium text-slate-900 dark:text-white">
-                      {referrer.name}
-                    </td>
-                    <td className="px-4 py-4 text-right text-sm font-semibold text-slate-900 dark:text-white">
-                      {referrer.referrals.toLocaleString()}
-                    </td>
-                    <td className="px-4 py-4 text-right text-sm font-semibold text-violet-600 dark:text-violet-400">
-                      {referrer.points.toLocaleString()}
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+            <div className="rounded-lg bg-white dark:bg-slate-800 p-6 shadow-sm border border-slate-200 dark:border-slate-700">
+              <h3 className="mb-2 text-lg font-bold text-slate-900 dark:text-white">
+                Stronger Demand Signal
+              </h3>
+              <p className="text-sm text-slate-600 dark:text-slate-400">
+                Every supporter you bring adds to the campaign&apos;s lobby
+                count — the signal brands look at when deciding whether to
+                respond.
+              </p>
+            </div>
+            <div className="rounded-lg bg-white dark:bg-slate-800 p-6 shadow-sm border border-slate-200 dark:border-slate-700">
+              <h3 className="mb-2 text-lg font-bold text-slate-900 dark:text-white">
+                Your Impact, Visible
+              </h3>
+              <p className="text-sm text-slate-600 dark:text-slate-400">
+                Your supporter dashboard shows the campaigns you&apos;ve backed
+                and the friends who joined through your link, so you can see
+                the difference your sharing makes.
+              </p>
+            </div>
+            <div className="rounded-lg bg-white dark:bg-slate-800 p-6 shadow-sm border border-slate-200 dark:border-slate-700">
+              <h3 className="mb-2 text-lg font-bold text-slate-900 dark:text-white">
+                Better Odds for Products You Want
+              </h3>
+              <p className="text-sm text-slate-600 dark:text-slate-400">
+                The more supporters a campaign gathers, the more likely a brand
+                commits to making the product — so sharing directly helps the
+                things you want get built.
+              </p>
+            </div>
           </div>
         </div>
       </section>
@@ -268,18 +228,35 @@ export default function ReferralProgramPage() {
         <div className="mx-auto max-w-2xl">
           <div className="rounded-lg bg-gradient-to-r from-violet-600 to-lime-500 p-12 text-center text-white shadow-xl">
             <h2 className="mb-4 text-3xl font-bold">
-              Ready to Start Earning?
+              Ready to Grow a Campaign?
             </h2>
             <p className="mb-8 text-lg opacity-90">
-              Join thousands of users earning rewards by sharing ProductLobby with their network.
+              Lobby a campaign you believe in, grab your personal link, and see
+              your impact on your dashboard.
             </p>
-            <Button
-              size="lg"
-              className="bg-white text-violet-600 hover:bg-slate-100"
-            >
-              <Gift className="mr-2 h-5 w-5" />
-              Get Your Referral Link
-            </Button>
+            <div className="flex flex-col items-center justify-center gap-3 sm:flex-row">
+              <Button
+                asChild
+                size="lg"
+                className="bg-white text-violet-600 hover:bg-slate-100"
+              >
+                <Link href="/explore">
+                  <ArrowRight className="mr-2 h-5 w-5" />
+                  Explore Campaigns
+                </Link>
+              </Button>
+              <Button
+                asChild
+                size="lg"
+                variant="outline"
+                className="border-white bg-transparent text-white hover:bg-white/10"
+              >
+                <Link href="/dashboard">
+                  <LayoutDashboard className="mr-2 h-5 w-5" />
+                  View Your Dashboard
+                </Link>
+              </Button>
+            </div>
           </div>
         </div>
       </section>

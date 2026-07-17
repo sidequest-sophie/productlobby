@@ -78,7 +78,12 @@ test.describe('Supporter — signed-in journeys', () => {
 
     // Step 1: intensity — one tap both records the choice AND advances (no
     // separate "Continue" click in the reworked flow, lobby-flow.tsx).
-    await expect(page.getByRole('heading', { name: 'How badly do you want this?' })).toBeVisible()
+    // Heading copy depends on whether the campaign targets a brand
+    // ("…want this?" vs "…want this to exist?") — accept either, since
+    // ensureLiveCampaign returns whichever LIVE campaign is first.
+    await expect(
+      page.getByRole('heading', { name: /How badly do you want this( to exist)?\?/ })
+    ).toBeVisible()
     await page.getByRole('button', { name: /Take my money!/ }).click()
 
     // The preferences step ("Help shape this product") only appears when the

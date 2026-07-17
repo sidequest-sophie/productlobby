@@ -2,73 +2,60 @@ import { getCurrentUser } from '@/lib/auth'
 import { prisma } from '@/lib/db'
 import { NextRequest, NextResponse } from 'next/server'
 import { MediaKind } from '@prisma/client'
+import {
+  MAX_MEDIA_ITEMS,
+  isValidImageUrl,
+  parseVideoUrl,
+} from '@/lib/media-embed'
 
 export const dynamic = 'force-dynamic'
 
-type Params = Promise<{ id: string }>
+const MAX_URL_LENGTH = 2048
+const MAX_ALT_TEXT_LENGTH = 300
+
+function serializeMedia(media: {
+  id: string
+  kind: MediaKind
+  url: string
+  altText: string | null
+  order: number
+  createdAt: Date
+}) {
+  return {
+    id: media.id,
+    kind: media.kind,
+    url: media.url,
+    altText: media.altText,
+    order: media.order,
+    createdAt: media.createdAt.toISOString(),
+  }
+}
 
 // GET /api/campaigns/[id]/media
-// Returns media attachments for a campaign for lightbox-style gallery display
-// Fetches media events with eventType: 'SOCIAL_SHARE' and metadata.action = 'media_upload'
+// Public: returns the campaign's media items in display order.
 export async function GET(
   _request: NextRequest,
-  props: { params: Params }
+  { params }: { params: { id: string } }
 ) {
   try {
-    const { id } = await props.params
-
     const campaign = await prisma.campaign.findUnique({
-      where: { id },
-      include: {
-        media: {
-          orderBy: { order: 'asc' },
-        },
-      },
+      where: { id: params.id },
+      select: { id: true },
     })
 
     if (!campaign) {
-      return NextResponse.json(
-        { error: 'Campaign not found' },
-        { status: 404 }
-      )
+      return NextResponse.json({ error: 'Campaign not found' }, { status: 404 })
     }
 
-    // Track media viewing as a contribution event
-    const user = await getCurrentUser()
-    if (user) {
-      try {
-        await prisma.contributionEvent.create({
-          data: {
-            userId: user.id,
-            campaignId: id,
-            eventType: 'SOCIAL_SHARE',
-            points: 1,
-            metadata: {
-              action: 'media_view',
-              mediaCount: campaign.media.length,
-              timestamp: new Date().toISOString(),
-            },
-          },
-        })
-      } catch (error) {
-        // Silently fail event tracking - don't block the response
-        console.error('Failed to track media view event:', error)
-      }
-    }
-
-    // Format media with title, url, type, and uploadedAt
-    const formattedMedia = campaign.media.map((m) => ({
-      id: m.id,
-      url: m.url,
-      type: m.kind,
-      title: m.altText || undefined,
-      uploadedAt: m.createdAt,
-    }))
+    const media = await prisma.campaignMedia.findMany({
+      where: { campaignId: campaign.id },
+      orderBy: { order: 'asc' },
+    })
 
     return NextResponse.json({
       success: true,
-      data: formattedMedia,
-      total: formattedMedia.length,
+      data: media.map(serializeMedia),
+      total: media.length,
     })
   } catch (error) {
     console.error('GET /api/campaigns/[id]/media error:', error)
@@ -80,114 +67,127 @@ export async function GET(
 }
 
 // POST /api/campaigns/[id]/media
-// Add media/attachment to campaign
-// Tracks contribution events with eventType: 'SOCIAL_SHARE' and metadata.action = 'media_upload'
+// Owner-only: add a media item (image URL from the upload route, or a
+// YouTube/Vimeo video URL). Enforces the 12-item cap and alt text.
 export async function POST(
   request: NextRequest,
-  props: { params: Params }
+  { params }: { params: { id: string } }
 ) {
   try {
     const user = await getCurrentUser()
     if (!user) {
-      return NextResponse.json(
-        { error: 'Unauthorized' },
-        { status: 401 }
-      )
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
-    const { id } = await props.params
-
     const campaign = await prisma.campaign.findUnique({
-      where: { id },
-      select: { creatorUserId: true },
+      where: { id: params.id },
+      select: { id: true, creatorUserId: true },
     })
 
     if (!campaign) {
-      return NextResponse.json(
-        { error: 'Campaign not found' },
-        { status: 404 }
-      )
+      return NextResponse.json({ error: 'Campaign not found' }, { status: 404 })
     }
 
     if (campaign.creatorUserId !== user.id) {
       return NextResponse.json(
-        { error: 'Forbidden' },
+        { error: 'Only the campaign creator can manage media' },
         { status: 403 }
       )
     }
 
-    const body = await request.json()
-    const { url, type, title, order } = body
-
-    // Validate URL format
-    try {
-      new URL(url)
-    } catch {
+    const body = await request.json().catch(() => null)
+    if (!body || typeof body !== 'object') {
       return NextResponse.json(
-        { error: 'Invalid URL format' },
+        { error: 'Invalid request body' },
         { status: 400 }
       )
     }
 
-    // Validate type enum
-    const validTypes = ['IMAGE', 'VIDEO', 'SKETCH', 'MOCKUP']
-    if (!validTypes.includes(type)) {
+    const kindInput = typeof body.kind === 'string' ? body.kind.toUpperCase() : ''
+    if (!Object.values(MediaKind).includes(kindInput as MediaKind)) {
       return NextResponse.json(
-        { error: `Invalid type. Must be one of: ${validTypes.join(', ')}` },
+        {
+          error: `Invalid media kind. Must be one of: ${Object.values(MediaKind).join(', ')}`,
+        },
+        { status: 400 }
+      )
+    }
+    const kind = kindInput as MediaKind
+
+    const rawUrl = typeof body.url === 'string' ? body.url.trim() : ''
+    if (!rawUrl || rawUrl.length > MAX_URL_LENGTH) {
+      return NextResponse.json(
+        { error: 'A valid media URL is required' },
         { status: 400 }
       )
     }
 
-    // Get max order for new item
-    const lastMedia = await prisma.campaignMedia.findFirst({
-      where: { campaignId: id },
-      orderBy: { order: 'desc' },
-    })
+    // Alt text is required for accessibility (WCAG AA).
+    const altText = typeof body.altText === 'string' ? body.altText.trim() : ''
+    if (!altText) {
+      return NextResponse.json(
+        { error: 'Alt text is required so everyone can understand your media' },
+        { status: 400 }
+      )
+    }
+    if (altText.length > MAX_ALT_TEXT_LENGTH) {
+      return NextResponse.json(
+        { error: `Alt text must be ${MAX_ALT_TEXT_LENGTH} characters or fewer` },
+        { status: 400 }
+      )
+    }
 
-    const newOrder = order ?? (lastMedia ? lastMedia.order + 1 : 0)
+    // Server-side URL validation: videos must be YouTube/Vimeo; everything
+    // else must be a well-formed http(s) URL (typically a Vercel Blob URL
+    // produced by /api/upload, which validates file type and size).
+    let storedUrl = rawUrl
+    if (kind === MediaKind.VIDEO) {
+      const parsed = parseVideoUrl(rawUrl)
+      if (!parsed) {
+        return NextResponse.json(
+          { error: 'Video must be a valid YouTube or Vimeo URL' },
+          { status: 400 }
+        )
+      }
+      storedUrl = rawUrl
+    } else if (!isValidImageUrl(rawUrl)) {
+      return NextResponse.json(
+        { error: 'Invalid image URL' },
+        { status: 400 }
+      )
+    }
 
-    const media = await prisma.campaignMedia.create({
-      data: {
-        campaignId: id,
-        kind: type as MediaKind,
-        url,
-        altText: title,
-        order: newOrder,
-      },
-    })
+    // Enforce the item cap and append at the end of the current order,
+    // atomically so concurrent adds cannot blow past the cap.
+    const media = await prisma.$transaction(async (tx) => {
+      const existingCount = await tx.campaignMedia.count({
+        where: { campaignId: campaign.id },
+      })
 
-    // Track media upload as a contribution event with SOCIAL_SHARE eventType and media_upload action
-    try {
-      await prisma.contributionEvent.create({
+      if (existingCount >= MAX_MEDIA_ITEMS) {
+        return null
+      }
+
+      return tx.campaignMedia.create({
         data: {
-          userId: user.id,
-          campaignId: id,
-          eventType: 'SOCIAL_SHARE',
-          points: 5,
-          metadata: {
-            action: 'media_upload',
-            mediaType: type,
-            mediaId: media.id,
-            timestamp: new Date().toISOString(),
-          },
+          campaignId: campaign.id,
+          kind,
+          url: storedUrl,
+          altText,
+          order: existingCount,
         },
       })
-    } catch (error) {
-      // Silently fail event tracking - media was still created
-      console.error('Failed to track media upload event:', error)
+    })
+
+    if (!media) {
+      return NextResponse.json(
+        { error: `Media limit reached (${MAX_MEDIA_ITEMS} items max)` },
+        { status: 400 }
+      )
     }
 
     return NextResponse.json(
-      {
-        success: true,
-        data: {
-          id: media.id,
-          url: media.url,
-          type: media.kind,
-          title: media.altText,
-          uploadedAt: media.createdAt,
-        },
-      },
+      { success: true, data: serializeMedia(media) },
       { status: 201 }
     )
   } catch (error) {

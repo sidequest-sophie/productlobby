@@ -1,6 +1,8 @@
 import { Metadata } from 'next'
+import { Suspense } from 'react'
 import { prisma } from '@/lib/db'
 import CampaignDetailPage from './campaign-detail'
+import { ReferralCapture } from './referral-capture'
 
 interface PageProps {
   params: {
@@ -89,5 +91,14 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
 }
 
 export default function Page({ params }: PageProps) {
-  return <CampaignDetailPage params={params} />
+  return (
+    <>
+      {/* Captures ?ref=CODE for 7-day first-touch referral attribution.
+          useSearchParams requires a Suspense boundary in a server page. */}
+      <Suspense fallback={null}>
+        <ReferralCapture campaignSlug={params.slug} />
+      </Suspense>
+      <CampaignDetailPage params={params} />
+    </>
+  )
 }

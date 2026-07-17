@@ -2,6 +2,7 @@
 
 import React, { useState, useEffect } from 'react'
 import Link from 'next/link'
+import nextDynamic from 'next/dynamic'
 import { ChevronRight, Megaphone } from 'lucide-react'
 import { Navbar } from '@/components/shared/navbar'
 import { Footer } from '@/components/shared/footer'
@@ -29,6 +30,13 @@ import { QASection } from '@/components/shared/qa-section'
 import { CommentsSection } from '@/components/shared/comments-section'
 import { cn, formatDate, formatNumber } from '@/lib/utils'
 import { CampaignJsonLd } from '@/components/shared/json-ld'
+
+// The media gallery sits below the fold inside the About tab — lazy-load it
+// so its chunk (lightbox, upload form) never competes with the page's LCP.
+const MediaGallery = nextDynamic(
+  () => import('@/components/campaigns/media-gallery').then((m) => m.MediaGallery),
+  { ssr: false }
+)
 
 interface CampaignDetailPageProps {
   params: {
@@ -73,8 +81,10 @@ interface ApiCampaign {
     logo: string
   } | null
   media: Array<{
+    id: string
     url: string
-    type: string
+    kind: string
+    altText?: string | null
     order: number
   }>
   preferenceFields: Array<{
@@ -403,10 +413,10 @@ export default function CampaignDetailPage({ params }: CampaignDetailPageProps) 
           <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4 sm:py-8">
             {/* Hero Image */}
             <div className="w-full h-48 sm:h-64 lg:h-96 bg-gradient-to-br from-violet-50 to-violet-100 rounded-lg mb-6 sm:mb-8 flex items-center justify-center overflow-hidden">
-              {campaign.media.length > 0 && campaign.media[0].type.startsWith('image') ? (
+              {campaign.media.length > 0 && campaign.media[0].kind !== 'VIDEO' ? (
                 <img
                   src={campaign.media[0].url}
-                  alt={campaign.title}
+                  alt={campaign.media[0].altText || campaign.title}
                   className="w-full h-full object-cover"
                 />
               ) : brand ? (
@@ -640,28 +650,13 @@ export default function CampaignDetailPage({ params }: CampaignDetailPageProps) 
                         </ul>
                       </div>
 
-                      {campaign.media.length > 0 && (
-                        <div>
-                          <h3 className="font-display font-semibold text-lg text-foreground mb-4">Campaign Gallery</h3>
-                          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                            {campaign.media.slice(0, 4).map((media, i) => (
-                              <div
-                                key={media.url}
-                                className="h-48 bg-gradient-to-br from-violet-50 to-violet-100 rounded-lg flex items-center justify-center overflow-hidden"
-                              >
-                                {media.type.startsWith('image') ? (
-                                  <img src={media.url} alt={`Campaign media ${i + 1}`} className="w-full h-full object-cover" />
-                                ) : (
-                                  <div className="text-center">
-                                    <div className="text-4xl mb-2">📸</div>
-                                    <p className="text-xs text-violet-600">Media {i + 1}</p>
-                                  </div>
-                                )}
-                              </div>
-                            ))}
-                          </div>
-                        </div>
-                      )}
+                      {/* Media gallery: hero-strip + lightbox; the component
+                          hides itself for visitors when the campaign has no
+                          media, and shows upload/reorder/delete to the owner. */}
+                      <MediaGallery
+                        campaignId={campaign.id}
+                        isOwner={!!user && user.id === campaign.creator.id}
+                      />
 
                       <div>
                         <h3 className="font-display font-semibold text-lg text-foreground mb-3">Why This Matters</h3>
