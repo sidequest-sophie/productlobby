@@ -1,6 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/db'
-import { getCurrentUser } from '@/lib/auth'
 
 export const dynamic = 'force-dynamic'
 
@@ -35,6 +34,7 @@ interface SentimentData {
   positive: number
   neutral: number
   negative: number
+  sampleSize: number
   trend: 'up' | 'down' | 'stable'
   recentMentions: Array<{
     text: string
@@ -98,10 +98,19 @@ function formatRelativeTime(date: Date): string {
   })
 }
 
-function getWeekLabel(weeksAgo: number): string {
-  const date = new Date()
-  date.setDate(date.getDate() - weeksAgo * 7)
-  return `W${Math.ceil(date.getDate() / 7)}`
+/**
+ * Score a set of sentiment labels on a 0-100 scale.
+ * 50 = balanced, 100 = all positive, 0 = all negative.
+ */
+function scoreSentiments(
+  sentiments: Array<'positive' | 'neutral' | 'negative'>
+): number {
+  if (sentiments.length === 0) return 0
+  const positive = sentiments.filter(s => s === 'positive').length
+  const negative = sentiments.filter(s => s === 'negative').length
+  return Math.round(
+    (((positive - negative) / sentiments.length + 1) / 2) * 100
+  )
 }
 
 export async function GET(
@@ -112,10 +121,14 @@ export async function GET(
     const { id } = params
     const searchParams = request.nextUrl.searchParams
     const range = searchParams.get('range') || '7d'
+    const rangeDays = range === '90d' ? 90 : range === '30d' ? 30 : 7
+    const rangeStart = new Date(Date.now() - rangeDays * 24 * 60 * 60 * 1000)
 
     // Verify campaign exists
-    const campaign = await prisma.campaign.findUnique({
-      where: { id },
+    const campaign = await prisma.campaign.findFirst({
+      where: {
+        OR: [{ id }, { slug: id }],
+      },
       select: { id: true },
     })
 
@@ -126,11 +139,12 @@ export async function GET(
       )
     }
 
-    // Fetch comments for the campaign
+    // Fetch comments for the campaign within the requested range
     const comments = await prisma.comment.findMany({
       where: {
-        campaignId: id,
+        campaignId: campaign.id,
         status: 'VISIBLE',
+        createdAt: { gte: rangeStart },
       },
       select: {
         id: true,
@@ -140,7 +154,6 @@ export async function GET(
       orderBy: {
         createdAt: 'desc',
       },
-      take: 100,
     })
 
     // Analyze sentiment for each comment
@@ -153,38 +166,69 @@ export async function GET(
     const positiveCount = sentimentAnalysis.filter(
       c => c.sentiment === 'positive'
     ).length
-    const neutralCount = sentimentAnalysis.filter(
-      c => c.sentiment === 'neutral'
-    ).length
     const negativeCount = sentimentAnalysis.filter(
       c => c.sentiment === 'negative'
     ).length
     const total = sentimentAnalysis.length
 
-    // Simulated data as specified in requirements
-    const overall = 68
-    const positive = 62
-    const neutral = 25
-    const negative = 13
+    const positive = total > 0 ? Math.round((positiveCount / total) * 100) : 0
+    const negative = total > 0 ? Math.round((negativeCount / total) * 100) : 0
+    // Remainder keeps positive + neutral + negative summing to exactly 100
+    const neutral = total > 0 ? Math.max(0, 100 - positive - negative) : 0
+    const overall = scoreSentiments(sentimentAnalysis.map(c => c.sentiment))
 
-    // Build weekly history (4 weeks)
-    const weeklyHistory = [
-      { week: 'W1', score: 62 },
-      { week: 'W2', score: 65 },
-      { week: 'W3', score: 67 },
-      { week: 'W4', score: 68 },
-    ]
+    // Build weekly history from the last 4 weeks of comments
+    // (independent of the selected range so the trend has context)
+    const weekMs = 7 * 24 * 60 * 60 * 1000
+    const historyComments =
+      rangeDays >= 28
+        ? sentimentAnalysis
+        : (
+            await prisma.comment.findMany({
+              where: {
+                campaignId: campaign.id,
+                status: 'VISIBLE',
+                createdAt: { gte: new Date(Date.now() - 4 * weekMs) },
+              },
+              select: { content: true, createdAt: true },
+            })
+          ).map(comment => ({
+            ...comment,
+            sentiment: analyzeSentiment(comment.content),
+          }))
 
-    // Build recent mentions (5 recent mentions)
+    const weeklyHistory: Array<{ week: string; score: number }> = []
+    for (let weeksAgo = 3; weeksAgo >= 0; weeksAgo--) {
+      const weekEnd = Date.now() - weeksAgo * weekMs
+      const weekStart = weekEnd - weekMs
+      const weekSentiments = historyComments
+        .filter(c => {
+          const t = c.createdAt.getTime()
+          return t >= weekStart && t < weekEnd
+        })
+        .map(c => c.sentiment)
+
+      if (weekSentiments.length > 0) {
+        weeklyHistory.push({
+          week: new Date(weekStart).toLocaleDateString('en-US', {
+            month: 'short',
+            day: 'numeric',
+          }),
+          score: scoreSentiments(weekSentiments),
+        })
+      }
+    }
+
+    // Build recent mentions (5 most recent analyzed comments)
     const recentMentions = sentimentAnalysis.slice(0, 5).map(comment => ({
-      text: comment.content.substring(0, 100) + 
+      text: comment.content.substring(0, 100) +
             (comment.content.length > 100 ? '...' : ''),
       sentiment: comment.sentiment,
       source: 'Comments',
       date: formatRelativeTime(comment.createdAt),
     }))
 
-    // Determine trend
+    // Determine trend from the two most recent weeks with data
     let trend: 'up' | 'down' | 'stable' = 'stable'
     if (weeklyHistory.length >= 2) {
       const lastScore = weeklyHistory[weeklyHistory.length - 1].score
@@ -201,6 +245,7 @@ export async function GET(
       positive,
       neutral,
       negative,
+      sampleSize: total,
       trend,
       recentMentions,
       weeklyHistory,

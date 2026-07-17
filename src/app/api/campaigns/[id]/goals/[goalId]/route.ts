@@ -55,9 +55,13 @@ export async function DELETE(
       )
     }
 
-    // Verify it's a goal event
+    // Verify it's a goal event (goals are stored with action='goal_create';
+    // 'campaign_goal' is accepted for legacy rows)
     const metadata = goalEvent.metadata as any
-    if (!metadata || metadata.action !== 'campaign_goal') {
+    if (
+      !metadata ||
+      (metadata.action !== 'goal_create' && metadata.action !== 'campaign_goal')
+    ) {
       return NextResponse.json(
         { success: false, error: 'Invalid goal event' },
         { status: 400 }

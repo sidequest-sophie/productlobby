@@ -31,6 +31,7 @@ interface SentimentData {
   positive: number
   neutral: number
   negative: number
+  sampleSize: number
   trend: 'up' | 'down' | 'stable'
   recentMentions: RecentMention[]
   weeklyHistory: WeeklyHistory[]
@@ -85,6 +86,14 @@ export default function SentimentTracker({
     return (
       <div className="rounded-lg border border-red-200 bg-red-50 p-4 text-red-700">
         {error || 'No sentiment data available'}
+      </div>
+    )
+  }
+
+  if (data.sampleSize === 0) {
+    return (
+      <div className="rounded-lg border border-gray-200 bg-white p-6 text-center text-gray-500">
+        No comments to analyse in this period yet
       </div>
     )
   }
@@ -145,7 +154,8 @@ export default function SentimentTracker({
             Sentiment Tracker
           </h2>
           <p className="text-sm text-gray-600">
-            Real-time sentiment analysis of campaign mentions
+            Sentiment analysis of {data.sampleSize.toLocaleString()} campaign{' '}
+            {data.sampleSize === 1 ? 'comment' : 'comments'}
           </p>
         </div>
         <div className="flex gap-2">

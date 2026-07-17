@@ -13,7 +13,7 @@ interface TeamMember {
   id: string
   email: string
   name: string
-  role: 'Admin' | 'Editor' | 'Moderator' | 'Viewer'
+  role: 'owner' | 'admin' | 'editor' | 'viewer'
   avatar?: string
   joinedAt: string
 }
@@ -21,7 +21,7 @@ interface TeamMember {
 interface PendingInvitation {
   id: string
   email: string
-  role: 'Admin' | 'Editor' | 'Moderator' | 'Viewer'
+  role: 'admin' | 'editor' | 'viewer'
   sentAt: string
 }
 
@@ -32,13 +32,13 @@ interface TeamManagerProps {
 
 const getRoleBadgeColor = (role: string) => {
   switch (role) {
-    case 'Admin':
+    case 'owner':
+      return 'bg-violet-100 text-violet-800 border-violet-300'
+    case 'admin':
       return 'bg-purple-100 text-purple-800 border-purple-300'
-    case 'Editor':
+    case 'editor':
       return 'bg-blue-100 text-blue-800 border-blue-300'
-    case 'Moderator':
-      return 'bg-green-100 text-green-800 border-green-300'
-    case 'Viewer':
+    case 'viewer':
       return 'bg-gray-100 text-gray-800 border-gray-300'
     default:
       return 'bg-gray-100 text-gray-800 border-gray-300'
@@ -47,12 +47,11 @@ const getRoleBadgeColor = (role: string) => {
 
 const getRoleIcon = (role: string) => {
   switch (role) {
-    case 'Admin':
+    case 'owner':
+    case 'admin':
       return <Shield className="w-4 h-4" />
-    case 'Editor':
+    case 'editor':
       return <Pencil className="w-4 h-4" />
-    case 'Moderator':
-      return <Mail className="w-4 h-4" />
     default:
       return null
   }
@@ -91,7 +90,7 @@ export function TeamManager({ campaignId, isOwner = true }: TeamManagerProps) {
 
   const [showAddDialog, setShowAddDialog] = useState(false)
   const [newMemberEmail, setNewMemberEmail] = useState('')
-  const [newMemberRole, setNewMemberRole] = useState<'Admin' | 'Editor' | 'Moderator' | 'Viewer'>('Viewer')
+  const [newMemberRole, setNewMemberRole] = useState<'admin' | 'editor' | 'viewer'>('viewer')
 
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false)
   const [deleteTargetId, setDeleteTargetId] = useState<string | null>(null)
@@ -149,7 +148,7 @@ export function TeamManager({ campaignId, isOwner = true }: TeamManagerProps) {
 
       setSuccessMessage(`Invitation sent to ${newMemberEmail}`)
       setNewMemberEmail('')
-      setNewMemberRole('Viewer')
+      setNewMemberRole('viewer')
       setShowAddDialog(false)
       setTimeout(() => setSuccessMessage(''), 3000)
       await fetchTeam()
@@ -283,7 +282,7 @@ export function TeamManager({ campaignId, isOwner = true }: TeamManagerProps) {
                     <Badge
                       variant="outline"
                       className={cn(
-                        'gap-1.5 whitespace-nowrap',
+                        'gap-1.5 whitespace-nowrap capitalize',
                         getRoleBadgeColor(member.role)
                       )}
                     >
@@ -343,7 +342,7 @@ export function TeamManager({ campaignId, isOwner = true }: TeamManagerProps) {
                   <Badge
                     variant="outline"
                     className={cn(
-                      'gap-1.5 whitespace-nowrap',
+                      'gap-1.5 whitespace-nowrap capitalize',
                       getRoleBadgeColor(invitation.role)
                     )}
                   >
@@ -383,10 +382,9 @@ export function TeamManager({ campaignId, isOwner = true }: TeamManagerProps) {
                 onChange={(e) => setNewMemberRole(e.target.value as any)}
                 className="w-full mt-1 px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
               >
-                <option value="Viewer">Viewer - Can view campaign</option>
-                <option value="Moderator">Moderator - Can moderate comments</option>
-                <option value="Editor">Editor - Can edit campaign</option>
-                <option value="Admin">Admin - Full access</option>
+                <option value="viewer">Viewer - Can view campaign</option>
+                <option value="editor">Editor - Can edit campaign</option>
+                <option value="admin">Admin - Full access</option>
               </select>
             </div>
 

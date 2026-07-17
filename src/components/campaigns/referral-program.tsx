@@ -15,8 +15,8 @@ interface Referral {
 }
 
 interface ReferralStats {
-  totalReferrals: number
-  successfulJoins: number
+  clicks: number
+  signups: number
   conversionRate: number
   totalPointsEarned: number
   uniqueReferralLink: string
@@ -134,9 +134,9 @@ export function ReferralProgram({ campaignId }: ReferralProgramProps) {
             <div className="bg-white rounded-lg border border-gray-200 p-4">
               <div className="flex items-center justify-between">
                 <div>
-                  <p className="text-sm text-gray-600">Total Referrals</p>
+                  <p className="text-sm text-gray-600">Link Clicks</p>
                   <p className="text-2xl font-bold text-violet-600">
-                    {stats.totalReferrals}
+                    {stats.clicks}
                   </p>
                 </div>
                 <Users className="h-8 w-8 text-violet-600 opacity-20" />
@@ -146,9 +146,9 @@ export function ReferralProgram({ campaignId }: ReferralProgramProps) {
             <div className="bg-white rounded-lg border border-gray-200 p-4">
               <div className="flex items-center justify-between">
                 <div>
-                  <p className="text-sm text-gray-600">Successful Joins</p>
+                  <p className="text-sm text-gray-600">Sign-ups</p>
                   <p className="text-2xl font-bold text-lime-600">
-                    {stats.successfulJoins}
+                    {stats.signups}
                   </p>
                 </div>
                 <CheckCircle className="h-8 w-8 text-lime-600 opacity-20" />
@@ -181,7 +181,7 @@ export function ReferralProgram({ campaignId }: ReferralProgramProps) {
           </div>
 
           <div className="bg-white rounded-lg border border-gray-200 p-6">
-            <h3 className="text-lg font-semibold text-gray-900 mb-4">Referral Leaderboard</h3>
+            <h3 className="text-lg font-semibold text-gray-900 mb-4">Recent Referrals</h3>
             <div className="space-y-2">
               {referrals.slice(0, 5).map((referral, index) => (
                 <div

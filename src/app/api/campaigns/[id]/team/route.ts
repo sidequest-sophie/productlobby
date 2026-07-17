@@ -4,7 +4,37 @@ import { getCurrentUser } from '@/lib/auth'
 
 export const dynamic = 'force-dynamic'
 
-// GET /api/campaigns/[id]/team - Fetch team members
+const INVITE_ROLES = ['admin', 'editor', 'viewer'] as const
+
+interface TeamInviteMetadata {
+  action?: string
+  invitedEmail?: string
+  role?: string
+  timestamp?: string
+}
+
+function isRecord(v: unknown): v is Record<string, unknown> {
+  return typeof v === 'object' && v !== null && !Array.isArray(v)
+}
+
+// Fetch a pending team-invite event, verifying it belongs to this campaign
+async function findInviteEvent(campaignId: string, eventId: string) {
+  const event = await prisma.contributionEvent.findUnique({
+    where: { id: eventId },
+  })
+
+  if (!event || event.campaignId !== campaignId) return null
+
+  const metadata: TeamInviteMetadata = isRecord(event.metadata)
+    ? (event.metadata as TeamInviteMetadata)
+    : {}
+
+  if (metadata.action !== 'team_invite') return null
+
+  return { event, metadata }
+}
+
+// GET /api/campaigns/[id]/team - Fetch team members and pending invitations
 export async function GET(
   request: NextRequest,
   { params }: { params: { id: string } }
@@ -23,7 +53,19 @@ export async function GET(
     // Verify campaign exists and caller owns it (team roster includes member emails)
     const campaign = await prisma.campaign.findUnique({
       where: { id: campaignId },
-      select: { id: true, creatorUserId: true },
+      select: {
+        id: true,
+        creatorUserId: true,
+        createdAt: true,
+        creator: {
+          select: {
+            id: true,
+            displayName: true,
+            email: true,
+            avatar: true,
+          },
+        },
+      },
     })
 
     if (!campaign) {
@@ -40,51 +82,44 @@ export async function GET(
       )
     }
 
-    // Simulated team members - in production, query from database
+    // The campaign creator is the sole confirmed member; invitations are
+    // stored as contribution events until accepted (no CampaignTeam model).
     const members = [
       {
-        id: '1',
-        name: 'Sarah Johnson',
-        email: 'sarah@example.com',
+        id: campaign.creator.id,
+        name: campaign.creator.displayName,
+        email: campaign.creator.email,
+        avatar: campaign.creator.avatar || undefined,
         role: 'owner',
-        joinedAt: new Date(Date.now() - 60 * 24 * 60 * 60 * 1000).toISOString(),
-        lastActive: new Date(Date.now() - 2 * 60 * 60 * 1000).toISOString(),
-      },
-      {
-        id: '2',
-        name: 'Michael Chen',
-        email: 'michael@example.com',
-        role: 'admin',
-        joinedAt: new Date(Date.now() - 45 * 24 * 60 * 60 * 1000).toISOString(),
-        lastActive: new Date(Date.now() - 30 * 60 * 1000).toISOString(),
-      },
-      {
-        id: '3',
-        name: 'Emma Rodriguez',
-        email: 'emma@example.com',
-        role: 'editor',
-        joinedAt: new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString(),
-        lastActive: new Date(Date.now() - 3 * 60 * 60 * 1000).toISOString(),
-      },
-      {
-        id: '4',
-        name: 'James Williams',
-        email: 'james@example.com',
-        role: 'editor',
-        joinedAt: new Date(Date.now() - 15 * 24 * 60 * 60 * 1000).toISOString(),
-        lastActive: new Date(Date.now() - 8 * 60 * 60 * 1000).toISOString(),
-      },
-      {
-        id: '5',
-        name: 'Lisa Park',
-        email: 'lisa@example.com',
-        role: 'viewer',
-        joinedAt: new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString(),
-        lastActive: new Date(Date.now() - 2 * 24 * 60 * 60 * 1000).toISOString(),
+        joinedAt: campaign.createdAt.toISOString(),
       },
     ]
 
-    return NextResponse.json({ members }, { status: 200 })
+    const inviteEvents = await prisma.contributionEvent.findMany({
+      where: {
+        campaignId,
+        eventType: 'SOCIAL_SHARE',
+        metadata: {
+          path: ['action'],
+          equals: 'team_invite',
+        },
+      },
+      orderBy: { createdAt: 'asc' },
+    })
+
+    const pending = inviteEvents.map((event) => {
+      const metadata: TeamInviteMetadata = isRecord(event.metadata)
+        ? (event.metadata as TeamInviteMetadata)
+        : {}
+      return {
+        id: event.id,
+        email: metadata.invitedEmail || '',
+        role: metadata.role || 'viewer',
+        sentAt: event.createdAt.toISOString(),
+      }
+    })
+
+    return NextResponse.json({ members, pending }, { status: 200 })
   } catch (error) {
     console.error('Error fetching team:', error)
     return NextResponse.json(
@@ -119,6 +154,14 @@ export async function POST(
       )
     }
 
+    const normalizedRole = String(role).toLowerCase()
+    if (!INVITE_ROLES.includes(normalizedRole as (typeof INVITE_ROLES)[number])) {
+      return NextResponse.json(
+        { error: 'Invalid role' },
+        { status: 400 }
+      )
+    }
+
     // Verify campaign exists and caller owns it
     const campaign = await prisma.campaign.findUnique({
       where: { id: campaignId },
@@ -139,6 +182,27 @@ export async function POST(
       )
     }
 
+    const normalizedEmail = String(email).trim().toLowerCase()
+
+    // Prevent duplicate pending invitations for the same email
+    const existingInvite = await prisma.contributionEvent.findFirst({
+      where: {
+        campaignId,
+        eventType: 'SOCIAL_SHARE',
+        AND: [
+          { metadata: { path: ['action'], equals: 'team_invite' } },
+          { metadata: { path: ['invitedEmail'], equals: normalizedEmail } },
+        ],
+      },
+    })
+
+    if (existingInvite) {
+      return NextResponse.json(
+        { error: 'This email has already been invited' },
+        { status: 400 }
+      )
+    }
+
     // Create team invite event
     const inviteEvent = await prisma.contributionEvent.create({
       data: {
@@ -148,8 +212,8 @@ export async function POST(
         points: 0,
         metadata: {
           action: 'team_invite',
-          invitedEmail: email.trim(),
-          role: role,
+          invitedEmail: normalizedEmail,
+          role: normalizedRole,
           timestamp: new Date().toISOString(),
         },
       },
@@ -160,8 +224,8 @@ export async function POST(
         success: true,
         invitation: {
           id: inviteEvent.id,
-          email,
-          role,
+          email: normalizedEmail,
+          role: normalizedRole,
           sentAt: inviteEvent.createdAt.toISOString(),
         },
       },
@@ -176,7 +240,7 @@ export async function POST(
   }
 }
 
-// PATCH /api/campaigns/[id]/team - Update team member role
+// PATCH /api/campaigns/[id]/team - Update a pending invitation's role
 export async function PATCH(
   request: NextRequest,
   { params }: { params: { id: string } }
@@ -201,7 +265,8 @@ export async function PATCH(
       )
     }
 
-    if (!['owner', 'admin', 'editor', 'viewer'].includes(role)) {
+    const normalizedRole = String(role).toLowerCase()
+    if (!INVITE_ROLES.includes(normalizedRole as (typeof INVITE_ROLES)[number])) {
       return NextResponse.json(
         { error: 'Invalid role' },
         { status: 400 }
@@ -228,12 +293,37 @@ export async function PATCH(
       )
     }
 
+    if (memberId === campaign.creatorUserId) {
+      return NextResponse.json(
+        { error: 'The campaign owner role cannot be changed' },
+        { status: 400 }
+      )
+    }
+
+    const invite = await findInviteEvent(campaignId, memberId)
+    if (!invite) {
+      return NextResponse.json(
+        { error: 'Team member not found' },
+        { status: 404 }
+      )
+    }
+
+    await prisma.contributionEvent.update({
+      where: { id: invite.event.id },
+      data: {
+        metadata: {
+          ...invite.metadata,
+          role: normalizedRole,
+        },
+      },
+    })
+
     return NextResponse.json(
       {
         success: true,
         member: {
           id: memberId,
-          role,
+          role: normalizedRole,
         },
       },
       { status: 200 }
@@ -247,7 +337,7 @@ export async function PATCH(
   }
 }
 
-// DELETE /api/campaigns/[id]/team - Remove team member
+// DELETE /api/campaigns/[id]/team - Remove a pending invitation
 export async function DELETE(
   request: NextRequest,
   { params }: { params: { id: string } }
@@ -291,6 +381,25 @@ export async function DELETE(
         { status: 403 }
       )
     }
+
+    if (memberId === campaign.creatorUserId) {
+      return NextResponse.json(
+        { error: 'The campaign owner cannot be removed' },
+        { status: 400 }
+      )
+    }
+
+    const invite = await findInviteEvent(campaignId, memberId)
+    if (!invite) {
+      return NextResponse.json(
+        { error: 'Team member not found' },
+        { status: 404 }
+      )
+    }
+
+    await prisma.contributionEvent.delete({
+      where: { id: invite.event.id },
+    })
 
     return NextResponse.json({ success: true }, { status: 200 })
   } catch (error) {

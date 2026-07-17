@@ -1,24 +1,29 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { Prisma } from '@prisma/client'
+import { MediaKind } from '@prisma/client'
 import { prisma } from '@/lib/db'
 import { getCurrentUser } from '@/lib/auth'
 
 export const dynamic = 'force-dynamic'
 
-interface MediaEventMetadata {
-  action?: string
-  title?: string
-  mediaType?: string
-  url?: string
-  thumbnailUrl?: string
-  description?: string
-  uploadedBy?: string
-  downloads?: number
-  views?: number
-}
-
-function isRecord(v: unknown): v is Record<string, unknown> {
-  return typeof v === 'object' && v !== null && !Array.isArray(v)
+// Serialize a CampaignMedia row for the gallery UI
+function serializeMediaItem(media: {
+  id: string
+  campaignId: string
+  kind: MediaKind
+  url: string
+  altText: string | null
+  order: number
+  createdAt: Date
+}) {
+  return {
+    id: media.id,
+    campaignId: media.campaignId,
+    title: media.altText || 'Campaign media',
+    type: media.kind.toLowerCase(),
+    url: media.url,
+    order: media.order,
+    createdAt: media.createdAt.toISOString(),
+  }
 }
 
 export async function GET(
@@ -31,6 +36,7 @@ export async function GET(
     // Verify campaign exists
     const campaign = await prisma.campaign.findUnique({
       where: { id: campaignId },
+      select: { id: true },
     })
 
     if (!campaign) {
@@ -40,109 +46,12 @@ export async function GET(
       )
     }
 
-    // Get contribution events related to media uploads
-    const mediaEvents = await prisma.contributionEvent.findMany({
-      where: {
-        campaignId,
-        eventType: 'SOCIAL_SHARE',
-        metadata: {
-          path: ['action'],
-          equals: 'media_upload',
-        },
-      },
-      orderBy: { createdAt: 'desc' },
+    const media = await prisma.campaignMedia.findMany({
+      where: { campaignId },
+      orderBy: { order: 'asc' },
     })
 
-    // Transform events to media items
-    const mediaItems = mediaEvents.map((event) => {
-      const metadata: MediaEventMetadata = isRecord(event.metadata)
-        ? (event.metadata as MediaEventMetadata)
-        : {}
-      return {
-        id: event.id,
-        campaignId: event.campaignId,
-        title: metadata.title || 'Untitled Media',
-        type: metadata.mediaType || 'image',
-        url: metadata.url || '',
-        thumbnailUrl: metadata.thumbnailUrl,
-        description: metadata.description || '',
-        uploadedBy: metadata.uploadedBy || 'Anonymous',
-        downloads: metadata.downloads || 0,
-        views: metadata.views || 0,
-        createdAt: event.createdAt.toISOString(),
-      }
-    })
-
-    // Return simulated gallery items if empty
-    if (mediaItems.length === 0) {
-      return NextResponse.json([
-        {
-          id: 'media-1',
-          campaignId,
-          title: 'Campaign Banner',
-          type: 'image',
-          url: '/placeholder-banner.png',
-          thumbnailUrl: '/placeholder-banner-thumb.png',
-          description: 'Official campaign banner for social media promotion',
-          uploadedBy: 'Campaign Team',
-          downloads: 145,
-          views: 2340,
-          createdAt: new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString(),
-        },
-        {
-          id: 'media-2',
-          campaignId,
-          title: 'Supporter Testimonial Video',
-          type: 'video',
-          url: '/placeholder-video.mp4',
-          description:
-            'Powerful testimonial from campaign supporter about impact',
-          uploadedBy: 'Sarah Johnson',
-          downloads: 89,
-          views: 1560,
-          createdAt: new Date(Date.now() - 5 * 24 * 60 * 60 * 1000).toISOString(),
-        },
-        {
-          id: 'media-3',
-          campaignId,
-          title: 'Impact Report PDF',
-          type: 'document',
-          url: '/placeholder-report.pdf',
-          description: 'Comprehensive report on campaign impact and outcomes',
-          uploadedBy: 'Research Team',
-          downloads: 234,
-          views: 890,
-          createdAt: new Date(Date.now() - 3 * 24 * 60 * 60 * 1000).toISOString(),
-        },
-        {
-          id: 'media-4',
-          campaignId,
-          title: 'Data Infographic',
-          type: 'infographic',
-          url: '/placeholder-infographic.png',
-          thumbnailUrl: '/placeholder-infographic-thumb.png',
-          description: 'Visual representation of key campaign statistics',
-          uploadedBy: 'Design Team',
-          downloads: 567,
-          views: 3210,
-          createdAt: new Date(Date.now() - 10 * 24 * 60 * 60 * 1000).toISOString(),
-        },
-        {
-          id: 'media-5',
-          campaignId,
-          title: 'Social Media Kit',
-          type: 'document',
-          url: '/placeholder-kit.zip',
-          description: 'Complete package of social media assets and guidelines',
-          uploadedBy: 'Marketing Team',
-          downloads: 412,
-          views: 1890,
-          createdAt: new Date(Date.now() - 14 * 24 * 60 * 60 * 1000).toISOString(),
-        },
-      ])
-    }
-
-    return NextResponse.json(mediaItems)
+    return NextResponse.json(media.map(serializeMediaItem))
   } catch (error) {
     console.error('Error fetching media gallery:', error)
     return NextResponse.json(
@@ -188,40 +97,43 @@ export async function POST(
       )
     }
 
-    // Create contribution event for media upload
-    const event = await prisma.contributionEvent.create({
+    if (typeof body.url !== 'string' || body.url.trim().length === 0) {
+      return NextResponse.json(
+        { error: 'Media URL is required' },
+        { status: 400 }
+      )
+    }
+
+    const kindInput = typeof body.type === 'string' ? body.type.toUpperCase() : 'IMAGE'
+    if (!Object.values(MediaKind).includes(kindInput as MediaKind)) {
+      return NextResponse.json(
+        {
+          error: `Invalid media type. Must be one of: ${Object.values(MediaKind)
+            .map((k) => k.toLowerCase())
+            .join(', ')}`,
+        },
+        { status: 400 }
+      )
+    }
+
+    const existingCount = await prisma.campaignMedia.count({
+      where: { campaignId },
+    })
+
+    const media = await prisma.campaignMedia.create({
       data: {
         campaignId,
-        userId: user.id,
-        eventType: 'SOCIAL_SHARE',
-        points: 1,
-        metadata: {
-          action: 'media_upload',
-          title: body.title,
-          mediaType: body.type,
-          url: body.url,
-          thumbnailUrl: body.thumbnailUrl,
-          description: body.description,
-          uploadedBy: user.displayName || 'Anonymous',
-          views: 0,
-          downloads: 0,
-        } as Prisma.InputJsonValue,
+        kind: kindInput as MediaKind,
+        url: body.url.trim(),
+        altText:
+          typeof body.title === 'string' && body.title.trim().length > 0
+            ? body.title.trim()
+            : null,
+        order: existingCount,
       },
     })
 
-    return NextResponse.json({
-      id: event.id,
-      campaignId: event.campaignId,
-      title: body.title,
-      type: body.type,
-      url: body.url,
-      thumbnailUrl: body.thumbnailUrl,
-      description: body.description,
-      uploadedBy: user.displayName || 'Anonymous',
-      downloads: 0,
-      views: 0,
-      createdAt: event.createdAt.toISOString(),
-    })
+    return NextResponse.json(serializeMediaItem(media), { status: 201 })
   } catch (error) {
     console.error('Error uploading media:', error)
     return NextResponse.json(

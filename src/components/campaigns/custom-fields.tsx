@@ -10,31 +10,33 @@ import {
   Trash2,
   Loader2,
   Edit2,
-  Check,
-  X,
   Type,
   Hash,
-  Calendar,
   List,
-  ToggleLeft,
-  Link as LinkIcon,
+  ListChecks,
+  SlidersHorizontal,
   AlertCircle,
-  CheckCircle2,
 } from 'lucide-react'
-import { cn } from '@/lib/utils'
 import { Badge } from '@/components/ui/badge'
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card'
 
-export type CustomFieldType = 'text' | 'number' | 'select' | 'date' | 'checkbox' | 'url'
+// Mirrors the CampaignPreferenceField FieldType enum
+export type CustomFieldType =
+  | 'text'
+  | 'number'
+  | 'select'
+  | 'multi_select'
+  | 'range'
 
 export interface CustomField {
   id: string
   name: string
   type: CustomFieldType
-  value: string
   options?: string[]
   required?: boolean
-  description?: string
+  placeholder?: string
+  order?: number
+  createdAt?: string
 }
 
 interface CustomFieldsProps {
@@ -44,20 +46,21 @@ interface CustomFieldsProps {
 const FIELD_TYPE_ICONS: Record<CustomFieldType, React.ReactNode> = {
   text: <Type className="h-4 w-4" />,
   number: <Hash className="h-4 w-4" />,
-  date: <Calendar className="h-4 w-4" />,
   select: <List className="h-4 w-4" />,
-  checkbox: <ToggleLeft className="h-4 w-4" />,
-  url: <LinkIcon className="h-4 w-4" />,
+  multi_select: <ListChecks className="h-4 w-4" />,
+  range: <SlidersHorizontal className="h-4 w-4" />,
 }
 
 const FIELD_TYPE_LABELS: Record<CustomFieldType, string> = {
   text: 'Text',
   number: 'Number',
-  date: 'Date',
   select: 'Select',
-  checkbox: 'Checkbox',
-  url: 'URL',
+  multi_select: 'Multi-select',
+  range: 'Range',
 }
+
+const hasOptions = (type: CustomFieldType | undefined) =>
+  type === 'select' || type === 'multi_select'
 
 export function CustomFields({ campaignId }: CustomFieldsProps) {
   const [fields, setFields] = useState<CustomField[]>([])
@@ -70,10 +73,9 @@ export function CustomFields({ campaignId }: CustomFieldsProps) {
   const [formData, setFormData] = useState<Partial<CustomField>>({
     name: '',
     type: 'text',
-    value: '',
     options: [],
     required: false,
-    description: '',
+    placeholder: '',
   })
   const [optionInput, setOptionInput] = useState('')
 
@@ -115,9 +117,8 @@ export function CustomFields({ campaignId }: CustomFieldsProps) {
           body: JSON.stringify({
             name: formData.name,
             type: formData.type,
-            value: formData.value || '',
             required: formData.required || false,
-            description: formData.description || '',
+            placeholder: formData.placeholder || '',
             options: formData.options || [],
           }),
         }
@@ -152,9 +153,8 @@ export function CustomFields({ campaignId }: CustomFieldsProps) {
             fieldId: id,
             name: formData.name,
             type: formData.type,
-            value: formData.value || '',
             required: formData.required || false,
-            description: formData.description || '',
+            placeholder: formData.placeholder || '',
             options: formData.options || [],
           }),
         }
@@ -199,10 +199,9 @@ export function CustomFields({ campaignId }: CustomFieldsProps) {
     setFormData({
       name: '',
       type: 'text',
-      value: '',
       options: [],
       required: false,
-      description: '',
+      placeholder: '',
     })
     setOptionInput('')
   }
@@ -286,7 +285,7 @@ export function CustomFields({ campaignId }: CustomFieldsProps) {
                 onChange={(e) =>
                   setFormData({ ...formData, name: e.target.value })
                 }
-                placeholder="e.g., Target Industry"
+                placeholder="e.g., Preferred colour"
                 className="border-violet-300 focus:ring-violet-500"
               />
             </div>
@@ -313,7 +312,7 @@ export function CustomFields({ campaignId }: CustomFieldsProps) {
               </select>
             </div>
 
-            {formData.type === 'select' && (
+            {hasOptions(formData.type) && (
               <div className="space-y-2">
                 <label className="block text-sm font-medium text-gray-700">
                   Options
@@ -363,28 +362,14 @@ export function CustomFields({ campaignId }: CustomFieldsProps) {
 
             <div className="space-y-2">
               <label className="block text-sm font-medium text-gray-700">
-                Value
+                Placeholder
               </label>
               <Input
-                value={formData.value || ''}
+                value={formData.placeholder || ''}
                 onChange={(e) =>
-                  setFormData({ ...formData, value: e.target.value })
+                  setFormData({ ...formData, placeholder: e.target.value })
                 }
-                placeholder="Field value"
-                className="border-violet-300 focus:ring-violet-500"
-              />
-            </div>
-
-            <div className="space-y-2">
-              <label className="block text-sm font-medium text-gray-700">
-                Description
-              </label>
-              <Input
-                value={formData.description || ''}
-                onChange={(e) =>
-                  setFormData({ ...formData, description: e.target.value })
-                }
-                placeholder="Optional description"
+                placeholder="Optional hint shown to supporters"
                 className="border-violet-300 focus:ring-violet-500"
               />
             </div>
@@ -458,14 +443,9 @@ export function CustomFields({ campaignId }: CustomFieldsProps) {
                         </Badge>
                       )}
                     </div>
-                    {field.description && (
+                    {field.placeholder && (
                       <p className="text-sm text-gray-600 mb-2">
-                        {field.description}
-                      </p>
-                    )}
-                    {field.value && (
-                      <p className="text-sm font-mono bg-gray-100 px-2 py-1 rounded text-gray-700">
-                        {field.value}
+                        {field.placeholder}
                       </p>
                     )}
                     {field.options && field.options.length > 0 && (
@@ -511,7 +491,7 @@ export function CustomFields({ campaignId }: CustomFieldsProps) {
             <Settings className="h-12 w-12 text-gray-300 mx-auto mb-3" />
             <p className="text-gray-500">No custom fields yet</p>
             <p className="text-sm text-gray-400">
-              Add fields to capture additional campaign information
+              Add fields to capture supporter preferences when they lobby
             </p>
           </div>
         )}

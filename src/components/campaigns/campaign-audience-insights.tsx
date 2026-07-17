@@ -30,9 +30,8 @@ interface AudienceData {
   totalAudience: number
   segments: AudienceSegment[]
   demographics: {
-    ageGroups: DemographicItem[]
     interests: DemographicItem[]
-    platforms: DemographicItem[]
+    locations: DemographicItem[]
   }
 }
 
@@ -89,8 +88,11 @@ export const CampaignAudienceInsights: React.FC<CampaignAudienceInsightsProps> =
     )
   }
 
-  const maxSegmentCount = Math.max(...data.segments.map(s => s.count))
-  const maxAgeCount = Math.max(...data.demographics.ageGroups.map(a => a.value))
+  const maxSegmentCount = Math.max(...data.segments.map(s => s.count), 1)
+  const maxLocationCount = Math.max(
+    ...data.demographics.locations.map(l => l.value),
+    1
+  )
 
   return (
     <div className="space-y-6">
@@ -180,27 +182,28 @@ export const CampaignAudienceInsights: React.FC<CampaignAudienceInsightsProps> =
         </div>
       </div>
 
-      {/* Demographics */}
-      <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
-        {/* Age Groups */}
+      {/* Top Locations */}
+      {data.demographics.locations.length > 0 && (
         <div className="space-y-3">
-          <h3 className="text-lg font-semibold text-slate-900">Age Groups</h3>
+          <h3 className="text-lg font-semibold text-slate-900">
+            Top Locations
+          </h3>
           <div className="space-y-3">
-            {data.demographics.ageGroups.map((group) => (
-              <div key={group.label} className="space-y-1">
+            {data.demographics.locations.map((location) => (
+              <div key={location.label} className="space-y-1">
                 <div className="flex items-center justify-between">
                   <span className="text-sm font-medium text-slate-700">
-                    {group.label}
+                    {location.label}
                   </span>
                   <span className="text-sm text-slate-600">
-                    {group.value.toLocaleString()}
+                    {location.value.toLocaleString()}
                   </span>
                 </div>
                 <div className="h-2 rounded-full bg-slate-200 overflow-hidden">
                   <div
                     className="h-full bg-gradient-to-r from-violet-500 to-amber-500"
                     style={{
-                      width: `${(group.value / maxAgeCount) * 100}%`,
+                      width: `${(location.value / maxLocationCount) * 100}%`,
                     }}
                   />
                 </div>
@@ -208,63 +211,32 @@ export const CampaignAudienceInsights: React.FC<CampaignAudienceInsightsProps> =
             ))}
           </div>
         </div>
-
-        {/* Platforms */}
-        <div className="space-y-3">
-          <h3 className="text-lg font-semibold text-slate-900">
-            Platform Distribution
-          </h3>
-          <div className="space-y-2">
-            {data.demographics.platforms.map((platform) => {
-              const total = data.demographics.platforms.reduce(
-                (sum, p) => sum + p.value,
-                0
-              )
-              const percentage = ((platform.value / total) * 100).toFixed(1)
-              return (
-                <div key={platform.label} className="flex items-center gap-3">
-                  <div className="flex-1">
-                    <p className="text-sm font-medium text-slate-900">
-                      {platform.label}
-                    </p>
-                  </div>
-                  <div className="text-right">
-                    <p className="text-sm font-semibold text-slate-900">
-                      {percentage}%
-                    </p>
-                    <p className="text-xs text-slate-600">
-                      {platform.value.toLocaleString()}
-                    </p>
-                  </div>
-                </div>
-              )
-            })}
-          </div>
-        </div>
-      </div>
+      )}
 
       {/* Top Interests */}
-      <div className="space-y-3">
-        <h3 className="text-lg font-semibold text-slate-900 flex items-center gap-2">
-          <TrendingUp className="w-5 h-5 text-lime-600" />
-          Top Interests
-        </h3>
-        <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
-          {data.demographics.interests.map((interest) => (
-            <div
-              key={interest.label}
-              className="rounded-lg bg-lime-50 border border-lime-200 p-3 text-center"
-            >
-              <p className="font-semibold text-slate-900 text-sm">
-                {interest.label}
-              </p>
-              <p className="text-xs text-lime-700 mt-1">
-                {interest.value.toLocaleString()}
-              </p>
-            </div>
-          ))}
+      {data.demographics.interests.length > 0 && (
+        <div className="space-y-3">
+          <h3 className="text-lg font-semibold text-slate-900 flex items-center gap-2">
+            <TrendingUp className="w-5 h-5 text-lime-600" />
+            Top Interests
+          </h3>
+          <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
+            {data.demographics.interests.map((interest) => (
+              <div
+                key={interest.label}
+                className="rounded-lg bg-lime-50 border border-lime-200 p-3 text-center"
+              >
+                <p className="font-semibold text-slate-900 text-sm">
+                  {interest.label}
+                </p>
+                <p className="text-xs text-lime-700 mt-1">
+                  {interest.value.toLocaleString()}
+                </p>
+              </div>
+            ))}
+          </div>
         </div>
-      </div>
+      )}
     </div>
   )
 }

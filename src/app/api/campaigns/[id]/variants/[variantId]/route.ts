@@ -4,7 +4,16 @@ import { NextRequest, NextResponse } from 'next/server'
 
 type Params = Promise<{ id: string; variantId: string }>
 
-// PATCH: Update variant field (creator only)
+function parseOptions(options: unknown): string[] | null {
+  if (!Array.isArray(options)) return null
+  const cleaned = options
+    .filter((opt): opt is string => typeof opt === 'string')
+    .map((opt) => opt.trim())
+    .filter((opt) => opt.length > 0)
+  return cleaned.length > 0 ? cleaned : null
+}
+
+// PATCH: Update a variant option (creator only)
 export async function PATCH(
   request: NextRequest,
   props: { params: Params }
@@ -22,6 +31,7 @@ export async function PATCH(
 
     const campaign = await prisma.campaign.findUnique({
       where: { id },
+      select: { id: true, creatorUserId: true },
     })
 
     if (!campaign) {
@@ -38,48 +48,56 @@ export async function PATCH(
       )
     }
 
-    const field = await prisma.campaignPreferenceField.findUnique({
+    const variant = await prisma.campaignVariant.findUnique({
       where: { id: variantId },
     })
 
-    if (!field || field.campaignId !== id) {
+    if (!variant || variant.campaignId !== id) {
       return NextResponse.json(
-        { error: 'Variant field not found' },
+        { error: 'Variant not found' },
         { status: 404 }
       )
     }
 
     const body = await request.json()
-    const { name, options, description, order } = body
+    const { name, options, order } = body
 
-    if (options && (!Array.isArray(options) || options.length === 0)) {
+    if (name !== undefined && (typeof name !== 'string' || name.trim().length === 0)) {
       return NextResponse.json(
-        { error: 'Options must be a non-empty array' },
+        { error: 'Variant name must be a non-empty string' },
         { status: 400 }
       )
     }
 
-    const updatedField = await prisma.campaignPreferenceField.update({
+    let parsedOptions: string[] | undefined
+    if (options !== undefined) {
+      const cleaned = parseOptions(options)
+      if (!cleaned) {
+        return NextResponse.json(
+          { error: 'Options must be a non-empty array of strings' },
+          { status: 400 }
+        )
+      }
+      parsedOptions = cleaned
+    }
+
+    const updatedVariant = await prisma.campaignVariant.update({
       where: { id: variantId },
       data: {
-        ...(name && { fieldName: name }),
-        ...(options && { options }),
-        ...(description !== undefined && { placeholder: description }),
-        ...(order !== undefined && { order }),
+        ...(name !== undefined && { name: name.trim() }),
+        ...(parsedOptions !== undefined && { options: parsedOptions }),
+        ...(typeof order === 'number' && { order }),
       },
     })
 
     return NextResponse.json({
       success: true,
       data: {
-        id: updatedField.id,
-        name: updatedField.fieldName,
-        fieldType: updatedField.fieldType,
-        options: updatedField.options || [],
-        description: updatedField.placeholder || '',
-        required: updatedField.required,
-        order: updatedField.order,
-        createdAt: updatedField.createdAt,
+        id: updatedVariant.id,
+        name: updatedVariant.name,
+        options: updatedVariant.options,
+        order: updatedVariant.order,
+        createdAt: updatedVariant.createdAt,
       },
     })
   } catch (error) {
@@ -91,7 +109,7 @@ export async function PATCH(
   }
 }
 
-// DELETE: Remove variant field (creator only)
+// DELETE: Remove a variant option (creator only)
 export async function DELETE(
   _request: NextRequest,
   props: { params: Params }
@@ -109,6 +127,7 @@ export async function DELETE(
 
     const campaign = await prisma.campaign.findUnique({
       where: { id },
+      select: { id: true, creatorUserId: true },
     })
 
     if (!campaign) {
@@ -125,24 +144,24 @@ export async function DELETE(
       )
     }
 
-    const field = await prisma.campaignPreferenceField.findUnique({
+    const variant = await prisma.campaignVariant.findUnique({
       where: { id: variantId },
     })
 
-    if (!field || field.campaignId !== id) {
+    if (!variant || variant.campaignId !== id) {
       return NextResponse.json(
-        { error: 'Variant field not found' },
+        { error: 'Variant not found' },
         { status: 404 }
       )
     }
 
-    await prisma.campaignPreferenceField.delete({
+    await prisma.campaignVariant.delete({
       where: { id: variantId },
     })
 
     return NextResponse.json({
       success: true,
-      message: 'Variant field deleted successfully',
+      message: 'Variant deleted successfully',
     })
   } catch (error) {
     console.error('DELETE /api/campaigns/[id]/variants/[variantId] error:', error)
