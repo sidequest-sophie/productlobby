@@ -34,7 +34,7 @@ export const metadata: Metadata = {
   },
   description: 'Lobby for the products and features you want. Aggregate demand, influence brands, and turn your ideas into reality on ProductLobby.',
   keywords: ['product requests', 'demand aggregation', 'crowdfunding', 'brand engagement', 'product lobby', 'feature requests'],
-  metadataBase: new URL('https://www.productlobby.com'),
+  metadataBase: new URL(process.env.NEXT_PUBLIC_APP_URL || 'https://www.productlobby.com'),
   openGraph: {
     type: 'website',
     locale: 'en_GB',

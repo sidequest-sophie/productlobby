@@ -74,6 +74,7 @@ export async function POST(request: NextRequest) {
       to: user.email,
       subject: 'Verify your email address - ProductLobby',
       html,
+      text: `Verify your email address\n\nHi ${user.displayName.split(' ')[0]},\n\nClick this link to verify your email address and unlock all ProductLobby features:\n${verificationLink}\n\nThis link will expire in 24 hours. If you didn't create a ProductLobby account, you can safely ignore this email.`,
     })
 
     if (!emailResult.success) {

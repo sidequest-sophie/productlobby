@@ -28,7 +28,9 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
         select: { name: true },
       },
       _count: {
-        select: { lobbies: true },
+        // Verified lobbies only, matching the OG image and the public
+        // campaign API's "totalLobbies".
+        select: { lobbies: { where: { status: 'VERIFIED' } } },
       },
     },
   })
@@ -40,51 +42,56 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
     }
   }
 
-  const description = campaign.description.length > 160
-    ? campaign.description.slice(0, 157) + '...'
+  const appUrl = process.env.NEXT_PUBLIC_APP_URL || 'https://www.productlobby.com'
+
+  const shortDescription = campaign.description.length > 140
+    ? campaign.description.slice(0, 137) + '...'
     : campaign.description
 
-  const brandName = campaign.targetedBrand?.name || 'Brand'
-  const brandSuffix = campaign.targetedBrand
-    ? ` — targeted at ${campaign.targetedBrand.name}`
-    : ''
+  const brandName = campaign.targetedBrand?.name
   const lobbyCount = campaign._count?.lobbies || 0
 
-  // Generate dynamic OG image URL
-  const ogImageParams = new URLSearchParams({
-    title: campaign.title,
-    brand: brandName,
-    lobbies: String(lobbyCount),
-    category: campaign.category || 'Other',
-  })
-  const dynamicOgImage = `https://www.productlobby.com/api/og?${ogImageParams.toString()}`
+  // Lead with the real lobby count so unfurled links carry social proof.
+  const lobbyLead = lobbyCount === 1 ? '1 person is' : `${lobbyCount} people are`
+  const lobbyTarget = brandName ? `lobbying ${brandName} for this` : 'lobbying for this'
+  const description = lobbyCount > 0
+    ? `${lobbyLead} ${lobbyTarget} on ProductLobby. ${shortDescription}`
+    : brandName
+      ? `Lobby ${brandName} for this on ProductLobby. ${shortDescription}`
+      : `Lobby for this on ProductLobby. ${shortDescription}`
 
-  // Fallback to user-uploaded image if available
+  // Dynamic OG image renders live campaign data (title, brand, verified
+  // lobby count) server-side from the slug — no forgeable query params.
+  const ogImageUrl = `${appUrl}/api/og?slug=${encodeURIComponent(campaign.slug)}`
+
+  // Include any user-uploaded campaign image as a secondary option.
   const userImage = campaign.media[0]?.url
-  const ogImage = userImage || dynamicOgImage
+  const ogImages = [
+    {
+      url: ogImageUrl,
+      width: 1200,
+      height: 630,
+      alt: campaign.title,
+    },
+    ...(userImage ? [{ url: userImage, alt: campaign.title }] : []),
+  ]
 
   return {
     title: campaign.title,
-    description: `${description}${brandSuffix}`,
+    description,
     openGraph: {
       title: campaign.title,
-      description: `${description}${brandSuffix}`,
-      url: `https://www.productlobby.com/campaigns/${campaign.slug}`,
+      description,
+      url: `${appUrl}/campaigns/${campaign.slug}`,
       type: 'article',
-      images: [
-        {
-          url: ogImage,
-          width: 1200,
-          height: 630,
-          alt: campaign.title,
-        },
-      ],
+      siteName: 'ProductLobby',
+      images: ogImages,
     },
     twitter: {
       card: 'summary_large_image',
       title: campaign.title,
-      description: `${description}${brandSuffix}`,
-      images: [ogImage],
+      description,
+      images: [ogImageUrl],
       creator: '@ProductLobby',
     },
   }

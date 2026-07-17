@@ -29,16 +29,19 @@ interface EmailResult {
   error?: string
 }
 
-// Send a single email with HTML template
+// Send a single email with HTML template (and optional plain-text part —
+// Postmark delivers both as a multipart message when `text` is provided).
 export async function sendEmail({
   to,
   subject,
   html,
+  text,
   replyTo,
 }: {
   to: string
   subject: string
   html: string
+  text?: string
   replyTo?: string
 }): Promise<EmailResult> {
   // Dev-mode bypass: log emails to console when Postmark isn't configured
@@ -69,6 +72,7 @@ export async function sendEmail({
         To: to,
         Subject: subject,
         HtmlBody: html,
+        ...(text ? { TextBody: text } : {}),
         ReplyTo: replyTo || REPLY_TO,
         MessageStream: POSTMARK_MESSAGE_STREAM,
       }),
@@ -178,6 +182,7 @@ export async function sendMagicLinkEmail(
     to: email,
     subject: 'Sign in to ProductLobby',
     html,
+    text: `Sign in to ProductLobby\n\nClick this link to sign in. It expires in 24 hours:\n${magicLink}\n\nIf you didn't request this email, you can safely ignore it. This link is unique to your account and can only be used once.`,
   })
 }
 
