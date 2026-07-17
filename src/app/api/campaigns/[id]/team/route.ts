@@ -4,6 +4,7 @@ import { prisma } from '@/lib/db'
 import { getCurrentUser } from '@/lib/auth'
 import { getCampaignRole } from '@/lib/campaign-team'
 import { sendEmail } from '@/lib/email'
+import { emailLayout, escapeEmailHtml } from '@/lib/email/layout'
 import { rateLimitDurable } from '@/lib/rate-limit'
 import { isValidEmail } from '@/lib/utils'
 
@@ -41,25 +42,36 @@ function inviteEmailHtml(opts: {
   acceptUrl: string
 }): string {
   const roleLabel = opts.role === 'ORGANIZER' ? 'an Organizer' : 'a Contributor'
-  return `
-    <div style="font-family: -apple-system, 'Segoe UI', Roboto, sans-serif; max-width: 560px; margin: 0 auto; padding: 24px;">
-      <h2 style="color: #111827;">You're invited to join a campaign team</h2>
-      <p style="color: #374151; line-height: 1.6;">
-        <strong>${opts.inviterName}</strong> has invited you to join the team for
-        <strong>${opts.campaignTitle}</strong> on ProductLobby as ${roleLabel}.
+  const content = `
+      <h2>You're invited to join a campaign team</h2>
+      <p>
+        <strong>${escapeEmailHtml(opts.inviterName)}</strong> has invited you to join the team for
+        <strong>${escapeEmailHtml(opts.campaignTitle)}</strong> on ProductLobby as ${roleLabel}.
       </p>
-      <p style="margin: 28px 0;">
-        <a href="${opts.acceptUrl}"
-           style="background: #7c3aed; color: #ffffff; padding: 12px 24px; border-radius: 8px; text-decoration: none; font-weight: 600;">
-          Accept invitation
-        </a>
-      </p>
+      <div style="text-align: center;">
+        <a href="${opts.acceptUrl}" class="button">Accept invitation</a>
+      </div>
       <p style="color: #6b7280; font-size: 13px; line-height: 1.6;">
         This invitation expires in 14 days. If you weren't expecting it, you can
         safely ignore this email.
       </p>
-    </div>
   `
+  return emailLayout({
+    content,
+    preheader: `${opts.inviterName} invited you to help run "${opts.campaignTitle}"`,
+    footerNote: `You're receiving this because ${escapeEmailHtml(opts.inviterName)} invited you to a campaign team on ProductLobby.`,
+    showPreferencesLink: false,
+  })
+}
+
+function inviteEmailText(opts: {
+  inviterName: string
+  campaignTitle: string
+  role: TeamRole
+  acceptUrl: string
+}): string {
+  const roleLabel = opts.role === 'ORGANIZER' ? 'an Organizer' : 'a Contributor'
+  return `You're invited to join a campaign team\n\n${opts.inviterName} has invited you to join the team for "${opts.campaignTitle}" on ProductLobby as ${roleLabel}.\n\nAccept the invitation:\n${opts.acceptUrl}\n\nThis invitation expires in 14 days. If you weren't expecting it, you can safely ignore this email.`
 }
 
 // GET /api/campaigns/[id]/team
@@ -374,6 +386,12 @@ export async function POST(
       to: normalizedEmail,
       subject: `${user.displayName} invited you to help run "${campaign.title}"`,
       html: inviteEmailHtml({
+        inviterName: user.displayName,
+        campaignTitle: campaign.title,
+        role,
+        acceptUrl,
+      }),
+      text: inviteEmailText({
         inviterName: user.displayName,
         campaignTitle: campaign.title,
         role,

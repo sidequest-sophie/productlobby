@@ -6,6 +6,7 @@ import { prisma } from '@/lib/db'
 import { getCurrentUser } from '@/lib/auth'
 import { rateLimitDurable } from '@/lib/rate-limit'
 import { sendEmail, isEmailConfigured } from '@/lib/email'
+import { emailLayout } from '@/lib/email/layout'
 
 /**
  * Email Outreach API - backed by the OutreachQueue model.
@@ -260,7 +261,17 @@ export async function POST(
       const result = await sendEmail({
         to: entry.brandEmail,
         subject: entry.subject,
-        html: htmlWithFooter,
+        // Same stored content/footer, wrapped in the shared email shell
+        // (logo header + identity footer). The opt-out mechanics for brand
+        // recipients stay in FOOTER_HTML (reply "unsubscribe"), so the
+        // account-preferences link is hidden.
+        html: emailLayout({
+          content: htmlWithFooter,
+          showPreferencesLink: false,
+          footerNote:
+            'Sent on behalf of a campaign creator — reply to reach them directly.',
+        }),
+        text: plainWithFooter,
         replyTo: user.email, // brand replies go straight to the creator
       })
 
