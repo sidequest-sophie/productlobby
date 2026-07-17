@@ -218,7 +218,7 @@ export default function BrandDashboardPage() {
           ) : (
             <div className="space-y-3">
               {data.campaigns.map((campaign) => (
-                <Link key={campaign.id} href={`/campaigns/${campaign.slug}`}>
+                <Link key={campaign.id} href={`/brand/campaigns/${campaign.id}`}>
                   <div className="border border-gray-200 rounded-lg p-6 hover:shadow-lg transition-shadow cursor-pointer">
                     <div className="flex items-start justify-between gap-4">
                       <div className="flex-1">
@@ -227,6 +227,10 @@ export default function BrandDashboardPage() {
                         </h3>
                         <p className="text-sm text-gray-600 mt-1">
                           Created {new Date(campaign.createdAt).toLocaleDateString()}
+                          {' · '}
+                          <span className="text-violet-700 font-medium">
+                            View audience insights
+                          </span>
                         </p>
                       </div>
 

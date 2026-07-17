@@ -109,6 +109,7 @@ const getEventLabel = (eventType: string) => {
     case 'WISHLIST_SUBMITTED': return 'Added to wishlist'
     case 'LOBBY_CREATED': return 'Lobbied'
     case 'PLEDGE_CREATED': return 'Pledged'
+    case 'REFERRAL_SIGNUP': return 'A supporter joined via your referral'
     default: return eventType.toLowerCase().replace(/_/g, ' ')
   }
 }
@@ -119,6 +120,9 @@ export default function CreatorDashboard() {
   const [isAuthenticated, setIsAuthenticated] = useState<boolean | null>(null)
   const [showTip, setShowTip] = useState(true)
   const [activeTab, setActiveTab] = useState<'campaigns' | 'lobbies' | 'pledges'>('campaigns')
+  // Real supporters who joined via this user's referral links (sum of
+  // ReferralLink.signupCount). The card is hidden entirely at zero.
+  const [referralSignups, setReferralSignups] = useState(0)
 
   useEffect(() => {
     const fetchData = async () => {
@@ -143,7 +147,20 @@ export default function CreatorDashboard() {
       }
     }
 
+    const fetchReferrals = async () => {
+      try {
+        const response = await fetch('/api/user/referral')
+        if (!response.ok) return
+        const result = await response.json()
+        const total = result?.data?.totalSignups
+        if (typeof total === 'number') setReferralSignups(total)
+      } catch {
+        // Best-effort: the referral card simply stays hidden.
+      }
+    }
+
     fetchData()
+    fetchReferrals()
   }, [])
 
   if (isAuthenticated === false) {
@@ -191,9 +208,14 @@ export default function CreatorDashboard() {
       <PageHeader
         title="Dashboard"
         actions={
-          <Link href="/campaigns/new">
-            <Button variant="primary" size="lg">Create Campaign</Button>
-          </Link>
+          <div className="flex items-center gap-2">
+            <Link href="/groups/new">
+              <Button variant="outline" size="lg">Create LobbyGroup</Button>
+            </Link>
+            <Link href="/campaigns/new">
+              <Button variant="primary" size="lg">Create Campaign</Button>
+            </Link>
+          </div>
         }
       />
 
@@ -452,6 +474,25 @@ export default function CreatorDashboard() {
 
         {/* Sidebar */}
         <div className="space-y-4">
+          {/* Referral impact — real counts only, hidden until at least one
+              supporter has joined through this user's referral links */}
+          {referralSignups > 0 && (
+            <Card className="bg-white border-gray-200">
+              <CardHeader>
+                <CardTitle className="font-display text-base">Your referrals</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <p className="text-sm text-foreground">
+                  <strong className="text-violet-700">{formatNumber(referralSignups)}</strong>{' '}
+                  {referralSignups === 1 ? 'supporter' : 'supporters'} joined through you
+                </p>
+                <p className="text-xs text-gray-500 mt-1">
+                  Every share after you lobby comes with your personal link — keep it going.
+                </p>
+              </CardContent>
+            </Card>
+          )}
+
           {/* Recent Activity */}
           <Card className="bg-white border-gray-200">
             <CardHeader>

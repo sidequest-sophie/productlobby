@@ -117,12 +117,31 @@ export async function calculateSurveyResults(surveyId: string): Promise<SurveyRe
   }
 }
 
+/**
+ * Question options have been written both as a JSON string
+ * (surveys POST: JSON.stringify(q.options)) and as a real array
+ * (surveys PUT). Normalise either shape to string[] at read time.
+ */
+function normaliseOptions(raw: unknown): string[] {
+  let parsed = raw
+  if (typeof parsed === 'string') {
+    try {
+      parsed = JSON.parse(parsed)
+    } catch {
+      return []
+    }
+  }
+  return Array.isArray(parsed)
+    ? parsed.filter((o): o is string => typeof o === 'string')
+    : []
+}
+
 function calculateQuestionResults(
   question: any,
   answers: any[]
 ): MultipleChoiceResults | RatingScaleResults | OpenTextResults | RankingResults | MatrixResults | null {
   if (question.questionType === 'MULTIPLE_CHOICE') {
-    const options = (question.options as string[]) || []
+    const options = normaliseOptions(question.options)
     const optionCounts = new Map<string, number>()
 
     options.forEach((opt) => optionCounts.set(opt, 0))
@@ -216,7 +235,7 @@ function calculateQuestionResults(
   }
 
   if (question.questionType === 'RANKING') {
-    const items = (question.options as string[]) || []
+    const items = normaliseOptions(question.options)
     const rankingData = new Map<string, number[]>()
 
     items.forEach((item) => rankingData.set(item, []))

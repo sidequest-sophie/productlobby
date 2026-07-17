@@ -97,9 +97,16 @@ export async function GET(
       0
     )
 
-    const baseUrl = request.headers.get('origin') || 'https://productlobby.com'
+    // Browsers don't send an Origin header on same-origin GETs, so fall back
+    // to the origin the request was actually served on (correct in dev and
+    // behind Vercel's host rewriting alike) before the production default.
+    const baseUrl =
+      request.headers.get('origin') ||
+      request.nextUrl?.origin ||
+      'https://productlobby.com'
 
     const stats = {
+      code: referralLink.code,
       clicks: referralLink.clickCount,
       signups: referralLink.signupCount,
       conversionRate:
@@ -125,75 +132,7 @@ export async function GET(
   }
 }
 
-export async function POST(
-  request: NextRequest,
-  { params }: { params: Promise<{ id: string }> }
-) {
-  try {
-    const { id } = await params
-    const user = await getCurrentUser()
-
-    if (!user) {
-      return NextResponse.json(
-        { error: 'Unauthorized' },
-        { status: 401 }
-      )
-    }
-
-    const isUUID = UUID_PATTERN.test(id)
-
-    const campaign = await prisma.campaign.findFirst({
-      where: isUUID
-        ? { id }
-        : { slug: id },
-      select: { id: true },
-    })
-
-    if (!campaign) {
-      return NextResponse.json(
-        { error: 'Campaign not found' },
-        { status: 404 }
-      )
-    }
-
-    const body = await request.json()
-
-    if (
-      typeof body.referredEmail !== 'string' ||
-      body.referredEmail.trim().length === 0
-    ) {
-      return NextResponse.json(
-        { error: 'Referred email is required' },
-        { status: 400 }
-      )
-    }
-
-    // Create referral as a ContributionEvent
-    const contributionEvent = await prisma.contributionEvent.create({
-      data: {
-        campaignId: campaign.id,
-        userId: user.id,
-        eventType: 'REFERRAL_SIGNUP',
-        points: 100,
-        metadata: {
-          referredEmail: body.referredEmail.trim().toLowerCase(),
-          referrerName:
-            typeof body.referrerName === 'string' && body.referrerName.trim()
-              ? body.referrerName.trim()
-              : user.displayName,
-        },
-      },
-    })
-
-    return NextResponse.json({
-      id: contributionEvent.id,
-      message: 'Referral created successfully',
-    })
-  } catch (error) {
-    console.error('Referral creation error:', error)
-    return NextResponse.json(
-      { error: 'Internal server error' },
-      { status: 500 }
-    )
-  }
-}
+// NOTE: the old POST handler here let any signed-in user self-report a
+// "referral" (arbitrary email, 100 points) with no real signup behind it.
+// Removed 2026-07-17: REFERRAL_SIGNUP events are now only created by
+// POST /api/campaigns/[id]/lobby when a referred visitor actually lobbies.

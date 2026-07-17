@@ -2,6 +2,7 @@
 
 import React, { useState, useEffect } from 'react'
 import Link from 'next/link'
+import nextDynamic from 'next/dynamic'
 import { ChevronRight, Megaphone } from 'lucide-react'
 import { Navbar } from '@/components/shared/navbar'
 import { Footer } from '@/components/shared/footer'
@@ -15,6 +16,7 @@ import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs'
 import { SocialLinks } from '@/components/shared/social-links'
 import { LobbyFlow } from './lobby-flow'
 import { CampaignUpdatesFeed } from '@/components/campaigns/campaign-updates-feed'
+import { TeamByline } from '@/components/campaigns/team-byline'
 import { UpdateCreationForm } from '@/components/campaigns/update-creation-form'
 import { CampaignMilestones } from '@/components/campaigns/campaign-milestones'
 import { CampaignTimeline } from '@/components/campaigns/campaign-timeline'
@@ -29,6 +31,20 @@ import { QASection } from '@/components/shared/qa-section'
 import { CommentsSection } from '@/components/shared/comments-section'
 import { cn, formatDate, formatNumber } from '@/lib/utils'
 import { CampaignJsonLd } from '@/components/shared/json-ld'
+
+// The media gallery sits below the fold inside the About tab — lazy-load it
+// so its chunk (lightbox, upload form) never competes with the page's LCP.
+const MediaGallery = nextDynamic(
+  () => import('@/components/campaigns/media-gallery').then((m) => m.MediaGallery),
+  { ssr: false }
+)
+
+// Feedback survey lives in the Updates (engagement) tab and only when the
+// campaign has a PUBLISHED survey — lazy-load so it never affects LCP.
+const FeedbackSurvey = nextDynamic(
+  () => import('@/components/campaigns/feedback-survey'),
+  { ssr: false }
+)
 
 interface CampaignDetailPageProps {
   params: {
@@ -73,8 +89,10 @@ interface ApiCampaign {
     logo: string
   } | null
   media: Array<{
+    id: string
     url: string
-    type: string
+    kind: string
+    altText?: string | null
     order: number
   }>
   preferenceFields: Array<{
@@ -118,6 +136,8 @@ interface ApiCampaign {
     fieldType: string
     valueCounts: Record<string, number>
   }>
+  /** True when a PUBLISHED feedback survey exists (computed server-side). */
+  hasPublishedSurvey?: boolean
 }
 
 const LOBBY_MILESTONE_LADDER = [25, 50, 100, 250, 500, 1000, 2500, 5000]
@@ -403,10 +423,10 @@ export default function CampaignDetailPage({ params }: CampaignDetailPageProps) 
           <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4 sm:py-8">
             {/* Hero Image */}
             <div className="w-full h-48 sm:h-64 lg:h-96 bg-gradient-to-br from-violet-50 to-violet-100 rounded-lg mb-6 sm:mb-8 flex items-center justify-center overflow-hidden">
-              {campaign.media.length > 0 && campaign.media[0].type.startsWith('image') ? (
+              {campaign.media.length > 0 && campaign.media[0].kind !== 'VIDEO' ? (
                 <img
                   src={campaign.media[0].url}
-                  alt={campaign.title}
+                  alt={campaign.media[0].altText || campaign.title}
                   className="w-full h-full object-cover"
                 />
               ) : brand ? (
@@ -454,6 +474,8 @@ export default function CampaignDetailPage({ params }: CampaignDetailPageProps) 
                     </div>
                   </div>
                 </Link>
+
+                <TeamByline campaignId={campaign.id} />
 
                 <div className="flex gap-6 text-sm text-gray-600">
                   <span>Created {formatDate(campaign.createdAt)}</span>
@@ -640,28 +662,13 @@ export default function CampaignDetailPage({ params }: CampaignDetailPageProps) 
                         </ul>
                       </div>
 
-                      {campaign.media.length > 0 && (
-                        <div>
-                          <h3 className="font-display font-semibold text-lg text-foreground mb-4">Campaign Gallery</h3>
-                          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                            {campaign.media.slice(0, 4).map((media, i) => (
-                              <div
-                                key={media.url}
-                                className="h-48 bg-gradient-to-br from-violet-50 to-violet-100 rounded-lg flex items-center justify-center overflow-hidden"
-                              >
-                                {media.type.startsWith('image') ? (
-                                  <img src={media.url} alt={`Campaign media ${i + 1}`} className="w-full h-full object-cover" />
-                                ) : (
-                                  <div className="text-center">
-                                    <div className="text-4xl mb-2">📸</div>
-                                    <p className="text-xs text-violet-600">Media {i + 1}</p>
-                                  </div>
-                                )}
-                              </div>
-                            ))}
-                          </div>
-                        </div>
-                      )}
+                      {/* Media gallery: hero-strip + lightbox; the component
+                          hides itself for visitors when the campaign has no
+                          media, and shows upload/reorder/delete to the owner. */}
+                      <MediaGallery
+                        campaignId={campaign.id}
+                        isOwner={!!user && user.id === campaign.creator.id}
+                      />
 
                       <div>
                         <h3 className="font-display font-semibold text-lg text-foreground mb-3">Why This Matters</h3>
@@ -808,6 +815,17 @@ export default function CampaignDetailPage({ params }: CampaignDetailPageProps) 
                         isCreator={!!(user && campaign && user.id === campaign.creator.id)}
                       />
                     </div>
+                    {/* Feedback survey — only when a PUBLISHED survey exists;
+                        lazy-loaded, one response per logged-in user
+                        (enforced server-side). */}
+                    {campaign.hasPublishedSurvey && (
+                      <div className="mb-8">
+                        <FeedbackSurvey
+                          campaignId={campaign.id}
+                          isLoggedIn={!!user}
+                        />
+                      </div>
+                    )}
                     <CampaignPollsFeed
                       campaignId={campaign?.id || ''}
                       currentUserId={user?.id || null}

@@ -362,6 +362,15 @@ export default function CreatorAnalyticsDashboard({
           throw new Error('Analytics request was not successful');
         }
 
+        // Defensive: the analytics API currently returns a different shape
+        // (kpis/historicalData) than this dashboard renders. Without this
+        // guard the missing fields crash the whole campaign detail page for
+        // owners. Degrade to the error card instead until the dashboard is
+        // wired to the real response shape.
+        if (!result.data?.overview || !result.data?.intensityBreakdown) {
+          throw new Error('Analytics data is not available yet');
+        }
+
         setData(result.data);
       } catch (err) {
         setError(

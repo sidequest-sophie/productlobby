@@ -40,6 +40,8 @@ export async function GET(
 
       // For SELECT/MULTI_SELECT, calculate distribution
       let distribution: Record<string, { count: number; percentage: number }> = {}
+      // For NUMBER fields, a real average of the numeric answers
+      let averageValue: number | null = null
 
       if (['SELECT', 'MULTI_SELECT'].includes(field.fieldType)) {
         const options = (field.options as string[]) || []
@@ -50,12 +52,19 @@ export async function GET(
           optionCounts[option] = 0
         })
 
-        // Count preferences for each option
+        // Count preferences for each option. MULTI_SELECT answers are stored
+        // as a comma-joined string (lobby-flow buildPreferencesPayload), so
+        // split before counting.
         preferences.forEach((pref) => {
-          const value = pref.value
-          if (optionCounts.hasOwnProperty(value)) {
-            optionCounts[value]++
-          }
+          const values =
+            field.fieldType === 'MULTI_SELECT'
+              ? pref.value.split(',').map((v) => v.trim())
+              : [pref.value]
+          values.forEach((value) => {
+            if (optionCounts.hasOwnProperty(value)) {
+              optionCounts[value]++
+            }
+          })
         })
 
         // Calculate percentages
@@ -67,6 +76,38 @@ export async function GET(
             percentage: total > 0 ? Math.round((count / total) * 100) : 0,
           }
         })
+      } else {
+        // TEXT / NUMBER / RANGE: aggregate the top distinct answers so the
+        // creator still sees real counts per value (spec §6 read side).
+        const valueCounts: Record<string, number> = {}
+        preferences.forEach((pref) => {
+          const value = pref.value.trim()
+          if (!value) return
+          valueCounts[value] = (valueCounts[value] || 0) + 1
+        })
+
+        const total = Object.values(valueCounts).reduce((a, b) => a + b, 0)
+        Object.entries(valueCounts)
+          .sort((a, b) => b[1] - a[1])
+          .slice(0, 10)
+          .forEach(([value, count]) => {
+            distribution[value] = {
+              count,
+              percentage: total > 0 ? Math.round((count / total) * 100) : 0,
+            }
+          })
+
+        if (field.fieldType === 'NUMBER') {
+          const numbers = preferences
+            .map((pref) => Number.parseFloat(pref.value))
+            .filter((n) => Number.isFinite(n))
+          if (numbers.length > 0) {
+            averageValue =
+              Math.round(
+                (numbers.reduce((a, b) => a + b, 0) / numbers.length) * 100
+              ) / 100
+          }
+        }
       }
 
       // Find most popular option
@@ -85,6 +126,7 @@ export async function GET(
         fieldType: field.fieldType,
         totalResponses: uniqueRespondents,
         distribution,
+        averageValue,
         mostPopularOption: mostPopular,
       }
     })

@@ -77,6 +77,14 @@ function calculateStatisticalSignificance(
  */
 export async function GET(request: NextRequest, { params }: RouteParams) {
   try {
+    const user = await getCurrentUser()
+    if (!user) {
+      return NextResponse.json(
+        { success: false, error: 'Unauthorized' },
+        { status: 401 }
+      )
+    }
+
     const { id: campaignId } = params
 
     // Verify campaign exists
@@ -89,6 +97,14 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
       return NextResponse.json(
         { success: false, error: 'Campaign not found' },
         { status: 404 }
+      )
+    }
+
+    // A/B test results are creator-only analytics
+    if (campaign.creatorUserId !== user.id) {
+      return NextResponse.json(
+        { success: false, error: 'Forbidden' },
+        { status: 403 }
       )
     }
 

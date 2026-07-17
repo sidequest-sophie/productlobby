@@ -220,9 +220,9 @@ const BrandDashboardCampaignsPage: React.FC = () => {
                             Avg Price: {avgPrice > 0 ? `$${avgPrice.toFixed(2)}` : 'N/A'}
                           </span>
                         </div>
-                        <Link href={`/campaigns/${campaign.slug}`}>
+                        <Link href={`/brand/campaigns/${campaign.id}`}>
                           <Button variant="primary" size="sm">
-                            View Analytics <ChevronRight className="w-4 h-4" />
+                            Audience Insights <ChevronRight className="w-4 h-4" />
                           </Button>
                         </Link>
                       </div>

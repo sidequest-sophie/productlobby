@@ -1,274 +1,280 @@
 'use client'
 
-import React, { useState } from 'react'
+import React, { useCallback, useEffect, useState } from 'react'
 import Link from 'next/link'
-import { DashboardLayout, PageHeader } from '@/components/shared'
-import { Card, CardContent, Badge, Button, Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui'
-import { Progress, Avatar } from '@/components/ui'
-import { ChevronRight, Filter } from 'lucide-react'
+import { useRouter } from 'next/navigation'
+import { DashboardLayout } from '@/components/shared'
+import { Badge } from '@/components/ui'
+import {
+  AlertCircle,
+  ChevronRight,
+  Loader2,
+  Megaphone,
+  Users,
+} from 'lucide-react'
 
-interface Campaign {
+interface BrandCampaign {
   id: string
   title: string
-  description: string
-  creator: {
-    name: string
-    avatar: string
-  }
+  slug: string
+  category: string | null
+  status: string
+  path: string | null
+  currency: string | null
+  signalScore: number | null
+  createdAt: string
+  brandName: string | null
   lobbyCount: number
-  intensity: {
-    high: number // "take my money"
-    medium: number // "probably buy"
-    low: number // "neat idea"
-  }
-  commitmentRate: number // percentage
-  status: 'awaiting' | 'path-a' | 'path-b'
+  supportPledges: number
+  intentPledges: number
+  estimatedRevenue: number
+  medianPrice: number | null
 }
 
-const CampaignsList: React.FC = () => {
-  const [sortBy, setSortBy] = useState<'lobbied' | 'newest' | 'intensity'>('lobbied')
-  const [filterTab, setFilterTab] = useState<'all' | 'awaiting' | 'responded' | 'path-a' | 'path-b'>('all')
+const STATUS_BADGES: Record<
+  string,
+  { label: string; variant: 'success' | 'warning' | 'default' }
+> = {
+  LIVE: { label: 'Live', variant: 'success' },
+  DRAFT: { label: 'Draft', variant: 'default' },
+  PAUSED: { label: 'Paused', variant: 'warning' },
+  CLOSED: { label: 'Closed', variant: 'default' },
+}
 
-  const campaigns: Campaign[] = [
-    {
-      id: '1',
-      title: 'Sustainable Running Collection',
-      description: 'Eco-friendly running shoes made from recycled materials with superior performance',
-      creator: { name: 'EcoRunners Club', avatar: 'ER' },
-      lobbyCount: 2847,
-      intensity: { high: 1368, medium: 1052, low: 427 },
-      commitmentRate: 48,
-      status: 'awaiting',
-    },
-    {
-      id: '2',
-      title: 'Extended Sizes Range',
-      description: 'Expand shoe sizes from UK 3-14 to include extended sizes up to UK 18',
-      creator: { name: 'Inclusive Fashion', avatar: 'IF' },
-      lobbyCount: 1523,
-      intensity: { high: 730, medium: 563, low: 230 },
-      commitmentRate: 48,
-      status: 'awaiting',
-    },
-    {
-      id: '3',
-      title: 'Toddler Shoe Range',
-      description: 'Premium toddler footwear collection with enhanced safety features',
-      creator: { name: 'Parents United', avatar: 'PU' },
-      lobbyCount: 987,
-      intensity: { high: 473, medium: 345, low: 169 },
-      commitmentRate: 48,
-      status: 'path-a',
-    },
-    {
-      id: '4',
-      title: 'Vegan Material Initiative',
-      description: 'Complete vegan footwear line using plant-based materials only',
-      creator: { name: 'Vegan Life Collective', avatar: 'VL' },
-      lobbyCount: 654,
-      intensity: { high: 314, medium: 229, low: 111 },
-      commitmentRate: 48,
-      status: 'path-b',
-    },
-    {
-      id: '5',
-      title: 'Custom Fit Technology',
-      description: 'AI-powered personalized fit sizing using foot scanning technology',
-      creator: { name: 'Tech Innovators', avatar: 'TI' },
-      lobbyCount: 432,
-      intensity: { high: 207, medium: 151, low: 74 },
-      commitmentRate: 48,
-      status: 'path-a',
-    },
-    {
-      id: '6',
-      title: 'Heritage Collection Reissue',
-      description: 'Bring back classic designs from 1995-2005 era with modern improvements',
-      creator: { name: 'Sneaker Nostalgia', avatar: 'SN' },
-      lobbyCount: 456,
-      intensity: { high: 219, medium: 159, low: 78 },
-      commitmentRate: 48,
-      status: 'awaiting',
-    },
-    {
-      id: '7',
-      title: 'Adaptive Sports Footwear',
-      description: 'Specialized shoes designed for athletes with different abilities',
-      creator: { name: 'Adaptive Athletes', avatar: 'AA' },
-      lobbyCount: 321,
-      intensity: { high: 154, medium: 113, low: 54 },
-      commitmentRate: 48,
-      status: 'path-b',
-    },
-    {
-      id: '8',
-      title: 'Waterproof Running Shoes',
-      description: 'All-weather running shoes with advanced waterproofing and breathability',
-      creator: { name: 'Weather Runners', avatar: 'WR' },
-      lobbyCount: 298,
-      intensity: { high: 143, medium: 105, low: 50 },
-      commitmentRate: 48,
-      status: 'path-a',
-    },
-  ]
+const PATH_LABELS: Record<string, string> = {
+  LOBBYING: 'Lobbying',
+  PATH_A: 'Path A',
+  PATH_B: 'Path B',
+}
 
-  const filterCampaigns = () => {
-    let filtered = campaigns
-
-    if (filterTab !== 'all') {
-      filtered = campaigns.filter((c) => c.status === filterTab)
-    }
-
-    // Sort
-    if (sortBy === 'lobbied') {
-      filtered.sort((a, b) => b.lobbyCount - a.lobbyCount)
-    } else if (sortBy === 'newest') {
-      // Just reverse order for demo
-      filtered.reverse()
-    } else if (sortBy === 'intensity') {
-      filtered.sort((a, b) => (b.intensity.high / b.lobbyCount) - (a.intensity.high / a.lobbyCount))
-    }
-
-    return filtered
+function formatCurrency(amount: number, currency: string | null): string {
+  try {
+    return new Intl.NumberFormat('en-GB', {
+      style: 'currency',
+      currency: currency || 'GBP',
+      maximumFractionDigits: 0,
+    }).format(amount)
+  } catch {
+    return amount.toLocaleString()
   }
+}
 
-  const filteredCampaigns = filterCampaigns()
+function formatDate(iso: string): string {
+  const date = new Date(iso)
+  if (Number.isNaN(date.getTime())) return ''
+  return date.toLocaleDateString('en-GB', {
+    day: 'numeric',
+    month: 'short',
+    year: 'numeric',
+  })
+}
 
-  const getStatusBadge = (status: Campaign['status']) => {
-    const statusConfig = {
-      awaiting: { text: 'Awaiting Response', variant: 'warning' as const },
-      'path-a': { text: 'Path A: In Development', variant: 'success' as const },
-      'path-b': { text: 'Path B: Pre-orders Open', variant: 'default' as const },
+const BrandCampaignsPage: React.FC = () => {
+  const router = useRouter()
+  const [campaigns, setCampaigns] = useState<BrandCampaign[] | null>(null)
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
+
+  const fetchCampaigns = useCallback(async () => {
+    try {
+      setLoading(true)
+      setError(null)
+      const res = await fetch('/api/brand/campaigns')
+
+      if (res.status === 401) {
+        router.push('/login')
+        return
+      }
+
+      const result = await res.json()
+      if (result.success) {
+        setCampaigns(result.data)
+      } else {
+        setError(result.error || 'Failed to load campaigns')
+      }
+    } catch (err) {
+      console.error('Brand campaigns fetch error:', err)
+      setError('Failed to load campaigns')
+    } finally {
+      setLoading(false)
     }
-    return statusConfig[status]
-  }
+  }, [router])
 
-  const intensityColors = {
-    high: 'bg-purple-500',
-    medium: 'bg-yellow-400',
-    low: 'bg-green-500',
-  }
+  useEffect(() => {
+    fetchCampaigns()
+  }, [fetchCampaigns])
+
+  // Brand name from the first campaign row, if any (all rows target the caller's brand)
+  const brandName = campaigns?.find((c) => c.brandName)?.brandName
 
   return (
     <DashboardLayout role="brand">
-      <PageHeader
-        title="Campaigns Targeting Nike"
-        description={`${filteredCampaigns.length} active campaigns`}
-      />
-
-      {/* Filter and Sort Section */}
-      <div className="mb-8 space-y-4">
-        {/* Tabs for filtering */}
-        <Tabs value={filterTab} onValueChange={(value) => setFilterTab(value as typeof filterTab)}>
-          <TabsList>
-            <TabsTrigger value="all">All</TabsTrigger>
-            <TabsTrigger value="awaiting">Waiting for Response</TabsTrigger>
-            <TabsTrigger value="path-a">Path A</TabsTrigger>
-            <TabsTrigger value="path-b">Path B</TabsTrigger>
-          </TabsList>
-        </Tabs>
-
-        {/* Sort Dropdown */}
-        <div className="flex items-center gap-2">
-          <Filter className="w-4 h-4 text-gray-600" />
-          <select
-            value={sortBy}
-            onChange={(e) => setSortBy(e.target.value as typeof sortBy)}
-            className="text-sm border border-gray-300 rounded-lg px-3 py-2 text-foreground bg-white hover:border-gray-400 focus:outline-none focus:ring-2 focus:ring-violet-500"
-          >
-            <option value="lobbied">Most Lobbied</option>
-            <option value="newest">Newest</option>
-            <option value="intensity">Highest Intensity</option>
-          </select>
+      <div className="space-y-8">
+        {/* Header */}
+        <div className="space-y-2">
+          <div className="flex items-center gap-2">
+            <Megaphone className="w-8 h-8 text-violet-600" aria-hidden="true" />
+            <h1 className="text-3xl font-bold text-gray-900">
+              {brandName ? `Campaigns Targeting ${brandName}` : 'Campaigns'}
+            </h1>
+          </div>
+          <p className="text-gray-600">
+            {campaigns
+              ? `${campaigns.length} campaign${campaigns.length === 1 ? '' : 's'} targeting your brand`
+              : 'Campaigns targeting your brand'}
+          </p>
         </div>
-      </div>
 
-      {/* Campaign Cards */}
-      <div className="space-y-4">
-        {filteredCampaigns.map((campaign) => {
-          const statusConfig = getStatusBadge(campaign.status)
-          const totalLobby = campaign.intensity.high + campaign.intensity.medium + campaign.intensity.low
-          const highPercentage = (campaign.intensity.high / totalLobby) * 100
+        {loading && (
+          <div className="flex items-center justify-center py-16" role="status">
+            <Loader2
+              className="w-8 h-8 text-violet-600 animate-spin"
+              aria-hidden="true"
+            />
+            <span className="sr-only">Loading campaigns</span>
+          </div>
+        )}
 
-          return (
-            <Card key={campaign.id} variant="interactive">
-              <CardContent className="pt-6">
-                <div className="flex items-start justify-between gap-4 mb-4">
-                  <div className="flex-1">
-                    {/* Title and Description */}
-                    <div className="flex items-start gap-3 mb-3">
-                      <Avatar size="default" initials={campaign.creator.avatar} />
-                      <div className="flex-1">
-                        <h3 className="font-display font-semibold text-lg text-foreground mb-1">
+        {error && !loading && (
+          <div className="bg-red-50 border border-red-200 rounded-lg p-4 flex items-start gap-3">
+            <AlertCircle
+              className="text-red-600 mt-0.5 flex-shrink-0"
+              size={20}
+              aria-hidden="true"
+            />
+            <div>
+              <h2 className="font-semibold text-red-900">
+                Unable to load campaigns
+              </h2>
+              <p className="text-red-800 text-sm mt-1">{error}</p>
+              <button
+                onClick={fetchCampaigns}
+                className="mt-3 px-4 py-2 bg-red-600 text-white text-sm font-medium rounded hover:bg-red-700 transition-colors"
+              >
+                Try Again
+              </button>
+            </div>
+          </div>
+        )}
+
+        {!loading && !error && campaigns && campaigns.length === 0 && (
+          <div className="bg-white border border-gray-200 rounded-lg p-12 text-center">
+            <Users
+              className="w-10 h-10 text-gray-400 mx-auto mb-4"
+              aria-hidden="true"
+            />
+            <h2 className="text-lg font-semibold text-gray-900 mb-1">
+              No campaigns are targeting your brand yet
+            </h2>
+            <p className="text-gray-600 max-w-md mx-auto">
+              When people start lobbying for products they want from your
+              brand, their campaigns will appear here. If you haven&apos;t
+              claimed your brand yet,{' '}
+              <Link
+                href="/brand/claim"
+                className="text-violet-700 hover:text-violet-900 font-medium"
+              >
+                claim it
+              </Link>{' '}
+              to make sure campaigns reach you.
+            </p>
+          </div>
+        )}
+
+        {!loading && !error && campaigns && campaigns.length > 0 && (
+          <div className="space-y-4">
+            {campaigns.map((campaign) => {
+              const statusBadge = STATUS_BADGES[campaign.status] || {
+                label: campaign.status,
+                variant: 'default' as const,
+              }
+              const pathLabel = campaign.path
+                ? PATH_LABELS[campaign.path]
+                : null
+
+              return (
+                <Link
+                  key={campaign.id}
+                  href={`/brand/campaigns/${campaign.id}`}
+                  className="block bg-white border border-gray-200 rounded-lg p-6 hover:border-violet-300 hover:shadow-sm transition-all"
+                >
+                  <div className="flex items-start justify-between gap-4">
+                    <div className="min-w-0">
+                      <div className="flex flex-wrap items-center gap-2 mb-1">
+                        <h3 className="font-semibold text-lg text-gray-900 truncate">
                           {campaign.title}
                         </h3>
-                        <p className="text-sm text-gray-600 mb-2">{campaign.creator.name}</p>
-                        <p className="text-sm text-gray-700">{campaign.description}</p>
+                        <Badge variant={statusBadge.variant}>
+                          {statusBadge.label}
+                        </Badge>
+                        {pathLabel && pathLabel !== 'Lobbying' && (
+                          <Badge variant="default">{pathLabel}</Badge>
+                        )}
                       </div>
+                      <p className="text-sm text-gray-600">
+                        {campaign.category && (
+                          <span className="capitalize">
+                            {campaign.category.toLowerCase().replace(/_/g, ' ')}
+                            {' · '}
+                          </span>
+                        )}
+                        Started {formatDate(campaign.createdAt)}
+                      </p>
+                    </div>
+                    <ChevronRight
+                      className="w-5 h-5 text-gray-400 flex-shrink-0 mt-1"
+                      aria-hidden="true"
+                    />
+                  </div>
+
+                  <div className="mt-4 pt-4 border-t border-gray-100 grid grid-cols-2 sm:grid-cols-4 gap-4">
+                    <div>
+                      <p className="text-2xl font-bold text-gray-900">
+                        {campaign.lobbyCount.toLocaleString()}
+                      </p>
+                      <p className="text-xs text-gray-600">
+                        {campaign.lobbyCount === 1 ? 'Lobby' : 'Lobbies'}
+                      </p>
+                    </div>
+                    <div>
+                      <p className="text-2xl font-bold text-gray-900">
+                        {(
+                          campaign.supportPledges + campaign.intentPledges
+                        ).toLocaleString()}
+                      </p>
+                      <p className="text-xs text-gray-600">
+                        Pledges ({campaign.intentPledges.toLocaleString()}{' '}
+                        intent)
+                      </p>
+                    </div>
+                    <div>
+                      <p className="text-2xl font-bold text-gray-900">
+                        {campaign.estimatedRevenue > 0
+                          ? formatCurrency(
+                              campaign.estimatedRevenue,
+                              campaign.currency
+                            )
+                          : '—'}
+                      </p>
+                      <p className="text-xs text-gray-600">Est. revenue</p>
+                    </div>
+                    <div>
+                      <p className="text-2xl font-bold text-gray-900">
+                        {campaign.signalScore != null
+                          ? Math.round(campaign.signalScore)
+                          : '—'}
+                      </p>
+                      <p className="text-xs text-gray-600">Signal score</p>
                     </div>
                   </div>
-
-                  {/* Status Badge */}
-                  <Badge variant={statusConfig.variant} size="default">
-                    {statusConfig.text}
-                  </Badge>
-                </div>
-
-                {/* Large Lobby Count */}
-                <div className="mb-4 pb-4 border-t border-gray-200 pt-4">
-                  <div className="flex items-baseline gap-2">
-                    <span className="font-display font-bold text-3xl text-foreground">
-                      {campaign.lobbyCount.toLocaleString()}
-                    </span>
-                    <span className="text-sm text-gray-600">people interested</span>
-                  </div>
-                </div>
-
-                {/* Intensity Stacked Bar */}
-                <div className="mb-4">
-                  <div className="flex h-3 rounded-full overflow-hidden bg-gray-100">
-                    <div
-                      className={`${intensityColors.high}`}
-                      style={{
-                        width: `${(campaign.intensity.high / totalLobby) * 100}%`,
-                      }}
-                    />
-                    <div
-                      className={`${intensityColors.medium}`}
-                      style={{
-                        width: `${(campaign.intensity.medium / totalLobby) * 100}%`,
-                      }}
-                    />
-                    <div
-                      className={`${intensityColors.low}`}
-                      style={{
-                        width: `${(campaign.intensity.low / totalLobby) * 100}%`,
-                      }}
-                    />
-                  </div>
-                </div>
-
-                {/* Key Stat and CTA */}
-                <div className="flex items-center justify-between">
-                  <div>
-                    <p className="text-xs text-gray-600">Highest commitment level</p>
-                    <p className="font-display font-bold text-lg text-foreground">
-                      {highPercentage.toFixed(0)}% say "take my money"
-                    </p>
-                  </div>
-                  <Link href={`/brand/campaigns/${campaign.id}`}>
-                    <Button variant="primary" size="sm">
-                      Review Campaign <ChevronRight className="w-4 h-4" />
-                    </Button>
-                  </Link>
-                </div>
-              </CardContent>
-            </Card>
-          )
-        })}
+                </Link>
+              )
+            })}
+          </div>
+        )}
       </div>
     </DashboardLayout>
   )
 }
 
-export default CampaignsList
+export default BrandCampaignsPage

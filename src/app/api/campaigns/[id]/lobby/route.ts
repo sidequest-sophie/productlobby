@@ -33,7 +33,7 @@ export async function POST(
 
     const { id: campaignId } = params
     const body = await request.json()
-    const { intensity, preferences, wishlist, reason } = body
+    const { intensity, preferences, wishlist, reason, ref } = body
 
     // Validate intensity
     if (!intensity || !['NEAT_IDEA', 'PROBABLY_BUY', 'TAKE_MY_MONEY'].includes(intensity)) {
@@ -177,6 +177,47 @@ export async function POST(
 
     if (contributionEvents.length > 0) {
       await Promise.all(contributionEvents)
+    }
+
+    // Referral attribution: if this supporter arrived via ?ref=CODE (7-day
+    // first-touch, stored client-side and sent with the lobby), credit the
+    // referrer with a real REFERRAL_SIGNUP event and bump the link counters.
+    // Best-effort — a bad code must never break the lobby itself. Double
+    // crediting is impossible: a user can lobby a campaign only once (409
+    // above), and codes are scoped to a single campaign.
+    if (typeof ref === 'string' && /^[A-Za-z0-9_-]{4,64}$/.test(ref)) {
+      try {
+        const referralLink = await prisma.referralLink.findUnique({
+          where: { code: ref },
+          select: { id: true, userId: true, campaignId: true, code: true },
+        })
+
+        const isValidForCampaign = referralLink?.campaignId === campaignId
+        const isSelfReferral = referralLink?.userId === user.id
+
+        if (referralLink && isValidForCampaign && !isSelfReferral) {
+          await prisma.$transaction([
+            prisma.referralLink.update({
+              where: { id: referralLink.id },
+              data: { signupCount: { increment: 1 } },
+            }),
+            prisma.contributionEvent.create({
+              data: {
+                userId: referralLink.userId, // credit the referrer
+                campaignId,
+                eventType: 'REFERRAL_SIGNUP',
+                points: 10,
+                metadata: {
+                  referralCode: referralLink.code,
+                  referredUserId: user.id,
+                },
+              },
+            }),
+          ])
+        }
+      } catch (referralError) {
+        console.error('[POST /api/campaigns/[id]/lobby] referral credit failed', referralError)
+      }
     }
 
     // Notify campaign creator (non-blocking)

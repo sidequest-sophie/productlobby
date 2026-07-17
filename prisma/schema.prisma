@@ -72,6 +72,10 @@ model User {
   surveyResponses SurveyResponse[] @relation("surveyResponses")
   creatorRevenue CreatorRevenue?
   bookmarks      Bookmark[]
+  campaignTeamMemberships CampaignTeamMember[] @relation("teamMember")
+  campaignTeamInvitesSent CampaignTeamMember[] @relation("teamInviter")
+  lobbyGroupsCreated      LobbyGroup[]         @relation("lobbyGroupCreator")
+  lobbyGroupMemberships   LobbyGroupMember[]
 
   @@map("users")
 }
@@ -263,6 +267,8 @@ model Campaign {
   priceRangeMin       Decimal?       @map("price_range_min") @db.Decimal(10,2)
   priceRangeMax       Decimal?       @map("price_range_max") @db.Decimal(10,2)
   pricingModel        String?        @map("pricing_model") // ONE_TIME, SUBSCRIPTION, FREEMIUM, PAY_WHAT_YOU_WANT
+  lobbyGroupId        String?        @map("lobby_group_id")
+  lobbyGroup          LobbyGroup?    @relation(fields: [lobbyGroupId], references: [id], onDelete: SetNull)
   createdAt           DateTime       @default(now()) @map("created_at")
   updatedAt           DateTime       @updatedAt @map("updated_at")
 
@@ -291,6 +297,7 @@ model Campaign {
   surveys             Survey[]
   revenueBreakdowns   RevenueBreakdown[]
   bookmarks           Bookmark[]
+  teamMembers         CampaignTeamMember[]
 
   @@unique([slug])
   @@index([status])
@@ -299,6 +306,7 @@ model Campaign {
   @@index([category])
   @@index([signalScore])
   @@index([creatorUserId])
+  @@index([lobbyGroupId])
   @@map("campaigns")
 }
 
@@ -1475,4 +1483,94 @@ model ApiKeyUsageLog {
   @@index([keyId])
   @@index([createdAt])
   @@map("api_key_usage_logs")
+}
+
+// ============================================================================
+// CAMPAIGN TEAMS
+// ============================================================================
+
+// A campaign's team beyond its owner (owner stays Campaign.creatorUserId).
+// Two shapes of row:
+//   - Pending email invite: userId null, invitedEmail set, status PENDING,
+//     inviteToken set (magic-link-style accept URL).
+//   - Active member: userId set, status ACTIVE (invitedEmail retained for
+//     audit when the member arrived via email invite).
+model CampaignTeamMember {
+  id           String             @id @default(uuid())
+  campaignId   String             @map("campaign_id")
+  campaign     Campaign           @relation(fields: [campaignId], references: [id], onDelete: Cascade)
+  userId       String?            @map("user_id")
+  user         User?              @relation("teamMember", fields: [userId], references: [id], onDelete: Cascade)
+  invitedEmail String?            @map("invited_email")
+  role         CampaignTeamRole
+  status       CampaignTeamStatus @default(PENDING)
+  invitedById  String             @map("invited_by_id")
+  invitedBy    User               @relation("teamInviter", fields: [invitedById], references: [id], onDelete: Cascade)
+  inviteToken  String?            @unique @map("invite_token")
+  createdAt    DateTime           @default(now()) @map("created_at")
+  acceptedAt   DateTime?          @map("accepted_at")
+
+  @@unique([campaignId, userId])
+  @@unique([campaignId, invitedEmail])
+  @@index([campaignId])
+  @@index([userId])
+  @@map("campaign_team_members")
+}
+
+enum CampaignTeamRole {
+  ORGANIZER
+  CONTRIBUTOR
+
+  @@map("campaign_team_role")
+}
+
+enum CampaignTeamStatus {
+  PENDING
+  ACTIVE
+
+  @@map("campaign_team_status")
+}
+
+// ============================================================================
+// LOBBY GROUPS (community groups with a profile page + attached campaigns)
+// ============================================================================
+
+// v1: schema + read path only. Group membership grants ZERO campaign
+// permissions - campaign teams (above) are the only permission source.
+model LobbyGroup {
+  id          String   @id @default(uuid())
+  name        String
+  slug        String   @unique
+  bio         String?
+  avatarUrl   String?  @map("avatar_url")
+  links       String[] @default([])
+  createdById String   @map("created_by_id")
+  createdBy   User     @relation("lobbyGroupCreator", fields: [createdById], references: [id], onDelete: Cascade)
+  createdAt   DateTime @default(now()) @map("created_at")
+
+  members   LobbyGroupMember[]
+  campaigns Campaign[]
+
+  @@index([createdById])
+  @@map("lobby_groups")
+}
+
+model LobbyGroupMember {
+  groupId  String         @map("group_id")
+  group    LobbyGroup     @relation(fields: [groupId], references: [id], onDelete: Cascade)
+  userId   String         @map("user_id")
+  user     User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+  role     LobbyGroupRole @default(MEMBER)
+  joinedAt DateTime       @default(now()) @map("joined_at")
+
+  @@id([groupId, userId])
+  @@index([userId])
+  @@map("lobby_group_members")
+}
+
+enum LobbyGroupRole {
+  OWNER
+  MEMBER
+
+  @@map("lobby_group_role")
 }

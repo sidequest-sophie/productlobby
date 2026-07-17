@@ -1,11 +1,26 @@
 'use client'
 
 import React, { useState, useEffect } from 'react'
+import dynamic from 'next/dynamic'
 import { useParams } from 'next/navigation'
 import { DashboardLayout } from '@/components/shared'
 import { DemandSignalDisplay } from '@/components/campaigns/demand-signal-display'
 import { Spinner } from '@/components/ui/spinner'
 import { AlertCircle, Heart } from 'lucide-react'
+
+// Lazy-load the sentiment tracker — it sits below the fold and does its own
+// data fetching, so it shouldn't block the initial insights render.
+const SentimentTracker = dynamic(
+  () => import('@/components/campaigns/sentiment-tracker'),
+  {
+    ssr: false,
+    loading: () => (
+      <div className="flex justify-center py-12">
+        <Spinner />
+      </div>
+    ),
+  }
+)
 
 export default function CampaignInsightsPage() {
   const params = useParams()
@@ -104,6 +119,11 @@ export default function CampaignInsightsPage() {
             {/* Demand Signal — growth, velocity and buyer-intent breakdown */}
             <div className="bg-white border border-gray-200 rounded-lg p-8">
               <DemandSignalDisplay campaignId={campaignId} />
+            </div>
+
+            {/* Sentiment Tracker — comment sentiment over time (lazy-loaded) */}
+            <div className="bg-white border border-gray-200 rounded-lg p-8">
+              <SentimentTracker campaignId={campaignId} />
             </div>
           </>
         )}
