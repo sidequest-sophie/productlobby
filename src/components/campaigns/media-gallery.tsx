@@ -5,12 +5,13 @@ import {
   Loader2,
   Upload,
   Film,
-  FileText,
   Download,
   Eye,
   Grid,
   List as ListIcon,
   Image as ImageIcon,
+  PenTool,
+  Layers,
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { cn } from '@/lib/utils'
@@ -19,13 +20,9 @@ interface MediaItem {
   id: string
   campaignId: string
   title: string
-  type: 'image' | 'video' | 'document' | 'infographic'
+  type: 'image' | 'video' | 'sketch' | 'mockup'
   url: string
-  thumbnailUrl?: string
-  description: string
-  uploadedBy: string
-  downloads: number
-  views: number
+  order: number
   createdAt: string
 }
 
@@ -34,7 +31,7 @@ interface MediaGalleryProps {
 }
 
 type ViewMode = 'grid' | 'list'
-type FilterType = 'all' | 'image' | 'video' | 'document' | 'infographic'
+type FilterType = 'all' | 'image' | 'video' | 'sketch' | 'mockup'
 
 export function MediaGallery({ campaignId }: MediaGalleryProps) {
   const [items, setItems] = useState<MediaItem[]>([])
@@ -73,17 +70,18 @@ export function MediaGallery({ campaignId }: MediaGalleryProps) {
         return <ImageIcon className="w-4 h-4" />
       case 'video':
         return <Film className="w-4 h-4" />
-      case 'document':
-        return <FileText className="w-4 h-4" />
-      case 'infographic':
-        return <ImageIcon className="w-4 h-4" />
+      case 'sketch':
+        return <PenTool className="w-4 h-4" />
+      case 'mockup':
+        return <Layers className="w-4 h-4" />
       default:
         return null
     }
   }
 
+  const isImageLike = (type: MediaItem['type']) => type !== 'video'
+
   const handleDownload = (item: MediaItem) => {
-    // Simulate download
     const link = document.createElement('a')
     link.href = item.url
     link.download = item.title
@@ -122,16 +120,12 @@ export function MediaGallery({ campaignId }: MediaGalleryProps) {
             <ListIcon className="w-4 h-4 mr-2" />
             List
           </Button>
-          <Button className="bg-lime-600 hover:bg-lime-700 ml-2">
-            <Upload className="w-4 h-4 mr-2" />
-            Upload
-          </Button>
         </div>
       </div>
 
       {/* Filter Tabs */}
       <div className="flex gap-2 mb-6 flex-wrap">
-        {['all', 'image', 'video', 'document', 'infographic'].map((f) => (
+        {['all', 'image', 'video', 'sketch', 'mockup'].map((f) => (
           <button
             key={f}
             onClick={() => setFilter(f as FilterType)}
@@ -173,9 +167,9 @@ export function MediaGallery({ campaignId }: MediaGalleryProps) {
                 >
                   {/* Thumbnail */}
                   <div className="relative w-full aspect-video bg-slate-100 overflow-hidden">
-                    {item.type === 'image' || item.type === 'infographic' ? (
+                    {isImageLike(item.type) ? (
                       <img
-                        src={item.thumbnailUrl || item.url}
+                        src={item.url}
                         alt={item.title}
                         className="w-full h-full object-cover group-hover:scale-110 transition-transform"
                       />
@@ -195,13 +189,9 @@ export function MediaGallery({ campaignId }: MediaGalleryProps) {
                       <div
                         className={cn(
                           'rounded p-1',
-                          item.type === 'image'
+                          item.type === 'image' || item.type === 'video'
                             ? 'bg-violet-100'
-                            : item.type === 'video'
-                              ? 'bg-violet-100'
-                              : item.type === 'document'
-                                ? 'bg-lime-100'
-                                : 'bg-lime-100'
+                            : 'bg-lime-100'
                         )}
                       >
                         {getMediaIcon(item.type)}
@@ -210,21 +200,9 @@ export function MediaGallery({ campaignId }: MediaGalleryProps) {
                         {item.title}
                       </h3>
                     </div>
-                    <p className="text-xs text-slate-600 line-clamp-2 mb-3">
-                      {item.description}
+                    <p className="text-xs text-slate-500">
+                      Added {new Date(item.createdAt).toLocaleDateString()}
                     </p>
-                    <div className="flex items-center justify-between text-xs text-slate-500">
-                      <div className="flex items-center gap-3">
-                        <span className="flex items-center gap-1">
-                          <Eye className="w-3 h-3" />
-                          {item.views}
-                        </span>
-                        <span className="flex items-center gap-1">
-                          <Download className="w-3 h-3" />
-                          {item.downloads}
-                        </span>
-                      </div>
-                    </div>
                   </div>
                 </div>
               ))}
@@ -242,9 +220,9 @@ export function MediaGallery({ campaignId }: MediaGalleryProps) {
                 >
                   {/* Thumbnail */}
                   <div className="flex-shrink-0 w-20 h-20 rounded-lg bg-slate-100 overflow-hidden">
-                    {item.type === 'image' || item.type === 'infographic' ? (
+                    {isImageLike(item.type) ? (
                       <img
-                        src={item.thumbnailUrl || item.url}
+                        src={item.url}
                         alt={item.title}
                         className="w-full h-full object-cover"
                       />
@@ -260,14 +238,10 @@ export function MediaGallery({ campaignId }: MediaGalleryProps) {
                     <div className="flex items-center gap-2 mb-1">
                       <span
                         className={cn(
-                          'inline-flex items-center gap-1 px-2 py-1 rounded text-xs font-medium',
-                          item.type === 'image'
+                          'inline-flex items-center gap-1 px-2 py-1 rounded text-xs font-medium capitalize',
+                          item.type === 'image' || item.type === 'video'
                             ? 'bg-violet-100 text-violet-700'
-                            : item.type === 'video'
-                              ? 'bg-violet-100 text-violet-700'
-                              : item.type === 'document'
-                                ? 'bg-lime-100 text-lime-700'
-                                : 'bg-lime-100 text-lime-700'
+                            : 'bg-lime-100 text-lime-700'
                         )}
                       >
                         {getMediaIcon(item.type)}
@@ -275,25 +249,13 @@ export function MediaGallery({ campaignId }: MediaGalleryProps) {
                       </span>
                     </div>
                     <h3 className="font-semibold text-slate-900">{item.title}</h3>
-                    <p className="text-sm text-slate-600 line-clamp-1">
-                      {item.description}
-                    </p>
                     <p className="text-xs text-slate-500 mt-1">
-                      Uploaded by {item.uploadedBy} on{' '}
-                      {new Date(item.createdAt).toLocaleDateString()}
+                      Added {new Date(item.createdAt).toLocaleDateString()}
                     </p>
                   </div>
 
-                  {/* Stats */}
+                  {/* Actions */}
                   <div className="flex-shrink-0 flex items-center gap-6 text-slate-600">
-                    <div className="flex items-center gap-2">
-                      <Eye className="w-4 h-4" />
-                      <span className="text-sm">{item.views}</span>
-                    </div>
-                    <div className="flex items-center gap-2">
-                      <Download className="w-4 h-4" />
-                      <span className="text-sm">{item.downloads}</span>
-                    </div>
                     <Button
                       size="sm"
                       variant="outline"
@@ -331,7 +293,7 @@ export function MediaGallery({ campaignId }: MediaGalleryProps) {
                 <div>
                   {/* Media Display */}
                   <div className="w-full bg-slate-900 aspect-video flex items-center justify-center relative">
-                    {item.type === 'image' || item.type === 'infographic' ? (
+                    {isImageLike(item.type) ? (
                       <img
                         src={item.url}
                         alt={item.title}
@@ -340,7 +302,7 @@ export function MediaGallery({ campaignId }: MediaGalleryProps) {
                     ) : (
                       <div className="flex items-center justify-center gap-4">
                         {getMediaIcon(item.type)}
-                        <span className="text-white">{item.type}</span>
+                        <span className="text-white capitalize">{item.type}</span>
                       </div>
                     )}
                     <button
@@ -354,15 +316,12 @@ export function MediaGallery({ campaignId }: MediaGalleryProps) {
                   {/* Details */}
                   <div className="p-6">
                     <div className="flex items-start justify-between mb-4">
-                      <div>
-                        <h2 className="text-2xl font-bold text-slate-900 mb-2">
-                          {item.title}
-                        </h2>
-                        <p className="text-slate-600">{item.description}</p>
-                      </div>
+                      <h2 className="text-2xl font-bold text-slate-900 mb-2">
+                        {item.title}
+                      </h2>
                       <span
                         className={cn(
-                          'inline-flex items-center gap-1 px-3 py-1 rounded-full text-sm font-medium',
+                          'inline-flex items-center gap-1 px-3 py-1 rounded-full text-sm font-medium capitalize',
                           item.type === 'image' || item.type === 'video'
                             ? 'bg-violet-100 text-violet-700'
                             : 'bg-lime-100 text-lime-700'
@@ -374,39 +333,13 @@ export function MediaGallery({ campaignId }: MediaGalleryProps) {
                     </div>
 
                     {/* Metadata */}
-                    <div className="grid grid-cols-2 gap-4 mb-6 p-4 bg-slate-50 rounded-lg">
-                      <div>
-                        <p className="text-xs text-slate-600 uppercase tracking-wide mb-1">
-                          Uploaded By
-                        </p>
-                        <p className="font-semibold text-slate-900">
-                          {item.uploadedBy}
-                        </p>
-                      </div>
-                      <div>
-                        <p className="text-xs text-slate-600 uppercase tracking-wide mb-1">
-                          Date
-                        </p>
-                        <p className="font-semibold text-slate-900">
-                          {new Date(item.createdAt).toLocaleDateString()}
-                        </p>
-                      </div>
-                      <div>
-                        <p className="text-xs text-slate-600 uppercase tracking-wide mb-1">
-                          Views
-                        </p>
-                        <p className="font-semibold text-slate-900">
-                          {item.views}
-                        </p>
-                      </div>
-                      <div>
-                        <p className="text-xs text-slate-600 uppercase tracking-wide mb-1">
-                          Downloads
-                        </p>
-                        <p className="font-semibold text-slate-900">
-                          {item.downloads}
-                        </p>
-                      </div>
+                    <div className="mb-6 p-4 bg-slate-50 rounded-lg">
+                      <p className="text-xs text-slate-600 uppercase tracking-wide mb-1">
+                        Date Added
+                      </p>
+                      <p className="font-semibold text-slate-900">
+                        {new Date(item.createdAt).toLocaleDateString()}
+                      </p>
                     </div>
 
                     {/* Actions */}

@@ -1,8 +1,55 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { FieldType } from '@prisma/client'
 import { prisma } from '@/lib/db'
 import { getCurrentUser } from '@/lib/auth'
 
 export const dynamic = 'force-dynamic'
+
+// Custom fields are backed by the CampaignPreferenceField model - the same
+// fields supporters fill in when they lobby (LobbyPreference values).
+
+const FIELD_TYPE_MAP: Record<string, FieldType> = {
+  text: 'TEXT',
+  select: 'SELECT',
+  multi_select: 'MULTI_SELECT',
+  number: 'NUMBER',
+  range: 'RANGE',
+}
+
+const MAX_FIELDS = 20
+
+function serialiseField(field: {
+  id: string
+  fieldName: string
+  fieldType: FieldType
+  options: unknown
+  placeholder: string | null
+  required: boolean
+  order: number
+  createdAt: Date
+}) {
+  return {
+    id: field.id,
+    name: field.fieldName,
+    type: field.fieldType.toLowerCase(),
+    required: field.required,
+    placeholder: field.placeholder || '',
+    options: Array.isArray(field.options)
+      ? field.options.filter((o): o is string => typeof o === 'string')
+      : [],
+    order: field.order,
+    createdAt: field.createdAt.toISOString(),
+  }
+}
+
+function parseOptions(type: FieldType, options: unknown): string[] | null {
+  if (type !== 'SELECT' && type !== 'MULTI_SELECT') return null
+  if (!Array.isArray(options)) return []
+  return options
+    .filter((o): o is string => typeof o === 'string')
+    .map((o) => o.trim())
+    .filter((o) => o.length > 0)
+}
 
 // GET /api/campaigns/[id]/custom-fields - Fetch custom fields
 export async function GET(
@@ -27,39 +74,14 @@ export async function GET(
       )
     }
 
-    // Fetch all custom fields stored as ContributionEvent
-    const customFieldEvents = await prisma.contributionEvent.findMany({
-      where: {
-        campaignId,
-        eventType: 'SOCIAL_SHARE',
-        metadata: {
-          path: ['action'],
-          equals: 'custom_field',
-        },
-      },
-      orderBy: {
-        createdAt: 'desc',
-      },
-    })
-
-    const fields = customFieldEvents.map((event) => {
-      const metadata = (event.metadata as any) || {}
-      return {
-        id: event.id,
-        name: metadata.name || '',
-        value: metadata.value || '',
-        type: metadata.type || 'text',
-        required: metadata.required || false,
-        placeholder: metadata.placeholder || '',
-        options: metadata.options || [],
-        createdAt: event.createdAt.toISOString(),
-        metadata: JSON.stringify(metadata),
-      }
+    const fields = await prisma.campaignPreferenceField.findMany({
+      where: { campaignId },
+      orderBy: { order: 'asc' },
     })
 
     return NextResponse.json(
       {
-        fields,
+        fields: fields.map(serialiseField),
       },
       { status: 200 }
     )
@@ -88,10 +110,10 @@ export async function POST(
 
     const { id: campaignId } = params
     const body = await request.json()
-    const { name, value, metadata = {} } = body
+    const { name, type, required, placeholder, options } = body
 
     // Validate inputs
-    if (!name || name.trim().length === 0) {
+    if (!name || typeof name !== 'string' || name.trim().length === 0) {
       return NextResponse.json(
         { error: 'Field name is required' },
         { status: 400 }
@@ -105,58 +127,14 @@ export async function POST(
       )
     }
 
-    const fieldType = metadata.type || 'text'
-
-    // Type-specific validation
-    if (value) {
-      switch (fieldType) {
-        case 'number':
-          if (isNaN(parseFloat(value))) {
-            return NextResponse.json(
-              { error: 'Invalid number format' },
-              { status: 400 }
-            )
-          }
-          break
-
-        case 'date':
-          if (isNaN(new Date(value).getTime())) {
-            return NextResponse.json(
-              { error: 'Invalid date format' },
-              { status: 400 }
-            )
-          }
-          break
-
-        case 'url':
-          try {
-            new URL(value)
-          } catch {
-            return NextResponse.json(
-              { error: 'Invalid URL format' },
-              { status: 400 }
-            )
-          }
-          break
-
-        case 'toggle':
-          if (
-            ![
-              'true',
-              'false',
-              '1',
-              '0',
-              'yes',
-              'no',
-            ].includes(value.toLowerCase())
-          ) {
-            return NextResponse.json(
-              { error: 'Invalid toggle value' },
-              { status: 400 }
-            )
-          }
-          break
-      }
+    const fieldType = FIELD_TYPE_MAP[typeof type === 'string' ? type : 'text']
+    if (!fieldType) {
+      return NextResponse.json(
+        {
+          error: `Invalid field type. Must be one of: ${Object.keys(FIELD_TYPE_MAP).join(', ')}`,
+        },
+        { status: 400 }
+      )
     }
 
     // Verify campaign exists and user is the creator
@@ -183,57 +161,35 @@ export async function POST(
     }
 
     // Check max fields limit
-    const existingFieldCount = await prisma.contributionEvent.count({
-      where: {
-        campaignId,
-        eventType: 'SOCIAL_SHARE',
-        metadata: {
-          path: ['action'],
-          equals: 'custom_field',
-        },
-      },
+    const existingFieldCount = await prisma.campaignPreferenceField.count({
+      where: { campaignId },
     })
 
-    if (existingFieldCount >= 20) {
+    if (existingFieldCount >= MAX_FIELDS) {
       return NextResponse.json(
-        { error: 'Maximum 20 custom fields allowed' },
+        { error: `Maximum ${MAX_FIELDS} custom fields allowed` },
         { status: 400 }
       )
     }
 
-    // Create custom field as ContributionEvent
-    const fieldEvent = await prisma.contributionEvent.create({
+    const field = await prisma.campaignPreferenceField.create({
       data: {
-        userId: user.id,
         campaignId,
-        eventType: 'SOCIAL_SHARE',
-        points: 0,
-        metadata: {
-          action: 'custom_field',
-          name: name.trim(),
-          value: value ? value.trim() : '',
-          type: fieldType,
-          required: metadata.required || false,
-          placeholder: metadata.placeholder || '',
-          options: metadata.options || [],
-          timestamp: new Date().toISOString(),
-        },
+        fieldName: name.trim(),
+        fieldType,
+        required: Boolean(required),
+        placeholder:
+          typeof placeholder === 'string' && placeholder.trim().length > 0
+            ? placeholder.trim()
+            : null,
+        options: parseOptions(fieldType, options) ?? undefined,
+        order: existingFieldCount,
       },
     })
 
-    const fieldMetadata = fieldEvent.metadata as any
     return NextResponse.json(
       {
-        field: {
-          id: fieldEvent.id,
-          name: fieldMetadata.name,
-          value: fieldMetadata.value,
-          type: fieldMetadata.type,
-          required: fieldMetadata.required,
-          placeholder: fieldMetadata.placeholder,
-          options: fieldMetadata.options,
-          createdAt: fieldEvent.createdAt.toISOString(),
-        },
+        field: serialiseField(field),
       },
       { status: 201 }
     )
@@ -241,6 +197,120 @@ export async function POST(
     console.error('Error creating custom field:', error)
     return NextResponse.json(
       { error: 'Failed to create custom field' },
+      { status: 500 }
+    )
+  }
+}
+
+// PATCH /api/campaigns/[id]/custom-fields - Update custom field (creator only)
+export async function PATCH(
+  request: NextRequest,
+  { params }: { params: { id: string } }
+) {
+  try {
+    const user = await getCurrentUser()
+    if (!user) {
+      return NextResponse.json(
+        { error: 'Authentication required' },
+        { status: 401 }
+      )
+    }
+
+    const { id: campaignId } = params
+    const body = await request.json()
+    const { fieldId, name, type, required, placeholder, options } = body
+
+    if (!fieldId) {
+      return NextResponse.json(
+        { error: 'Field ID is required' },
+        { status: 400 }
+      )
+    }
+
+    // Verify campaign exists and user is the creator
+    const campaign = await prisma.campaign.findUnique({
+      where: { id: campaignId },
+      select: {
+        id: true,
+        creatorUserId: true,
+      },
+    })
+
+    if (!campaign) {
+      return NextResponse.json(
+        { error: 'Campaign not found' },
+        { status: 404 }
+      )
+    }
+
+    if (campaign.creatorUserId !== user.id) {
+      return NextResponse.json(
+        { error: 'Unauthorized - only creator can update custom fields' },
+        { status: 403 }
+      )
+    }
+
+    const existing = await prisma.campaignPreferenceField.findUnique({
+      where: { id: fieldId },
+      select: { id: true, campaignId: true, fieldType: true },
+    })
+
+    if (!existing || existing.campaignId !== campaignId) {
+      return NextResponse.json(
+        { error: 'Custom field not found' },
+        { status: 404 }
+      )
+    }
+
+    if (name !== undefined && (typeof name !== 'string' || name.trim().length === 0)) {
+      return NextResponse.json(
+        { error: 'Field name is required' },
+        { status: 400 }
+      )
+    }
+
+    let fieldType: FieldType | undefined
+    if (type !== undefined) {
+      fieldType = FIELD_TYPE_MAP[typeof type === 'string' ? type : '']
+      if (!fieldType) {
+        return NextResponse.json(
+          {
+            error: `Invalid field type. Must be one of: ${Object.keys(FIELD_TYPE_MAP).join(', ')}`,
+          },
+          { status: 400 }
+        )
+      }
+    }
+
+    const field = await prisma.campaignPreferenceField.update({
+      where: { id: fieldId },
+      data: {
+        ...(name !== undefined && { fieldName: name.trim() }),
+        ...(fieldType !== undefined && { fieldType }),
+        ...(required !== undefined && { required: Boolean(required) }),
+        ...(placeholder !== undefined && {
+          placeholder:
+            typeof placeholder === 'string' && placeholder.trim().length > 0
+              ? placeholder.trim()
+              : null,
+        }),
+        ...(options !== undefined && {
+          options:
+            parseOptions(fieldType ?? existing.fieldType, options) ?? undefined,
+        }),
+      },
+    })
+
+    return NextResponse.json(
+      {
+        field: serialiseField(field),
+      },
+      { status: 200 }
+    )
+  } catch (error) {
+    console.error('Error updating custom field:', error)
+    return NextResponse.json(
+      { error: 'Failed to update custom field' },
       { status: 500 }
     )
   }
@@ -294,37 +364,20 @@ export async function DELETE(
       )
     }
 
-    // Verify the field belongs to this campaign and is a custom field
-    const fieldEvent = await prisma.contributionEvent.findUnique({
+    // Verify the field belongs to this campaign
+    const field = await prisma.campaignPreferenceField.findUnique({
       where: { id: fieldId },
-      select: {
-        id: true,
-        campaignId: true,
-        eventType: true,
-        metadata: true,
-      },
+      select: { id: true, campaignId: true },
     })
 
-    if (!fieldEvent) {
+    if (!field || field.campaignId !== campaignId) {
       return NextResponse.json(
         { error: 'Custom field not found' },
         { status: 404 }
       )
     }
 
-    if (
-      fieldEvent.campaignId !== campaignId ||
-      fieldEvent.eventType !== 'SOCIAL_SHARE' ||
-      (fieldEvent.metadata as any)?.action !== 'custom_field'
-    ) {
-      return NextResponse.json(
-        { error: 'Invalid custom field' },
-        { status: 400 }
-      )
-    }
-
-    // Delete the field
-    await prisma.contributionEvent.delete({
+    await prisma.campaignPreferenceField.delete({
       where: { id: fieldId },
     })
 

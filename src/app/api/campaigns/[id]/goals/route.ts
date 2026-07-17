@@ -11,15 +11,170 @@ interface RouteParams {
   }
 }
 
-interface GoalMetadata {
-  action: 'goal_create'
-  name: string
-  description?: string
+// Goals are persisted as ContributionEvent rows with action='goal_create'
+// (there is no dedicated Goal table). Progress is NOT stored - it is derived
+// from real aggregates (follows, lobbies, shares, comments) at read time.
+
+type GoalType = 'Supporters' | 'Votes' | 'Shares' | 'Comments' | 'Custom'
+type GoalStatus = 'On Track' | 'At Risk' | 'Behind' | 'Completed'
+
+const GOAL_TYPES: GoalType[] = [
+  'Supporters',
+  'Votes',
+  'Shares',
+  'Comments',
+  'Custom',
+]
+
+interface Goal {
+  id: string
+  title: string
+  type: GoalType
   targetValue: number
   currentValue: number
-  unit: string
   deadline: string
-  milestones?: { name: string; value: number; reached: boolean }[]
+  status: GoalStatus
+  milestones?: number[]
+  createdAt: string
+}
+
+interface CampaignAggregates {
+  supporters: number
+  votes: number
+  shares: number
+  comments: number
+}
+
+async function getCampaignAggregates(
+  campaignId: string
+): Promise<CampaignAggregates> {
+  const [supporters, votes, shares, comments] = await Promise.all([
+    prisma.follow.count({ where: { campaignId } }),
+    prisma.lobby.count({ where: { campaignId } }),
+    prisma.share.count({ where: { campaignId } }),
+    prisma.comment.count({ where: { campaignId, status: 'VISIBLE' } }),
+  ])
+  return { supporters, votes, shares, comments }
+}
+
+function deriveCurrentValue(
+  type: GoalType,
+  aggregates: CampaignAggregates,
+  storedValue: number
+): number {
+  switch (type) {
+    case 'Supporters':
+      return aggregates.supporters
+    case 'Votes':
+      return aggregates.votes
+    case 'Shares':
+      return aggregates.shares
+    case 'Comments':
+      return aggregates.comments
+    default:
+      return storedValue
+  }
+}
+
+function deriveStatus(
+  currentValue: number,
+  targetValue: number,
+  createdAt: Date,
+  deadline: Date
+): GoalStatus {
+  if (targetValue > 0 && currentValue >= targetValue) {
+    return 'Completed'
+  }
+
+  const now = Date.now()
+  if (now >= deadline.getTime()) {
+    return 'Behind'
+  }
+
+  const totalDuration = deadline.getTime() - createdAt.getTime()
+  if (totalDuration <= 0) {
+    return 'On Track'
+  }
+
+  const expectedProgress = (now - createdAt.getTime()) / totalDuration
+  const actualProgress = targetValue > 0 ? currentValue / targetValue : 0
+
+  if (actualProgress >= expectedProgress) return 'On Track'
+  if (actualProgress >= expectedProgress * 0.5) return 'At Risk'
+  return 'Behind'
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null && !Array.isArray(value)
+}
+
+function extractGoal(
+  event: {
+    id: string
+    createdAt: Date
+    metadata: unknown
+  },
+  aggregates: CampaignAggregates
+): Goal | null {
+  const metadata = event.metadata
+  if (
+    !isRecord(metadata) ||
+    (metadata.action !== 'goal_create' && metadata.action !== 'campaign_goal')
+  ) {
+    return null
+  }
+
+  // Support both the current shape ({title, type}) and the legacy one
+  // ({name, unit}) so previously created goals still render.
+  const title =
+    typeof metadata.title === 'string'
+      ? metadata.title
+      : typeof metadata.name === 'string'
+        ? metadata.name
+        : null
+  const rawType =
+    typeof metadata.type === 'string' ? metadata.type : metadata.unit
+  const type: GoalType = GOAL_TYPES.includes(rawType as GoalType)
+    ? (rawType as GoalType)
+    : 'Custom'
+  const targetValue =
+    typeof metadata.targetValue === 'number' ? metadata.targetValue : null
+  const deadline =
+    typeof metadata.deadline === 'string' ? metadata.deadline : null
+
+  if (!title || !targetValue || targetValue <= 0 || !deadline) {
+    return null
+  }
+
+  const deadlineDate = new Date(deadline)
+  if (isNaN(deadlineDate.getTime())) {
+    return null
+  }
+
+  const storedValue =
+    typeof metadata.currentValue === 'number' ? metadata.currentValue : 0
+  const currentValue = deriveCurrentValue(type, aggregates, storedValue)
+
+  const milestones = Array.isArray(metadata.milestones)
+    ? metadata.milestones.filter((m): m is number => typeof m === 'number')
+    : undefined
+
+  return {
+    id: event.id,
+    title,
+    type,
+    targetValue,
+    currentValue,
+    deadline: deadlineDate.toISOString(),
+    status: deriveStatus(
+      currentValue,
+      targetValue,
+      event.createdAt,
+      deadlineDate
+    ),
+    ...(milestones && milestones.length > 0 && { milestones }),
+    createdAt: event.createdAt.toISOString(),
+  }
 }
 
 export async function GET(request: NextRequest, { params }: RouteParams) {
@@ -39,72 +194,24 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
       )
     }
 
-    // Simulated goals data per spec
-    const goals = [
-      {
-        id: 'goal-1',
-        name: 'Supporter Target',
-        description: 'Recruit 10,000 supporters for this campaign',
-        targetValue: 10000,
-        currentValue: 5000,
-        unit: 'supporters',
-        deadline: new Date(Date.now() + 90 * 24 * 60 * 60 * 1000).toISOString(),
-        status: 'on_track',
-        milestones: [
-          { name: '25%', value: 2500, reached: true },
-          { name: '50%', value: 5000, reached: true },
-          { name: '75%', value: 7500, reached: false },
-          { name: 'Goal', value: 10000, reached: false },
-        ],
-      },
-      {
-        id: 'goal-2',
-        name: 'Brand Response',
-        description: 'Secure brand response within 30 days',
-        targetValue: 1,
-        currentValue: 0,
-        unit: 'responses',
-        deadline: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString(),
-        status: 'at_risk',
-        milestones: [
-          { name: 'Day 10', value: 0.3, reached: true },
-          { name: 'Day 20', value: 0.7, reached: false },
-          { name: 'Day 30', value: 1, reached: false },
-        ],
-      },
-      {
-        id: 'goal-3',
-        name: 'Social Shares',
-        description: 'Reach 5,000 social media shares',
-        targetValue: 5000,
-        currentValue: 2340,
-        unit: 'shares',
-        deadline: new Date(Date.now() + 60 * 24 * 60 * 60 * 1000).toISOString(),
-        status: 'on_track',
-        milestones: [
-          { name: '1K', value: 1000, reached: true },
-          { name: '2.5K', value: 2500, reached: true },
-          { name: '3.75K', value: 3750, reached: false },
-          { name: '5K', value: 5000, reached: false },
-        ],
-      },
-      {
-        id: 'goal-4',
-        name: 'Donation Goal',
-        description: 'Raise £25,000 to support the campaign',
-        targetValue: 25000,
-        currentValue: 12450,
-        unit: '£',
-        deadline: new Date(Date.now() + 120 * 24 * 60 * 60 * 1000).toISOString(),
-        status: 'on_track',
-        milestones: [
-          { name: '£5K', value: 5000, reached: true },
-          { name: '£12.5K', value: 12500, reached: true },
-          { name: '£18.75K', value: 18750, reached: false },
-          { name: '£25K', value: 25000, reached: false },
-        ],
-      },
-    ]
+    const [goalEvents, aggregates] = await Promise.all([
+      prisma.contributionEvent.findMany({
+        where: {
+          campaignId,
+          eventType: 'PREFERENCE_SUBMITTED',
+          metadata: {
+            path: ['action'],
+            equals: 'goal_create',
+          },
+        },
+        orderBy: { createdAt: 'asc' },
+      }),
+      getCampaignAggregates(campaignId),
+    ])
+
+    const goals = goalEvents
+      .map((event) => extractGoal(event, aggregates))
+      .filter((goal): goal is Goal => goal !== null)
 
     return NextResponse.json({
       success: true,
@@ -152,26 +259,22 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
     }
 
     const body = await request.json()
-    const { name, description, targetValue, currentValue, unit, deadline, milestones } = body
+    const { title, type, targetValue, currentValue, deadline, milestones } =
+      body
 
     // Validation
-    if (!name || !name.trim()) {
+    if (!title || typeof title !== 'string' || !title.trim()) {
       return NextResponse.json(
-        { success: false, error: 'Goal name is required' },
+        { success: false, error: 'Goal title is required' },
         { status: 400 }
       )
     }
 
-    if (!targetValue || targetValue <= 0) {
+    const goalType: GoalType = GOAL_TYPES.includes(type) ? type : 'Custom'
+
+    if (typeof targetValue !== 'number' || targetValue <= 0) {
       return NextResponse.json(
         { success: false, error: 'Target value must be greater than 0' },
-        { status: 400 }
-      )
-    }
-
-    if (!unit) {
-      return NextResponse.json(
-        { success: false, error: 'Unit is required' },
         { status: 400 }
       )
     }
@@ -183,16 +286,29 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
       )
     }
 
-    // Create goal as a ContributionEvent with action='goal_create'
-    const metadata: GoalMetadata = {
+    const deadlineDate = new Date(deadline)
+    if (isNaN(deadlineDate.getTime())) {
+      return NextResponse.json(
+        { success: false, error: 'Invalid deadline' },
+        { status: 400 }
+      )
+    }
+
+    const goalMilestones = Array.isArray(milestones)
+      ? milestones.filter((m): m is number => typeof m === 'number')
+      : []
+
+    const metadata = {
       action: 'goal_create',
-      name: name,
-      ...(description && { description }),
-      targetValue: targetValue,
-      currentValue: currentValue || 0,
-      unit: unit,
-      deadline: deadline,
-      ...(milestones && { milestones }),
+      title: title.trim(),
+      type: goalType,
+      targetValue,
+      currentValue:
+        goalType === 'Custom' && typeof currentValue === 'number'
+          ? currentValue
+          : 0,
+      deadline: deadlineDate.toISOString(),
+      ...(goalMilestones.length > 0 && { milestones: goalMilestones }),
     }
 
     const goalEvent = await prisma.contributionEvent.create({
@@ -205,21 +321,13 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
       },
     })
 
+    const aggregates = await getCampaignAggregates(campaignId)
+    const goal = extractGoal(goalEvent, aggregates)
+
     return NextResponse.json(
       {
         success: true,
-        data: {
-          id: goalEvent.id,
-          name: name,
-          description: description || '',
-          targetValue: targetValue,
-          currentValue: currentValue || 0,
-          unit: unit,
-          deadline: deadline,
-          status: 'on_track',
-          milestones: milestones || [],
-          createdAt: goalEvent.createdAt.toISOString(),
-        },
+        data: goal,
       },
       { status: 201 }
     )

@@ -9,10 +9,9 @@ interface Prediction {
   metric: string
   currentValue: number
   predictedValue: number
-  confidence: number
   timeframe: string
   trend: 'up' | 'down' | 'stable'
-  factors: string[]
+  basis: string
 }
 
 interface PredictionsEngineProps {
@@ -143,35 +142,12 @@ export function PredictionsEngine({ campaignId }: PredictionsEngineProps) {
               </div>
             </div>
 
-            {/* Confidence Progress Bar */}
-            <div className="mb-6">
-              <div className="flex items-center justify-between mb-2">
-                <span className="text-sm font-medium text-gray-700">Confidence Level</span>
-                <span className="text-sm font-bold text-violet-700">
-                  {prediction.confidence}%
-                </span>
-              </div>
-              <div className="w-full bg-gray-200 rounded-full h-2 overflow-hidden">
-                <div
-                  className="h-full bg-gradient-to-r from-violet-500 to-violet-600 transition-all"
-                  style={{ width: `${prediction.confidence}%` }}
-                />
-              </div>
-            </div>
-
-            {/* Contributing Factors */}
+            {/* How this projection is derived */}
             <div className="border-t border-current border-opacity-10 pt-4">
               <p className="text-xs font-semibold text-gray-700 mb-2 uppercase tracking-wide">
-                Contributing Factors
+                How this is calculated
               </p>
-              <div className="space-y-1">
-                {prediction.factors.map((factor, idx) => (
-                  <div key={idx} className="flex items-start gap-2">
-                    <span className="text-violet-600 mt-1">•</span>
-                    <span className="text-sm text-gray-700">{factor}</span>
-                  </div>
-                ))}
-              </div>
+              <p className="text-sm text-gray-700">{prediction.basis}</p>
             </div>
 
             {/* Change Indicator */}
@@ -201,20 +177,16 @@ export function PredictionsEngine({ campaignId }: PredictionsEngineProps) {
           <li className="flex items-start gap-2">
             <span className="text-violet-600 font-bold mt-0.5">•</span>
             <span>
-              Average confidence across predictions is{' '}
-              {(data.reduce((a, p) => a + p.confidence, 0) / data.length).toFixed(1)}%
+              {data.filter(p => p.trend === 'up').length} of {data.length}{' '}
+              metrics are accelerating compared with the previous 30 days
             </span>
           </li>
           <li className="flex items-start gap-2">
             <span className="text-violet-600 font-bold mt-0.5">•</span>
             <span>
-              {data.filter(p => p.trend === 'up').length} metrics predicted to grow
-            </span>
-          </li>
-          <li className="flex items-start gap-2">
-            <span className="text-violet-600 font-bold mt-0.5">•</span>
-            <span>
-              Predictions are typically accurate within ±15% margin of error
+              Projections assume the last 30 days&apos; pace continues — they
+              are simple extrapolations of your campaign&apos;s real activity,
+              not guarantees
             </span>
           </li>
         </ul>

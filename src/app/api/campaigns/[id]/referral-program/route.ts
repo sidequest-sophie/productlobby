@@ -4,21 +4,13 @@ import { getCurrentUser } from '@/lib/auth'
 
 export const dynamic = 'force-dynamic'
 
-interface Referral {
-  id: string
-  referrerName: string
-  referredEmail: string
-  status: 'pending' | 'joined' | 'active'
-  joinedAt?: string
-  pointsEarned: number
+interface ReferralEventMetadata {
+  referredEmail?: string
+  referrerName?: string
 }
 
-interface ReferralStats {
-  totalReferrals: number
-  successfulJoins: number
-  conversionRate: number
-  totalPointsEarned: number
-  uniqueReferralLink: string
+function isRecord(v: unknown): v is Record<string, unknown> {
+  return typeof v === 'object' && v !== null && !Array.isArray(v)
 }
 
 const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
@@ -44,6 +36,7 @@ export async function GET(
       where: isUUID
         ? { id }
         : { slug: id },
+      select: { id: true, slug: true },
     })
 
     if (!campaign) {
@@ -53,80 +46,71 @@ export async function GET(
       )
     }
 
-    // Simulated referral data
-    const stats: ReferralStats = {
-      totalReferrals: 45,
-      successfulJoins: 32,
-      conversionRate: 71,
-      totalPointsEarned: 3200,
-      uniqueReferralLink: `https://productlobby.com/ref/${campaign.slug || campaign.id}`,
+    // Get or create the caller's referral link for this campaign
+    // (same lazy-creation pattern as /api/campaigns/[id]/invite-link)
+    let referralLink = await prisma.referralLink.findUnique({
+      where: {
+        userId_campaignId: {
+          userId: user.id,
+          campaignId: campaign.id,
+        },
+      },
+    })
+
+    if (!referralLink) {
+      const code = `ref_${user.id.substring(0, 8)}_${campaign.id.substring(0, 8)}_${Date.now().toString(36)}`
+      referralLink = await prisma.referralLink.create({
+        data: {
+          userId: user.id,
+          campaignId: campaign.id,
+          code,
+        },
+      })
     }
 
-    const referrals: Referral[] = [
-      {
-        id: '1',
-        referrerName: 'Sarah Johnson',
-        referredEmail: 'sarah.j@example.com',
-        status: 'active',
-        joinedAt: '2026-02-10',
-        pointsEarned: 500,
+    // The caller's recorded referrals for this campaign
+    const referralEvents = await prisma.contributionEvent.findMany({
+      where: {
+        campaignId: campaign.id,
+        userId: user.id,
+        eventType: 'REFERRAL_SIGNUP',
       },
-      {
-        id: '2',
-        referrerName: 'Michael Chen',
-        referredEmail: 'michael.chen@example.com',
-        status: 'active',
-        joinedAt: '2026-02-12',
-        pointsEarned: 450,
-      },
-      {
-        id: '3',
-        referrerName: 'Emma Wilson',
-        referredEmail: 'emma.w@example.com',
-        status: 'joined',
-        joinedAt: '2026-02-18',
-        pointsEarned: 400,
-      },
-      {
-        id: '4',
-        referrerName: 'James Taylor',
-        referredEmail: 'james.t@example.com',
-        status: 'active',
-        joinedAt: '2026-02-14',
-        pointsEarned: 480,
-      },
-      {
-        id: '5',
-        referrerName: 'Lisa Anderson',
-        referredEmail: 'lisa.a@example.com',
-        status: 'pending',
-        pointsEarned: 0,
-      },
-      {
-        id: '6',
-        referrerName: 'David Martinez',
-        referredEmail: 'david.m@example.com',
-        status: 'active',
-        joinedAt: '2026-02-08',
-        pointsEarned: 520,
-      },
-      {
-        id: '7',
-        referrerName: 'Sophie Brown',
-        referredEmail: 'sophie.b@example.com',
-        status: 'joined',
-        joinedAt: '2026-02-20',
-        pointsEarned: 350,
-      },
-      {
-        id: '8',
-        referrerName: 'Robert Garcia',
-        referredEmail: 'robert.g@example.com',
-        status: 'active',
-        joinedAt: '2026-02-11',
-        pointsEarned: 490,
-      },
-    ]
+      orderBy: { createdAt: 'desc' },
+    })
+
+    const referrals = referralEvents.map((event) => {
+      const metadata: ReferralEventMetadata = isRecord(event.metadata)
+        ? (event.metadata as ReferralEventMetadata)
+        : {}
+      return {
+        id: event.id,
+        referrerName: metadata.referrerName || user.displayName,
+        referredEmail: metadata.referredEmail || '',
+        status: 'joined' as const,
+        joinedAt: event.createdAt.toISOString(),
+        pointsEarned: event.points,
+      }
+    })
+
+    const totalPointsEarned = referralEvents.reduce(
+      (sum, event) => sum + event.points,
+      0
+    )
+
+    const baseUrl = request.headers.get('origin') || 'https://productlobby.com'
+
+    const stats = {
+      clicks: referralLink.clickCount,
+      signups: referralLink.signupCount,
+      conversionRate:
+        referralLink.clickCount > 0
+          ? Math.round(
+              (referralLink.signupCount / referralLink.clickCount) * 100
+            )
+          : 0,
+      totalPointsEarned,
+      uniqueReferralLink: `${baseUrl}/campaigns/${campaign.slug}?ref=${referralLink.code}`,
+    }
 
     return NextResponse.json({
       stats,
@@ -162,6 +146,7 @@ export async function POST(
       where: isUUID
         ? { id }
         : { slug: id },
+      select: { id: true },
     })
 
     if (!campaign) {
@@ -173,6 +158,16 @@ export async function POST(
 
     const body = await request.json()
 
+    if (
+      typeof body.referredEmail !== 'string' ||
+      body.referredEmail.trim().length === 0
+    ) {
+      return NextResponse.json(
+        { error: 'Referred email is required' },
+        { status: 400 }
+      )
+    }
+
     // Create referral as a ContributionEvent
     const contributionEvent = await prisma.contributionEvent.create({
       data: {
@@ -181,8 +176,11 @@ export async function POST(
         eventType: 'REFERRAL_SIGNUP',
         points: 100,
         metadata: {
-          referredEmail: body.referredEmail,
-          referrerName: body.referrerName,
+          referredEmail: body.referredEmail.trim().toLowerCase(),
+          referrerName:
+            typeof body.referrerName === 'string' && body.referrerName.trim()
+              ? body.referrerName.trim()
+              : user.displayName,
         },
       },
     })

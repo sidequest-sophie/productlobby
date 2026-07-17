@@ -107,35 +107,6 @@ export async function GET(
       }
     })
 
-    // Return simulated data if no tests exist
-    if (tests.length === 0) {
-      const simulatedTests: ABTest[] = [
-        {
-          id: 'sim-1',
-          campaignId: campaign.id,
-          testName: 'CTA Button Color',
-          variantA: {
-            name: 'Blue Button',
-            description: 'Traditional blue call-to-action button',
-            impressions: 5420,
-            conversions: 342,
-          },
-          variantB: {
-            name: 'Green Button',
-            description: 'Green call-to-action button',
-            impressions: 5380,
-            conversions: 418,
-          },
-          status: 'completed',
-          winner: 'B',
-          confidence: 94.2,
-          createdAt: new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString(),
-          updatedAt: new Date(Date.now() - 1 * 24 * 60 * 60 * 1000).toISOString(),
-        },
-      ]
-      return NextResponse.json(simulatedTests)
-    }
-
     return NextResponse.json(tests)
   } catch (error) {
     console.error('Error fetching A/B tests:', error)

@@ -63,77 +63,6 @@ export async function GET(
       }
     })
 
-    // If no events exist, return simulated events
-    if (events.length === 0) {
-      const baseDate = new Date()
-      const simulatedEvents = [
-        {
-          id: `simulated-${Math.random()}`,
-          campaignId,
-          title: 'Community Rally',
-          description: 'Join supporters to discuss campaign strategy and goals',
-          date: new Date(baseDate.getTime() + 7 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
-          time: '14:00',
-          type: 'rally' as const,
-          location: 'Community Center Hall A',
-          attendees: 24,
-          maxAttendees: 50,
-          isVirtual: false,
-        },
-        {
-          id: `simulated-${Math.random()}`,
-          campaignId,
-          title: 'Strategy Webinar',
-          description: 'Live Q&A session with campaign organizers',
-          date: new Date(baseDate.getTime() + 14 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
-          time: '19:00',
-          type: 'webinar' as const,
-          location: undefined,
-          attendees: 156,
-          maxAttendees: 500,
-          isVirtual: true,
-        },
-        {
-          id: `simulated-${Math.random()}`,
-          campaignId,
-          title: 'Social Media Blitz',
-          description: 'Coordinated social media push across all platforms',
-          date: new Date(baseDate.getTime() + 3 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
-          time: '10:00',
-          type: 'social_blast' as const,
-          location: undefined,
-          attendees: 89,
-          isVirtual: true,
-        },
-        {
-          id: `simulated-${Math.random()}`,
-          campaignId,
-          title: 'Campaign Milestone',
-          description: 'We hit 10,000 supporters - thank you everyone!',
-          date: new Date(baseDate.getTime() + 21 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
-          time: '12:00',
-          type: 'milestone' as const,
-          location: undefined,
-          attendees: 10000,
-          isVirtual: true,
-        },
-        {
-          id: `simulated-${Math.random()}`,
-          campaignId,
-          title: 'Final Supporter Meetup',
-          description: 'Last chance to meet fellow supporters in person',
-          date: new Date(baseDate.getTime() + 28 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
-          time: '18:00',
-          type: 'meetup' as const,
-          location: 'Downtown Plaza',
-          attendees: 42,
-          maxAttendees: 75,
-          isVirtual: false,
-        },
-      ]
-      return NextResponse.json({ events: simulatedEvents })
-    }
-
     return NextResponse.json({ events })
   } catch (error) {
     console.error('Error getting campaign events:', error)
@@ -219,7 +148,12 @@ export async function POST(
         where: { id: eventId },
       })
 
-      if (!event) {
+      if (
+        !event ||
+        event.campaignId !== campaignId ||
+        ((event.metadata as Record<string, any>) || {}).action !==
+          'campaign_event'
+      ) {
         return NextResponse.json(
           { error: 'Event not found' },
           { status: 404 }

@@ -17,7 +17,6 @@ export interface TeamMember {
   role: TeamMemberRole
   avatar?: string
   joinedAt: string
-  lastActive: string
 }
 
 interface TeamManagementProps {
@@ -305,11 +304,6 @@ export function TeamManagement({ campaignId }: TeamManagementProps) {
                         <Clock className="h-3 w-3" />
                         Joined {formatDate(member.joinedAt)}
                       </div>
-                      {member.lastActive && (
-                        <div className="text-xs text-gray-500">
-                          Last active {formatDate(member.lastActive)}
-                        </div>
-                      )}
                     </div>
                   </div>
 

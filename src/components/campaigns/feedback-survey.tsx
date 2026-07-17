@@ -27,6 +27,7 @@ interface FeedbackSurveyProps {
 
 export default function FeedbackSurvey({ campaignId }: FeedbackSurveyProps) {
   const [questions, setQuestions] = useState<SurveyQuestion[]>([])
+  const [surveyId, setSurveyId] = useState<string | null>(null)
   const [loading, setLoading] = useState(true)
   const [submitting, setSubmitting] = useState(false)
   const [responses, setResponses] = useState<Record<string, string | number>>({})
@@ -43,6 +44,7 @@ export default function FeedbackSurvey({ campaignId }: FeedbackSurveyProps) {
       const data = await response.json()
       if (data.success) {
         setQuestions(data.data || [])
+        setSurveyId(data.surveyId || null)
       }
     } catch (error) {
       console.error('Failed to fetch survey:', error)
@@ -53,6 +55,11 @@ export default function FeedbackSurvey({ campaignId }: FeedbackSurveyProps) {
   }
 
   const submitSurvey = async () => {
+    if (!surveyId) {
+      toast.error('No survey available to submit')
+      return
+    }
+
     // Validate required fields
     const unanswered = questions.filter(q => q.required && !(q.id in responses))
     if (unanswered.length > 0) {
@@ -62,15 +69,17 @@ export default function FeedbackSurvey({ campaignId }: FeedbackSurveyProps) {
 
     try {
       setSubmitting(true)
-      const surveyResponses: SurveyResponse[] = questions.map(q => ({
-        questionId: q.id,
-        answer: responses[q.id] || '',
-      }))
+      const surveyResponses: SurveyResponse[] = questions
+        .filter(q => q.id in responses && responses[q.id] !== '')
+        .map(q => ({
+          questionId: q.id,
+          answer: responses[q.id],
+        }))
 
       const response = await fetch(`/api/campaigns/${campaignId}/feedback-survey`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ responses: surveyResponses }),
+        body: JSON.stringify({ surveyId, responses: surveyResponses }),
       })
       const data = await response.json()
       if (data.success) {

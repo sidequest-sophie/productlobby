@@ -1,90 +1,70 @@
 export const dynamic = 'force-dynamic'
 
 import { NextRequest, NextResponse } from 'next/server'
+import { OutreachStatus } from '@prisma/client'
 import { prisma } from '@/lib/db'
 import { getCurrentUser } from '@/lib/auth'
 
 /**
- * Email Outreach API
- * GET /api/campaigns/[id]/email-outreach - Get email templates for a campaign
- * POST /api/campaigns/[id]/email-outreach - Create a new email template
+ * Email Outreach API - backed by the OutreachQueue model.
+ * GET /api/campaigns/[id]/email-outreach - List outreach emails for a campaign
+ * POST /api/campaigns/[id]/email-outreach - Queue a new outreach email
  */
 
-interface EmailTemplate {
+interface OutreachEmail {
   id: string
-  name: string
+  brandName: string
+  brandEmail: string
   subject: string
   body: string
-  recipientCount: number
-  sentCount: number
-  openRate: number
-  clickRate: number
-  status: 'draft' | 'scheduled' | 'sent' | 'failed'
+  status: 'pending' | 'sent' | 'failed' | 'opened' | 'responded'
+  sentAt: string | null
+  openedAt: string | null
+  respondedAt: string | null
+  createdAt: string
 }
 
 interface GetResponse {
   success: boolean
-  templates?: EmailTemplate[]
+  emails?: OutreachEmail[]
   error?: string
 }
 
 interface PostResponse {
   success: boolean
-  template?: EmailTemplate
+  email?: OutreachEmail
   error?: string
 }
 
-// Simulated email templates with realistic metrics
-const generateTemplates = (campaignId: string): EmailTemplate[] => [
-  {
-    id: `template-${campaignId}-1`,
-    name: 'Welcome Supporters',
-    subject: 'Welcome to our movement!',
-    body: 'Thank you for supporting our campaign. We are excited to have you on board and look forward to making a difference together.',
-    recipientCount: 2500,
-    sentCount: 2450,
-    openRate: 42,
-    clickRate: 18,
-    status: 'sent',
-  },
-  {
-    id: `template-${campaignId}-2`,
-    name: 'Campaign Update',
-    subject: 'Latest campaign progress update',
-    body: 'We wanted to share the latest updates on our campaign progress. Your support has been instrumental in reaching our goals.',
-    recipientCount: 2450,
-    sentCount: 2380,
-    openRate: 38,
-    clickRate: 16,
-    status: 'sent',
-  },
-  {
-    id: `template-${campaignId}-3`,
-    name: 'Action Required',
-    subject: 'Take action now - we need you',
-    body: 'Time is running out! We need your help to reach our target. Please share this campaign with your network and spread the word.',
-    recipientCount: 2380,
-    sentCount: 0,
-    openRate: 0,
-    clickRate: 0,
-    status: 'draft',
-  },
-  {
-    id: `template-${campaignId}-4`,
-    name: 'Milestone Celebration',
-    subject: 'We reached a major milestone together!',
-    body: 'Thanks to supporters like you, we have reached a major milestone. This is a testament to the power of our collective action.',
-    recipientCount: 2500,
-    sentCount: 2500,
-    openRate: 54,
-    clickRate: 28,
-    status: 'sent',
-  },
-]
+function serialiseEmail(entry: {
+  id: string
+  brandName: string
+  brandEmail: string
+  subject: string
+  plainTextContent: string
+  status: OutreachStatus
+  sentAt: Date | null
+  openedAt: Date | null
+  respondedAt: Date | null
+  createdAt: Date
+}): OutreachEmail {
+  return {
+    id: entry.id,
+    brandName: entry.brandName,
+    brandEmail: entry.brandEmail,
+    subject: entry.subject,
+    body: entry.plainTextContent,
+    status: entry.status.toLowerCase() as OutreachEmail['status'],
+    sentAt: entry.sentAt ? entry.sentAt.toISOString() : null,
+    openedAt: entry.openedAt ? entry.openedAt.toISOString() : null,
+    respondedAt: entry.respondedAt ? entry.respondedAt.toISOString() : null,
+    createdAt: entry.createdAt.toISOString(),
+  }
+}
 
 /**
  * GET /api/campaigns/[id]/email-outreach
- * Get email templates for a campaign
+ * List the outreach emails queued/sent for a campaign
  */
 export async function GET(
   request: NextRequest,
@@ -124,12 +104,14 @@ export async function GET(
       )
     }
 
-    // Return simulated email templates
-    const templates = generateTemplates(campaign.id)
+    const entries = await prisma.outreachQueue.findMany({
+      where: { campaignId: campaign.id },
+      orderBy: { createdAt: 'desc' },
+    })
 
     return NextResponse.json({
       success: true,
-      templates,
+      emails: entries.map(serialiseEmail),
     })
   } catch (error) {
     console.error('Error in GET /api/campaigns/[id]/email-outreach:', error)
@@ -142,7 +124,7 @@ export async function GET(
 
 /**
  * POST /api/campaigns/[id]/email-outreach
- * Create a new email template as a contribution event
+ * Queue a new outreach email for the campaign
  */
 export async function POST(
   request: NextRequest,
@@ -160,11 +142,28 @@ export async function POST(
 
     const campaignId = params.id
     const body = await request.json()
-    const { subject, body: emailBody } = body
+    const { subject, body: emailBody, brandName, brandEmail } = body
 
     if (!subject || !emailBody) {
       return NextResponse.json(
         { success: false, error: 'Subject and body are required' },
+        { status: 400 }
+      )
+    }
+
+    if (!brandName || !brandEmail) {
+      return NextResponse.json(
+        { success: false, error: 'Brand name and brand email are required' },
+        { status: 400 }
+      )
+    }
+
+    if (
+      typeof brandEmail !== 'string' ||
+      !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(brandEmail)
+    ) {
+      return NextResponse.json(
+        { success: false, error: 'Invalid brand email address' },
         { status: 400 }
       )
     }
@@ -191,38 +190,28 @@ export async function POST(
       )
     }
 
-    // Create contribution event for email outreach
-    const event = await prisma.contributionEvent.create({
+    const escapeHtml = (value: string) =>
+      value
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+
+    const entry = await prisma.outreachQueue.create({
       data: {
         campaignId: campaign.id,
-        userId: user.id,
-        eventType: 'BRAND_OUTREACH',
-        points: 1,
-        metadata: {
-          action: 'email_outreach',
-          subject,
-          body: emailBody,
-          type: 'email_template',
-        },
+        brandName: String(brandName).trim(),
+        brandEmail: brandEmail.trim().toLowerCase(),
+        subject: String(subject).trim(),
+        plainTextContent: String(emailBody),
+        htmlContent: `<p>${escapeHtml(String(emailBody)).replace(/\n/g, '<br />')}</p>`,
+        status: 'PENDING',
       },
     })
 
-    // Return new template
-    const newTemplate: EmailTemplate = {
-      id: event.id,
-      name: `Email - ${new Date().toLocaleDateString()}`,
-      subject,
-      body: emailBody,
-      recipientCount: 0,
-      sentCount: 0,
-      openRate: 0,
-      clickRate: 0,
-      status: 'draft',
-    }
-
     return NextResponse.json({
       success: true,
-      template: newTemplate,
+      email: serialiseEmail(entry),
     })
   } catch (error) {
     console.error('Error in POST /api/campaigns/[id]/email-outreach:', error)

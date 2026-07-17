@@ -21,10 +21,39 @@ interface AudienceInsightsResponse {
   totalAudience: number
   segments: AudienceSegment[]
   demographics: {
-    ageGroups: DemographicItem[]
     interests: DemographicItem[]
-    platforms: DemographicItem[]
+    locations: DemographicItem[]
   }
+}
+
+const DAY_MS = 24 * 60 * 60 * 1000
+
+/**
+ * Percent change of the last 30 days vs the 30 days before.
+ */
+function growthRate(last30: number, prev30: number): number {
+  if (prev30 === 0) {
+    return last30 > 0 ? 100 : 0
+  }
+  return Math.round(((last30 - prev30) / prev30) * 100)
+}
+
+function windowCounts(dates: Date[]): { last30: number; prev30: number } {
+  const now = Date.now()
+  const last30Start = now - 30 * DAY_MS
+  const prev30Start = now - 60 * DAY_MS
+
+  let last30 = 0
+  let prev30 = 0
+  for (const date of dates) {
+    const t = date.getTime()
+    if (t >= last30Start) {
+      last30++
+    } else if (t >= prev30Start) {
+      prev30++
+    }
+  }
+  return { last30, prev30 }
 }
 
 export async function GET(
@@ -34,10 +63,21 @@ export async function GET(
   try {
     const { id } = params
 
-    // Validate campaign exists
-    const campaign = await prisma.campaign.findUnique({
-      where: { id },
-      select: { id: true },
+    const user = await getCurrentUser()
+
+    if (!user) {
+      return NextResponse.json(
+        { error: 'Unauthorized' },
+        { status: 401 }
+      )
+    }
+
+    // Validate campaign exists (by UUID or slug)
+    const campaign = await prisma.campaign.findFirst({
+      where: {
+        OR: [{ id }, { slug: id }],
+      },
+      select: { id: true, creatorUserId: true },
     })
 
     if (!campaign) {
@@ -47,85 +87,142 @@ export async function GET(
       )
     }
 
-    // Simulated audience data based on spec
-    const simulatedData: AudienceInsightsResponse = {
-      totalAudience: 4567,
-      segments: [
-        {
-          name: 'Early Adopters',
-          count: 1250,
-          percentage: 27,
-          growth: 12,
-          characteristics: [
-            'Tech-savvy',
-            'First to try new products',
-            'High engagement rate',
-            'Share feedback actively',
-          ],
-        },
-        {
-          name: 'Value Seekers',
-          count: 1580,
-          percentage: 35,
-          growth: 8,
-          characteristics: [
-            'Price-conscious',
-            'Compare options thoroughly',
-            'Long consideration period',
-            'Look for deals and discounts',
-          ],
-        },
-        {
-          name: 'Brand Advocates',
-          count: 980,
-          percentage: 21,
-          growth: 15,
-          characteristics: [
-            'Loyal to trusted brands',
-            'Recommend to friends',
-            'Participate in communities',
-            'Share authentic reviews',
-          ],
-        },
-        {
-          name: 'Casual Browsers',
-          count: 757,
-          percentage: 17,
-          growth: 3,
-          characteristics: [
-            'Occasional researchers',
-            'Browse multiple campaigns',
-            'Low conversion intent',
-            'Interested but undecided',
-          ],
-        },
-      ],
+    // Audience insights are creator-only analytics
+    if (campaign.creatorUserId !== user.id) {
+      return NextResponse.json(
+        { error: 'Forbidden' },
+        { status: 403 }
+      )
+    }
+
+    const [lobbies, pledges] = await Promise.all([
+      prisma.lobby.findMany({
+        where: { campaignId: campaign.id },
+        select: { userId: true, intensity: true, createdAt: true },
+      }),
+      prisma.pledge.findMany({
+        where: { campaignId: campaign.id },
+        select: { userId: true, createdAt: true },
+      }),
+    ])
+
+    // Total audience = unique users who lobbied or pledged
+    const supporterIds = new Set<string>()
+    lobbies.forEach(lobby => supporterIds.add(lobby.userId))
+    pledges.forEach(pledge => supporterIds.add(pledge.userId))
+    const totalAudience = supporterIds.size
+
+    // Segments derived from lobby intensity + pledges (real rows only).
+    // Characteristics describe how each segment is defined, not invented traits.
+    const intensitySegments: Array<{
+      intensity: 'TAKE_MY_MONEY' | 'PROBABLY_BUY' | 'NEAT_IDEA'
+      name: string
+      characteristics: string[]
+    }> = [
+      {
+        intensity: 'TAKE_MY_MONEY',
+        name: 'Ready to Buy',
+        characteristics: [
+          'Lobbied at "Take my money" intensity',
+          'Strongest purchase-intent signal on the platform',
+        ],
+      },
+      {
+        intensity: 'PROBABLY_BUY',
+        name: 'Likely Buyers',
+        characteristics: [
+          'Lobbied at "Probably buy" intensity',
+          'Positive purchase intent, not yet committed',
+        ],
+      },
+      {
+        intensity: 'NEAT_IDEA',
+        name: 'Interested Followers',
+        characteristics: [
+          'Lobbied at "Neat idea" intensity',
+          'Curious about the product, lowest intent tier',
+        ],
+      },
+    ]
+
+    const segments: AudienceSegment[] = []
+
+    for (const def of intensitySegments) {
+      const members = lobbies.filter(l => l.intensity === def.intensity)
+      if (members.length === 0) continue
+
+      const { last30, prev30 } = windowCounts(members.map(m => m.createdAt))
+      segments.push({
+        name: def.name,
+        count: members.length,
+        percentage:
+          totalAudience > 0
+            ? Math.round((members.length / totalAudience) * 100)
+            : 0,
+        growth: growthRate(last30, prev30),
+        characteristics: def.characteristics,
+      })
+    }
+
+    // Pledged backers as a cross-cutting segment
+    const pledgeUserIds = new Set(pledges.map(p => p.userId))
+    if (pledgeUserIds.size > 0) {
+      const { last30, prev30 } = windowCounts(pledges.map(p => p.createdAt))
+      segments.push({
+        name: 'Pledged Backers',
+        count: pledgeUserIds.size,
+        percentage:
+          totalAudience > 0
+            ? Math.round((pledgeUserIds.size / totalAudience) * 100)
+            : 0,
+        growth: growthRate(last30, prev30),
+        characteristics: [
+          'Made a formal pledge on this campaign',
+          'May also appear in a lobby intensity segment',
+        ],
+      })
+    }
+
+    // Demographics from supporters' own profiles (interests and location)
+    const supporters =
+      totalAudience > 0
+        ? await prisma.user.findMany({
+            where: { id: { in: Array.from(supporterIds) } },
+            select: { interests: true, location: true },
+          })
+        : []
+
+    const interestCounts: Record<string, number> = {}
+    const locationCounts: Record<string, number> = {}
+    supporters.forEach(supporter => {
+      supporter.interests.forEach(interest => {
+        interestCounts[interest] = (interestCounts[interest] || 0) + 1
+      })
+      if (supporter.location) {
+        locationCounts[supporter.location] =
+          (locationCounts[supporter.location] || 0) + 1
+      }
+    })
+
+    const toDemographicItems = (
+      counts: Record<string, number>,
+      limit: number
+    ): DemographicItem[] =>
+      Object.entries(counts)
+        .map(([label, value]) => ({ label, value }))
+        .sort((a, b) => b.value - a.value)
+        .slice(0, limit)
+
+    const response: AudienceInsightsResponse = {
+      totalAudience,
+      segments,
       demographics: {
-        ageGroups: [
-          { label: '18-24', value: 680 },
-          { label: '25-34', value: 1420 },
-          { label: '35-44', value: 1150 },
-          { label: '45-54', value: 620 },
-          { label: '55+', value: 97 },
-        ],
-        interests: [
-          { label: 'Technology', value: 1200 },
-          { label: 'Sustainability', value: 980 },
-          { label: 'Health & Wellness', value: 820 },
-          { label: 'Design', value: 750 },
-          { label: 'Innovation', value: 680 },
-          { label: 'Lifestyle', value: 537 },
-        ],
-        platforms: [
-          { label: 'Web', value: 2850 },
-          { label: 'Mobile App', value: 1250 },
-          { label: 'Email', value: 320 },
-          { label: 'Social Media', value: 147 },
-        ],
+        interests: toDemographicItems(interestCounts, 6),
+        locations: toDemographicItems(locationCounts, 5),
       },
     }
 
-    return NextResponse.json(simulatedData)
+    return NextResponse.json(response)
   } catch (error) {
     console.error('Error fetching audience insights:', error)
     return NextResponse.json(
